@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Django stuff
+db.sqlite3
+media/
+staticfiles/
+
+# Environment
+.env
+
+# Virtual env (if inside backend)
+venv/

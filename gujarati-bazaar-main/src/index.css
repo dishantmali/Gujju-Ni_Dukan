@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Gujju ni Dukan — warm earthy bazaar design system. All HSL. */
+@layer base {
+  :root {
+    /* Cream backgrounds */
+    --background: 36 50% 97%;          /* #FAF6F0 */
+    --background-warm: 33 100% 97%;    /* #FFF8F0 */
+    --foreground: 22 75% 14%;          /* deep brown text */
+
+    --card: 0 0% 100%;
+    --card-foreground: 22 75% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 22 75% 14%;
+
+    /* Brand browns */
+    --primary: 22 80% 20%;             /* #5C2E0A deep brown */
+    --primary-foreground: 36 50% 97%;
+
+    --brown-mid: 26 58% 40%;           /* #A0622A */
+    --brown-light: 30 51% 54%;         /* #C8934A */
+
+    --secondary: 33 60% 92%;           /* warm cream secondary */
+    --secondary-foreground: 22 75% 20%;
+
+    --muted: 34 40% 93%;
+    --muted-foreground: 25 25% 40%;
+
+    --accent: 36 80% 52%;              /* #E8A020 saffron gold */
+    --accent-foreground: 22 75% 14%;
+
+    --destructive: 8 75% 48%;
+    --destructive-foreground: 36 50% 97%;
+
+    --success: 142 50% 36%;
+    --success-foreground: 36 50% 97%;
+
+    --border: 30 30% 86%;
+    --input: 30 30% 86%;
+    --ring: 26 58% 40%;
+
+    --radius: 0.875rem;
+
+    /* Curated gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(33 100% 97%) 0%, hsl(36 60% 93%) 100%);
+    --gradient-vendor: linear-gradient(135deg, hsl(26 58% 40%) 0%, hsl(36 80% 52%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(36 80% 52%) 0%, hsl(30 51% 54%) 100%);
+
+    /* Soft shadows (brown-tinted) */
+    --shadow-sm: 0 1px 2px 0 hsl(22 75% 14% / 0.04);
+    --shadow-card: 0 4px 16px -4px hsl(22 75% 14% / 0.08), 0 2px 6px -2px hsl(22 75% 14% / 0.04);
+    --shadow-lift: 0 18px 40px -12px hsl(22 75% 14% / 0.18), 0 6px 14px -6px hsl(22 75% 14% / 0.08);
+    --shadow-glow: 0 0 0 4px hsl(36 80% 52% / 0.18);
+
+    --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --sidebar-background: 36 50% 97%;
+    --sidebar-foreground: 22 75% 14%;
+    --sidebar-primary: 22 80% 20%;
+    --sidebar-primary-foreground: 36 50% 97%;
+    --sidebar-accent: 33 60% 92%;
+    --sidebar-accent-foreground: 22 75% 20%;
+    --sidebar-border: 30 30% 86%;
+    --sidebar-ring: 26 58% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4, h5 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer components {
+  .card-tilt {
+    transform-style: preserve-3d;
+    transition: transform 0.5s var(--transition-smooth), box-shadow 0.4s var(--transition-smooth);
+    will-change: transform;
+  }
+  .card-tilt-inner {
+    transform: translateZ(20px);
+  }
+
+  .pill-scroll {
+    scrollbar-width: none;
+  }
+  .pill-scroll::-webkit-scrollbar { display: none; }
+
+  .float-label {
+    @apply relative;
+  }
+  .float-label input,
+  .float-label textarea {
+    /* peer behavior is applied directly in the markup; sibling selectors below handle floating */
+  }
+  .float-label label {
+    @apply absolute left-3 top-3 text-muted-foreground transition-all duration-200 pointer-events-none bg-card px-1;
+  }
+  .float-label input:focus + label,
+  .float-label input:not(:placeholder-shown) + label,
+  .float-label textarea:focus + label,
+  .float-label textarea:not(:placeholder-shown) + label {
+    @apply -top-2 text-xs text-primary;
+  }
+
+  .underline-grow {
+    @apply relative after:content-[''] after:absolute after:left-0 after:-bottom-1 after:h-[2px] after:w-full after:scale-x-0 after:origin-right after:bg-accent after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-left;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .bg-gradient-warm { background: var(--gradient-warm); }
+  .bg-gradient-vendor { background: var(--gradient-vendor); }
+  .bg-gradient-accent { background: var(--gradient-accent); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-lift { box-shadow: var(--shadow-lift); }
+}
+
+/* ── Category marquee infinite scroll ── */
+@keyframes category-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+.category-marquee-wrap {
+  mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+}
+
+.category-marquee-track {
+  animation: category-scroll 25s linear infinite;
+  width: max-content;
+}
+
+.category-marquee-track:hover {
+  animation-play-state: paused;
+}
