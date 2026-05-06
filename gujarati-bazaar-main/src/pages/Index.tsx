@@ -349,10 +349,7 @@ const Index = () => {
 
       {/* ─── 3. Category Slider ─── */}
       <section className="container py-8">
-        <SectionHeader
-          icon={<Sparkles size={22} />}
-          title="Categories"
-        />
+
         <CategoryMarquee />
       </section>
 

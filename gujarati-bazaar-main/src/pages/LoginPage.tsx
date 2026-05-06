@@ -61,13 +61,20 @@ const LoginPage = () => {
 
         {/* Top: Logo */}
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative z-10 flex items-center gap-3"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="relative z-10"
         >
-          <img src={logo} alt="Gujju ni Dukan" className="w-30 h-16 rounded-xl object-cover shadow-lg logo-transparent bg-primary" />
-          
+          <Link to="/" className="inline-block group">
+            <div className="relative p-1 bg-white/10 backdrop-blur-xl rounded-[2rem] border border-white/20 shadow-2xl transition-all duration-500 group-hover:scale-110 group-hover:bg-white/20">
+              <img 
+                src={logo} 
+                alt="Gujju ni Dukan" 
+                className="h-20 w-30 object-cover rounded-[1.75rem] shadow-inner brightness-110" 
+              />
+            </div>
+          </Link>
         </motion.div>
 
         {/* Center: Headline + decorative features */}
@@ -138,14 +145,16 @@ const LoginPage = () => {
           className="w-full max-w-md xl:max-w-lg"
         >
           {/* Mobile-only brand header */}
-          <div className="lg:hidden text-center mb-6">
-            <img src={logo} alt="Gujju ni Dukan" className="w-14 h-14 rounded-2xl object-cover mx-auto mb-3 shadow-lift logo-transparent bg-background" />
-            <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-              Gujju ni Dukan
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Welcome back to your Gujarati marketplace
-            </p>
+          <div className="lg:hidden flex flex-col items-center mb-10">
+            <Link to="/" className="group">
+              <div className="relative p-1 bg-primary/5 rounded-[2rem] border border-primary/10 shadow-2xl transition-all duration-500 group-hover:scale-110">
+                <img 
+                  src={logo} 
+                  alt="Gujju ni Dukan" 
+                  className="w-20 h-20 object-cover rounded-[1.75rem] shadow-inner" 
+                />
+              </div>
+            </Link>
           </div>
 
           <motion.div
@@ -154,7 +163,7 @@ const LoginPage = () => {
             transition={{ delay: 0.1 }}
             className="bg-card rounded-2xl border border-border shadow-lift p-8 sm:p-10"
           >
-            <div className="mb-6">
+            <div className="mb-6 hidden lg:block">
               <h2 className="font-display text-2xl font-bold text-foreground mb-1">
                 Sign In
               </h2>
