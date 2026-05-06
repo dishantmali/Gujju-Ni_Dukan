@@ -11,6 +11,7 @@ import {
   Quote,
   Store,
   LayoutGrid,
+  Search,
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
@@ -18,6 +19,7 @@ import { VendorCard } from "@/components/VendorCard";
 import { categories, vendors } from "@/data/vendors";
 import { products as mockProducts, getProductsByCategory } from "@/data/products";
 import api from "@/lib/api";
+import { mapApiProduct } from "@/lib/mapApiProduct";
 
 import heroBanner from "@/assets/hero-banner.png";
 import promoBanner1 from "@/assets/promo-banner-1.png";
@@ -215,19 +217,7 @@ const Index = () => {
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const mapProduct = (p: any) => ({
-    ...p,
-    id: p.id.toString(),
-    rating: p.average_rating || p.rating || 0,
-    reviewCount: p.review_count || 0,
-    vendorId: p.vendor?.toString() || "",
-    originalPrice: p.price * 1.2, // Mocking original price if not in backend
-    discount: 20,
-    isNew: true, // Placeholder logic
-    isTrending: true,
-    specs: p.specs || {},
-    reviews: p.reviews || []
-  });
+  const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
   const fetchHomeData = async () => {
     try {
@@ -321,11 +311,11 @@ const Index = () => {
       </div>
 
       {/* ─── 2. Hero Banner ─── */}
-      <section className="relative w-full overflow-hidden" style={{ maxHeight: "240px" }}>
+      <section className="relative w-full overflow-hidden" style={{ maxHeight: "320px" }}>
         <img
           src={heroBanner}
           alt="Gujju ni Dukan — Authentic Gujarati Products"
-          className="w-full h-[140px] sm:h-[180px] lg:h-[240px] object-cover"
+          className="w-full h-[200px] sm:h-[260px] lg:h-[320px] object-cover"
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary/40 to-transparent" />
@@ -335,7 +325,7 @@ const Index = () => {
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="max-w-md"
+              className="max-w-lg"
             >
               <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight drop-shadow-lg">
                 Authentic Gujarati
@@ -345,9 +335,10 @@ const Index = () => {
               <p className="mt-2 text-white/80 text-sm sm:text-base max-w-xs drop-shadow">
                 From family vendors to your doorstep — snacks, spices, sweets & more.
               </p>
+
               <Link
                 to="/category/snacks"
-                className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm hover:bg-brown-light transition-colors shadow-card"
+                className="mt-3 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm hover:bg-brown-light transition-colors shadow-card"
               >
                 Shop Now <ArrowRight size={16} />
               </Link>

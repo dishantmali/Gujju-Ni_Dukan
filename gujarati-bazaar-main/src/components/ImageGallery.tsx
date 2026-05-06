@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const ImageGallery = ({ images, alt }: { images: string[]; alt: string }) => {
   const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    setActive(0);
+  }, [images.join("|")]);
+
   return (
     <div className="grid gap-3">
       <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-warm shadow-card">

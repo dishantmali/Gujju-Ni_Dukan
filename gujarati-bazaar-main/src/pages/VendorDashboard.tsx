@@ -26,7 +26,21 @@ import { toast } from "sonner";
 import api from '@/lib/api';
 
 const VendorDashboard = () => {
+  type VariantAttribute = {
+    name: string;
+    valuesText: string;
+  };
+
+  type NewVariantForm = {
+    option_values: Record<string, string>;
+    sku: string;
+    price: string;
+    stock_quantity: string;
+  };
+
   const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
+  const canAccessVendorDashboard = isAuthenticated && user?.role === "vendor";
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("products");
   const [viewType, setViewType] = useState("grid");
@@ -44,6 +58,19 @@ const VendorDashboard = () => {
     category: "", 
     stock_quantity: "" 
   });
+  const [newProductVariants, setNewProductVariants] = useState<NewVariantForm[]>([
+    { option_values: {}, sku: "", price: "", stock_quantity: "" },
+  ]);
+  const [addProductStep, setAddProductStep] = useState(1);
+  const [variantAttributes, setVariantAttributes] = useState<VariantAttribute[]>([
+    { name: "Color", valuesText: "" },
+    { name: "Size", valuesText: "" },
+  ]);
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkStock, setBulkStock] = useState("");
+  const [newProductImage, setNewProductImage] = useState<File | null>(null);
+  const [newProductExtraImages, setNewProductExtraImages] = useState<File[]>([]);
+  const [variantImageFiles, setVariantImageFiles] = useState<Record<number, File[]>>({});
   const [newCategory, setNewCategory] = useState({ name: "" });
   const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "" });
 
@@ -73,6 +100,29 @@ const VendorDashboard = () => {
     queryFn: () => api.get('/vendor/subscription/current/') as any
   });
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toast.error("Please log in as a vendor.");
+      navigate("/login", { replace: true });
+      return;
+    }
+    if (user && user.role !== "vendor") {
+      toast.error("Only vendors can access the vendor dashboard.");
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate, user]);
+
+  useEffect(() => {
+    if ((window as any).Razorpay) return;
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   // Mutations
   const updateProductMutation = useMutation({
     mutationFn: ({ id, data }: { id: number, data: any }) => 
@@ -98,15 +148,38 @@ const VendorDashboard = () => {
   });
 
   const addProductMutation = useMutation({
-    mutationFn: (data: any) => api.post('/vendor/products/', data),
+    mutationFn: (data: any) =>
+      api.post('/vendor/products/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
       toast.success('Product added! Waiting for admin approval.');
       setNewProduct({ name: "", price: "", description: "", category: "", stock_quantity: "" });
+      setNewProductVariants([{ option_values: {}, sku: "", price: "", stock_quantity: "" }]);
+      setVariantAttributes([
+        { name: "Color", valuesText: "" },
+        { name: "Size", valuesText: "" },
+      ]);
+      setBulkPrice("");
+      setBulkStock("");
+      setNewProductImage(null);
+      setNewProductExtraImages([]);
+      setVariantImageFiles({});
+      setAddProductStep(1);
       setActiveTab("products");
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to add product');
+      // console.error("[VENDOR ADD PRODUCT ERROR]", error);
+      // console.error("[VENDOR] response status:", error?.response?.status);
+      // console.error("[VENDOR] response data type:", typeof error?.response?.data);
+      // console.error("[VENDOR] response data:", error?.response?.data);
+      const backendMessage =
+        error?.response?.data?.detail ||
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        (typeof error?.response?.data === 'string' ? error.response.data.substring(0, 200) : undefined);
+      toast.error(backendMessage || error.message || 'Failed to add product');
     }
   });
 
@@ -144,6 +217,61 @@ const VendorDashboard = () => {
     onError: (error: any) => {
       toast.error(error.message || 'Failed to request offer');
     }
+  });
+
+  const createSubscriptionOrderMutation = useMutation({
+    mutationFn: (planId: number) => api.post('/vendor/subscription/create-order/', { plan_id: planId }) as any,
+    onSuccess: (data: any) => {
+      // Free plan activates instantly on backend.
+      if (!data?.razorpay_order_id) {
+        toast.success(data?.message || 'Subscription activated successfully.');
+        queryClient.invalidateQueries({ queryKey: ['current-subscription'] });
+        queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
+        return;
+      }
+
+      const RazorpayCtor = (window as any).Razorpay;
+      if (!RazorpayCtor) {
+        toast.error('Razorpay is not loaded. Please refresh and try again.');
+        return;
+      }
+
+      const options = {
+        key: data.razorpay_key_id,
+        amount: data.amount,
+        currency: data.currency,
+        name: 'Gujarati Bazaar',
+        description: `${data.plan_name} Subscription`,
+        order_id: data.razorpay_order_id,
+        handler: async (response: any) => {
+          try {
+            await api.post('/vendor/subscription/verify/', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              plan_id: data.plan_id,
+            });
+            toast.success('Subscription activated successfully!');
+            queryClient.invalidateQueries({ queryKey: ['current-subscription'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
+          } catch (verifyError: any) {
+            const msg = verifyError?.response?.data?.error || 'Payment verification failed.';
+            toast.error(msg);
+          }
+        },
+        theme: { color: '#A87C51' },
+      };
+
+      const razorpay = new RazorpayCtor(options);
+      razorpay.open();
+    },
+    onError: (error: any) => {
+      const backendMessage =
+        error?.response?.data?.detail ||
+        error?.response?.data?.error ||
+        error?.response?.data?.message;
+      toast.error(backendMessage || 'Unable to start subscription checkout.');
+    },
   });
 
   const handleFieldChange = (productId: string, field: string, value: string) => {
@@ -214,14 +342,220 @@ const VendorDashboard = () => {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    addProductMutation.mutate(newProduct);
+    if (currentSubscription && currentSubscription.has_subscription === false) {
+      toast.error("Please activate a subscription plan before adding products.");
+      setActiveTab("subscription");
+      return;
+    }
+    if (!newProductImage) {
+      toast.error("Product image is required.");
+      return;
+    }
+
+    const validVariants = newProductVariants
+      .map((variant) => ({
+        ...variant,
+        price: variant.price.trim(),
+        stock_quantity: variant.stock_quantity.trim(),
+        sku: variant.sku.trim(),
+      }))
+      .filter((variant) => variant.price !== "" && variant.stock_quantity !== "");
+
+    if (validVariants.length === 0) {
+      toast.error("Add at least one variant with price and stock.");
+      return;
+    }
+
+    const hasInvalidVariant = validVariants.some((variant) => {
+      const price = Number(variant.price);
+      const stock = Number(variant.stock_quantity);
+      return Number.isNaN(price) || Number.isNaN(stock) || price < 0 || stock < 0;
+    });
+
+    if (hasInvalidVariant) {
+      toast.error("Variant price and stock must be valid non-negative numbers.");
+      return;
+    }
+
+    const payloadVariants = validVariants.map((variant) => ({
+      sku: variant.sku,
+      price: Number(variant.price),
+      stock_quantity: Number(variant.stock_quantity),
+      option_values: variant.option_values,
+    }));
+
+    const minPrice = Math.min(...payloadVariants.map((variant) => variant.price));
+    const totalStock = payloadVariants.reduce(
+      (sum, variant) => sum + variant.stock_quantity,
+      0
+    );
+
+    const formData = new FormData();
+    formData.append("name", newProduct.name);
+    formData.append("description", newProduct.description);
+    formData.append("category", String(newProduct.category));
+    formData.append("price", String(minPrice));
+    formData.append("stock_quantity", String(totalStock));
+    formData.append("image", newProductImage);
+    const variantsJson = JSON.stringify(payloadVariants);
+    console.log("[VENDOR] payloadVariants:", payloadVariants);
+    console.log("[VENDOR] variants_input JSON:", variantsJson);
+    formData.append("variants_input", variantsJson);
+    newProductExtraImages.forEach((file) => formData.append("extra_images", file));
+    Object.entries(variantImageFiles).forEach(([index, files]) => {
+      (files as File[]).forEach((file, imgIdx) => {
+        formData.append(`variant_image_${index}_${imgIdx}`, file);
+      });
+    });
+
+    addProductMutation.mutate(formData);
+  };
+
+  const handleVariantChange = (
+    index: number,
+    field: keyof NewVariantForm,
+    value: string | Record<string, string>
+  ) => {
+    setNewProductVariants((prev) =>
+      prev.map((variant, variantIndex) =>
+        variantIndex === index ? { ...variant, [field]: value } : variant
+      )
+    );
+  };
+
+  const addVariantRow = () => {
+    setNewProductVariants((prev) => [
+      ...prev,
+      { option_values: {}, sku: "", price: "", stock_quantity: "" },
+    ]);
+  };
+
+  const removeVariantRow = (index: number) => {
+    setNewProductVariants((prev) => {
+      if (prev.length === 1) return prev;
+      return prev.filter((_, variantIndex) => variantIndex !== index);
+    });
+  };
+
+  const normalizeListInput = (value: string): string[] => {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
+  const generateVariantMatrix = () => {
+    const cleanedAttributes = variantAttributes
+      .map((attribute) => ({
+        name: attribute.name.trim(),
+        values: normalizeListInput(attribute.valuesText),
+      }))
+      .filter((attribute) => attribute.name && attribute.values.length > 0);
+
+    if (cleanedAttributes.length === 0) {
+      toast.error("Add at least one attribute with values.");
+      return;
+    }
+
+    let combinations: Record<string, string>[] = [{}];
+    cleanedAttributes.forEach((attribute) => {
+      const nextCombinations: Record<string, string>[] = [];
+      combinations.forEach((combo) => {
+        attribute.values.forEach((value) => {
+          nextCombinations.push({
+            ...combo,
+            [attribute.name]: value,
+          });
+        });
+      });
+      combinations = nextCombinations;
+    });
+
+    const productPrefix = newProduct.name
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase();
+
+    const generatedRows: NewVariantForm[] = combinations.map((combo) => {
+      const skuParts = [productPrefix];
+      Object.values(combo).forEach((value) => {
+        if (value) skuParts.push(value.slice(0, 3).toUpperCase());
+      });
+      return {
+        option_values: combo,
+        sku: skuParts.filter(Boolean).join("-"),
+        price: "",
+        stock_quantity: "",
+      };
+    });
+
+    setNewProductVariants(generatedRows.length ? generatedRows : [{ option_values: {}, sku: "", price: "", stock_quantity: "" }]);
+    setVariantImageFiles({});
+    toast.success("Variant combinations generated.");
+  };
+
+  const applyBulkToVariants = () => {
+    if (!bulkPrice && !bulkStock) {
+      toast.error("Enter bulk price and/or stock first.");
+      return;
+    }
+
+    setNewProductVariants((prev) =>
+      prev.map((variant) => ({
+        ...variant,
+        price: bulkPrice ? bulkPrice : variant.price,
+        stock_quantity: bulkStock ? bulkStock : variant.stock_quantity,
+      }))
+    );
+    toast.success("Bulk values applied.");
+  };
+
+  const nextAddProductStep = () => {
+    if (addProductStep === 1) {
+      if (!newProduct.name.trim() || !newProduct.description.trim() || !String(newProduct.category).trim()) {
+        toast.error("Please complete basic product info first.");
+        return;
+      }
+    }
+    setAddProductStep((prev) => Math.min(prev + 1, 5));
+  };
+
+  const prevAddProductStep = () => {
+    setAddProductStep((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleVariantAttributeChange = (
+    index: number,
+    field: keyof VariantAttribute,
+    value: string
+  ) => {
+    setVariantAttributes((prev) =>
+      prev.map((attribute, attributeIndex) =>
+        attributeIndex === index ? { ...attribute, [field]: value } : attribute
+      )
+    );
+  };
+
+  const addVariantAttribute = () => {
+    setVariantAttributes((prev) => [...prev, { name: "", valuesText: "" }]);
+  };
+
+  const removeVariantAttribute = (index: number) => {
+    setVariantAttributes((prev) => {
+      if (prev.length === 1) return prev;
+      return prev.filter((_, attributeIndex) => attributeIndex !== index);
+    });
   };
 
   const handleOrderStatusUpdate = async (orderId: number, newStatus: string) => {
     updateOrderStatusMutation.mutate({ id: orderId, status: newStatus });
   };
 
-  const { logout } = useAuth();
+  const handleSubscribeToPlan = (planId: number) => {
+    createSubscriptionOrderMutation.mutate(planId);
+  };
 
   const handleLogout = () => {
     logout();
@@ -627,78 +961,464 @@ const VendorDashboard = () => {
                   <h2 className="font-display text-xl font-bold text-foreground">Add New Product</h2>
                 </div>
                 <form onSubmit={handleAddProduct} className="p-6 space-y-5 max-w-2xl">
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Product Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={newProduct.name}
-                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
-                    />
+                  <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <span className={addProductStep >= 1 ? "text-foreground" : ""}>1. Basic Info</span>
+                    <span className={addProductStep >= 2 ? "text-foreground" : ""}>2. Add Variants</span>
+                    <span className={addProductStep >= 3 ? "text-foreground" : ""}>3. Variant Table</span>
+                    <span className={addProductStep >= 4 ? "text-foreground" : ""}>4. Images</span>
+                    <span className={addProductStep >= 5 ? "text-foreground" : ""}>5. Review</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground mb-1">Price (₹)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
-                      />
+
+                  {addProductStep === 1 && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Product Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={newProduct.name}
+                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Category</label>
+                        <select
+                          required
+                          value={newProduct.category}
+                          onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                          className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all cursor-pointer"
+                        >
+                          <option value="" disabled>Select a category</option>
+                          {categories.map((cat: any) => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Base Product Image</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          required
+                          className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-muted file:text-foreground file:cursor-pointer hover:file:bg-accent hover:file:text-accent-foreground transition-all"
+                          onChange={(e) => setNewProductImage(e.target.files?.[0] || null)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Description</label>
+                        <textarea
+                          required
+                          value={newProduct.description}
+                          onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                          rows={4}
+                          className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all resize-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {addProductStep === 2 && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-2">Variant Attributes</label>
+                        <div className="space-y-3">
+                          {variantAttributes.map((attribute, index) => (
+                            <div key={`attribute-${index}`} className="grid grid-cols-12 gap-2">
+                              <input
+                                type="text"
+                                placeholder="Attribute name (e.g. Fabric)"
+                                value={attribute.name}
+                                onChange={(e) => handleVariantAttributeChange(index, "name", e.target.value)}
+                                className="col-span-4 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Values (comma separated)"
+                                value={attribute.valuesText}
+                                onChange={(e) => handleVariantAttributeChange(index, "valuesText", e.target.value)}
+                                className="col-span-7 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeVariantAttribute(index)}
+                                className="col-span-1 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-all"
+                                title="Remove attribute"
+                              >
+                                <X size={16} className="mx-auto" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={addVariantAttribute}
+                            className="text-sm font-bold text-primary hover:text-primary/80 transition-colors"
+                          >
+                            + Add another attribute
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={generateVariantMatrix}
+                        className="w-full bg-secondary text-secondary-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-secondary/90 transition-all"
+                      >
+                        Generate Variant Table
+                      </button>
+                    </>
+                  )}
+
+                  {addProductStep === 3 && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Bulk Price"
+                          value={bulkPrice}
+                          onChange={(e) => setBulkPrice(e.target.value)}
+                          className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Bulk Stock"
+                          value={bulkStock}
+                          onChange={(e) => setBulkStock(e.target.value)}
+                          className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={applyBulkToVariants}
+                        className="w-full bg-secondary text-secondary-foreground py-2.5 rounded-lg text-sm font-bold hover:bg-secondary/80 transition-all"
+                      >
+                        Apply Bulk Values
+                      </button>
+
+                      {(() => {
+                        const columnKeys = Array.from(
+                          new Set(
+                            newProductVariants.flatMap((variant) => Object.keys(variant.option_values || {}))
+                          )
+                        );
+                        return (
+                          <div className="space-y-3">
+                            {newProductVariants.map((variant, index) => (
+                              <div key={`variant-${index}`} className="grid grid-cols-12 gap-2">
+                                {columnKeys.length > 0 ? (
+                                  <div className="col-span-4 grid grid-cols-2 gap-2">
+                                    {columnKeys.slice(0, 2).map((key) => (
+                                      <input
+                                        key={`${index}-${key}`}
+                                        type="text"
+                                        placeholder={key}
+                                        value={variant.option_values[key] ?? ""}
+                                        onChange={(e) => {
+                                          handleVariantChange(index, "option_values", {
+                                            ...variant.option_values,
+                                            [key]: e.target.value,
+                                          });
+                                        }}
+                                        className="p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                                      />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    placeholder="Variant label"
+                                    className="col-span-4 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                                    value=""
+                                    onChange={() => {}}
+                                  />
+                                )}
+                                <input
+                                  type="text"
+                                  placeholder="SKU (optional)"
+                                  value={variant.sku}
+                                  onChange={(e) => handleVariantChange(index, "sku", e.target.value)}
+                                  className="col-span-3 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  required
+                                  placeholder="Price"
+                                  value={variant.price}
+                                  onChange={(e) => handleVariantChange(index, "price", e.target.value)}
+                                  className="col-span-2 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  required
+                                  placeholder="Stock"
+                                  value={variant.stock_quantity}
+                                  onChange={(e) => handleVariantChange(index, "stock_quantity", e.target.value)}
+                                  className="col-span-2 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeVariantRow(index)}
+                                  className="col-span-1 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-all"
+                                  title="Remove variant"
+                                >
+                                  <X size={16} className="mx-auto" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={addVariantRow}
+                              className="text-sm font-bold text-primary hover:text-primary/80 transition-colors"
+                            >
+                              + Add another variant row
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+
+                  {addProductStep === 4 && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-3">Variant Images</label>
+                        <div className="space-y-4">
+                          {newProductVariants.map((variant, index) => {
+                            const files = variantImageFiles[index] || [];
+                            return (
+                              <div key={`variant-image-${index}`} className="rounded-xl border border-border bg-card p-3 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Variant {index + 1}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {Object.entries(variant.option_values || {}).map(([k, v]) => `${k}: ${v}`).join(", ") || "default"}
+                                  </span>
+                                </div>
+
+                                {/* Selected image previews */}
+                                {files.length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {files.map((file, fidx) => (
+                                      <div key={fidx} className="relative group">
+                                        <img
+                                          src={URL.createObjectURL(file)}
+                                          alt={file.name}
+                                          className="h-16 w-16 rounded-lg object-cover border border-border"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setVariantImageFiles((prev) => ({
+                                              ...prev,
+                                              [index]: prev[index].filter((_, i) => i !== fidx),
+                                            }));
+                                          }}
+                                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Add more button */}
+                                <div className="flex items-center gap-2">
+                                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                                    <ImageIcon size={14} />
+                                    {files.length > 0 ? "Add more images" : "Choose images"}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const newFiles = Array.from(e.target.files || []);
+                                        if (newFiles.length === 0) return;
+                                        setVariantImageFiles((prev) => ({
+                                          ...prev,
+                                          [index]: [...(prev[index] || []), ...newFiles],
+                                        }));
+                                      }}
+                                    />
+                                  </label>
+                                  {files.length > 0 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {files.length} image{files.length > 1 ? "s" : ""} selected
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-2">Additional Product Gallery Images (optional)</label>
+                        <div className="space-y-2">
+                          {newProductExtraImages.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {newProductExtraImages.map((file, idx) => (
+                                <div key={idx} className="relative group">
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={file.name}
+                                    className="h-16 w-16 rounded-lg object-cover border border-border"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewProductExtraImages((prev) => prev.filter((_, i) => i !== idx))}
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                            <ImageIcon size={14} />
+                            {newProductExtraImages.length > 0 ? "Add more gallery images" : "Choose gallery images"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                setNewProductExtraImages((prev) => [...prev, ...files]);
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Step 1 base image is required. Here you can assign images per variant and optional gallery images.
+                      </p>
+                    </>
+                  )}
+
+                  {addProductStep === 5 && (
+                    <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-4">
+                      <p><span className="font-bold">Name:</span> {newProduct.name || "-"}</p>
+                      <p><span className="font-bold">Category:</span> {newProduct.category || "-"}</p>
+                      <p><span className="font-bold">Variants:</span> {newProductVariants.length}</p>
+                      <p>
+                        <span className="font-bold">Ready:</span>{" "}
+                        {newProductVariants.some((v) => v.price && v.stock_quantity) ? "Yes" : "No (add price/stock)"}
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground mb-1">Initial Stock</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProduct.stock_quantity}
-                        onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: e.target.value })}
-                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
-                      />
-                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    {addProductStep > 1 && (
+                      <button
+                        type="button"
+                        onClick={prevAddProductStep}
+                        className="flex-1 border border-border text-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-muted transition-all"
+                      >
+                        Back
+                      </button>
+                    )}
+                    {addProductStep < 5 ? (
+                      <button
+                        type="button"
+                        onClick={nextAddProductStep}
+                        className="flex-1 bg-primary text-primary-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-primary/90 transition-all"
+                      >
+                        Next
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={addProductMutation.isPending}
+                        className="flex-1 bg-primary text-primary-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-primary/90 transition-all disabled:opacity-50"
+                      >
+                        {addProductMutation.isPending ? 'Submitting...' : 'Publish / Submit for Approval'}
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Category</label>
-                    <select
-                      required
-                      value={newProduct.category}
-                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all cursor-pointer"
-                    >
-                      <option value="" disabled>Select a category</option>
-                      {categories.map((cat: any) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Description</label>
-                    <textarea
-                      required
-                      value={newProduct.description}
-                      onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                      rows={4}
-                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Product Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-muted file:text-foreground file:cursor-pointer hover:file:bg-accent hover:file:text-accent-foreground transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={addProductMutation.isPending}
-                    className="w-full bg-primary text-primary-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-primary/90 transition-all disabled:opacity-50"
-                  >
-                    {addProductMutation.isPending ? 'Submitting...' : 'Submit for Approval'}
-                  </button>
                 </form>
+              </motion.div>
+            )}
+
+            {activeTab === "subscription" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                <div className="px-6 py-5 border-b border-border bg-background-warm">
+                  <h2 className="font-display text-xl font-bold text-foreground">Subscription Plans</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Choose a plan to unlock product publishing limits.
+                  </p>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {currentSubscription?.has_subscription !== false && currentSubscription?.plan_details && (
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                      <p className="text-sm font-bold text-foreground">
+                        Current Plan: {currentSubscription.plan_details.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Limit: {currentSubscription.plan_details.product_limit} products | Valid until{" "}
+                        {new Date(currentSubscription.end_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+
+                  {plansLoading ? (
+                    <p className="text-muted-foreground">Loading plans...</p>
+                  ) : subscriptionPlans.length === 0 ? (
+                    <p className="text-muted-foreground">No subscription plans available right now.</p>
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {subscriptionPlans.map((plan: any) => {
+                        const isCurrent = currentSubscription?.plan_details?.id === plan.id && currentSubscription?.is_active;
+                        return (
+                          <div key={plan.id} className="rounded-xl border border-border bg-muted/30 p-5 flex flex-col gap-3">
+                            <div className="flex items-start justify-between">
+                              <h3 className="text-lg font-bold text-foreground">{plan.name}</h3>
+                              {isCurrent && (
+                                <span className="px-2 py-1 rounded-md text-xs font-bold bg-primary/10 text-primary">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{plan.description || "Subscription plan for vendors."}</p>
+                            <p className="text-2xl font-black text-foreground">
+                              ₹{Number(plan.price).toLocaleString()}
+                              <span className="text-sm font-medium text-muted-foreground"> / {plan.duration_days} days</span>
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Product limit: <span className="font-bold text-foreground">{plan.product_limit}</span>
+                            </p>
+                            <button
+                              type="button"
+                              disabled={isCurrent || createSubscriptionOrderMutation.isPending}
+                              onClick={() => handleSubscribeToPlan(plan.id)}
+                              className="mt-2 w-full bg-primary text-primary-foreground py-2.5 rounded-full font-bold uppercase tracking-wider hover:bg-primary/90 transition-all disabled:opacity-50"
+                            >
+                              {isCurrent
+                                ? "Current Plan"
+                                : createSubscriptionOrderMutation.isPending
+                                ? "Processing..."
+                                : Number(plan.price) === 0
+                                ? "Activate Plan"
+                                : "Purchase Plan"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
 

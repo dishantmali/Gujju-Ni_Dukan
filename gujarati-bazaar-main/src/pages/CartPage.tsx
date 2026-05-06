@@ -5,7 +5,7 @@ import { PageShell } from "@/components/PageShell";
 import { CartItem } from "@/components/CartItem";
 import { CartSummary } from "@/components/CartSummary";
 import { EmptyState } from "@/components/EmptyState";
-import { useCart } from "@/store/cart";
+import { cartLineId, useCart } from "@/store/cart";
 
 const CartPage = () => {
   const items = useCart((s) => s.items);
@@ -29,7 +29,7 @@ const CartPage = () => {
           <div className="grid lg:grid-cols-[1fr_360px] gap-6">
             <div className="space-y-3">
               <AnimatePresence>
-                {items.map((line) => <CartItem key={line.product.id} line={line} />)}
+                {items.map((line) => <CartItem key={cartLineId(line)} line={line} />)}
               </AnimatePresence>
             </div>
             <CartSummary />

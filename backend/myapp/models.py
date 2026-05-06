@@ -178,6 +178,78 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+
+class ProductVariant(models.Model):
+    """One sellable SKU per product (e.g. color × size) with its own price and stock."""
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='variants'
+    )
+    sku = models.CharField(max_length=100, blank=True, default='')
+    image = ResizedImageField(
+        size=[800, 1000],
+        crop=['middle', 'center'],
+        quality=75,
+        upload_to='product_variant_images/',
+        force_format='JPEG',
+        null=True,
+        blank=True
+    )
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    stock_quantity = models.PositiveIntegerField(default=0)
+    option_values = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.product.name} #{self.pk}"
+
+
+class ProductVariantImage(models.Model):
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    image = ResizedImageField(
+        size=[800, 1000],
+        crop=['middle', 'center'],
+        quality=75,
+        upload_to='product_variant_images/',
+        force_format='JPEG'
+    )
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.variant.product.name} variant image #{self.pk}"
+
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='product_images'
+    )
+    image = ResizedImageField(
+        size=[800, 1000],
+        crop=['middle', 'center'],
+        quality=75,
+        upload_to='product_images/',
+        force_format='JPEG'
+    )
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.product.name} image #{self.pk}"
+
+
 class Order(models.Model):
     PAYMENT_STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -213,12 +285,18 @@ class OrderItem(models.Model):
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    product_variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.CASCADE,
+        related_name='order_items'
+    )
     vendor = models.ForeignKey('VendorProfile', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     product_name_snapshot = models.CharField(max_length=255, blank=True, null=True)
     vendor_shop_snapshot = models.CharField(max_length=255, blank=True, null=True)
     price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    variant_options_snapshot = models.CharField(max_length=512, blank=True, null=True)
 
     # Tracking Fields Moved Here
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -227,7 +305,7 @@ class OrderItem(models.Model):
     delivered_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ['order', 'product']
+        unique_together = [['order', 'product_variant']]
 
     def __str__(self):
         return f"{self.product.name} (x{self.quantity}) - {self.status}"
@@ -235,7 +313,16 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         # Automatically take a snapshot when the order is first created
         if not self.pk:
-            if self.product:
+            if self.product_variant_id:
+                pv = self.product_variant
+                self.product = pv.product
+                self.product_name_snapshot = self.product.name
+                self.price_snapshot = pv.price
+                opts = pv.option_values or {}
+                self.variant_options_snapshot = ', '.join(
+                    f'{k}: {opts[k]}' for k in sorted(opts.keys())
+                ) if opts else ''
+            elif self.product:
                 self.product_name_snapshot = self.product.name
                 self.price_snapshot = self.product.price
             if self.vendor:
@@ -249,10 +336,20 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product_variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.CASCADE,
+        related_name='cart_items'
+    )
     quantity = models.PositiveIntegerField(default=1)
 
     class Meta:
-        unique_together = ['cart', 'product']
+        unique_together = [['cart', 'product_variant']]
+    
+    def save(self, *args, **kwargs):
+        if self.product_variant_id:
+            self.product_id = self.product_variant.product_id
+        super().save(*args, **kwargs)
 
 class CategoryRequest(models.Model):
     STATUS_CHOICES = (('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'))

@@ -9,6 +9,7 @@ import { getProductsByCategory, products } from "@/data/products";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CategoryPills } from "@/components/CategoryPills";
 import api from "@/lib/api";
+import { mapApiProduct } from "@/lib/mapApiProduct";
 
 type Sort = "relevance" | "price-asc" | "price-desc" | "newest" | "top-rated";
 
@@ -28,18 +29,7 @@ const CategoryPage = () => {
       const url = slug === "all" ? '/products/' : `/products/?category_slug=${slug}`;
       const res: any = await api.get(url);
       
-      const mapProduct = (p: any) => ({
-        ...p,
-        id: p.id.toString(),
-        rating: p.average_rating || 0,
-        reviewCount: p.review_count || 0,
-        vendorId: p.vendor?.toString() || "",
-        originalPrice: p.price * 1.2,
-        discount: 20,
-        isNew: true,
-        specs: {},
-        reviews: []
-      });
+      const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
       const prods = (Array.isArray(res) ? res : res.results || []).map(mapProduct);
       setAll(prods.length > 0 ? prods : products.filter(p => slug === "all" || p.category === slug));

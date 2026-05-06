@@ -121,6 +121,12 @@
   .underline-grow {
     @apply relative after:content-[''] after:absolute after:left-0 after:-bottom-1 after:h-[2px] after:w-full after:scale-x-0 after:origin-right after:bg-accent after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-left;
   }
+
+  /* JPEG logo transparency hack — blends white JPEG backgrounds into a matching solid bg color */
+  .logo-transparent {
+    mix-blend-mode: multiply;
+    isolation: isolate;
+  }
 }
 
 @layer utilities {

@@ -96,7 +96,7 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
             <PriceTag price={product.price} originalPrice={product.originalPrice} size="sm" />
             <button
               type="button"
-              onClick={(e) => { e.preventDefault(); if (!isBuyerOnly) { toast.error('Vendors and Admins cannot add items to cart'); return; } add(product); toast.success("Added to cart", { description: product.name }); }}
+              onClick={(e) => { e.preventDefault(); if (!isBuyerOnly) { toast.error('Vendors and Admins cannot add items to cart'); return; } add(product, 1, product.variants?.[0]); toast.success("Added to cart", { description: product.name }); }}
               aria-label="Add to cart"
               className="h-9 w-9 shrink-0 grid place-items-center rounded-full bg-primary text-primary-foreground hover:bg-brown-mid transition-colors active:scale-95"
             >

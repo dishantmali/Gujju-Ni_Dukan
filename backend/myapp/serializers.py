@@ -1,9 +1,10 @@
 import html
+import json
 from rest_framework import serializers
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth import get_user_model
 from .models import (
-    CustomUser, UserProfile , VendorProfile, Product, Order, OrderItem,
+    CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
     Category, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
     ProductReview, PlatformReview , Banner , SubscriptionPlan, VendorSubscription
 )
@@ -140,11 +141,42 @@ class RegisterSerializer(SanitizedSerializer):
 
 
 # ---------------- PRODUCT ----------------
+class ProductVariantImageSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(use_url=True)
+
+    class Meta:
+        model = ProductVariantImage
+        fields = ['id', 'image']
+
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    images = ProductVariantImageSerializer(many=True, read_only=True)
+    option_values = serializers.JSONField()
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'sku', 'image', 'images', 'price', 'stock_quantity', 'option_values']
+
+
+class ProductImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'image']
+
+
 class ProductSerializer(SanitizedSerializer):
     vendor_shop = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     category_name = serializers.CharField(source='category.name', read_only=True)
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    product_images = ProductImageSerializer(many=True, read_only=True)
+    variants_input = ProductVariantSerializer(many=True, write_only=True, required=False)
+    extra_images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
         model = Product
@@ -163,9 +195,49 @@ class ProductSerializer(SanitizedSerializer):
             'created_at',
             'average_rating',
             'review_count',
-            'is_active'
+            'is_active',
+            'variants',
+            'product_images',
+            'variants_input',
+            'extra_images',
         ]
-        read_only_fields = ['vendor', 'status']
+        # Keep workflow-managed flags server-controlled; multipart/form-data can coerce missing booleans to False.
+        read_only_fields = ['vendor', 'status', 'is_active']
+
+    def to_internal_value(self, data):
+        mutable_data = dict(data) if not isinstance(data, dict) else data.copy()
+        variants_raw = mutable_data.get('variants_input')
+        parsed_variants = None
+        print(f"[SERIALIZER] variants_input raw type={type(variants_raw)}, value={variants_raw!r}")
+        if isinstance(variants_raw, str):
+            try:
+                parsed_variants = json.loads(variants_raw)
+                print(f"[SERIALIZER] parsed variants_input count={len(parsed_variants) if isinstance(parsed_variants, list) else 'NOT_LIST'}")
+                mutable_data['variants_input'] = parsed_variants
+            except json.JSONDecodeError as exc:
+                print(f"[SERIALIZER] JSON parse FAILED: {exc}")
+                raise serializers.ValidationError({"variants_input": "Invalid JSON format."}) from exc
+        internal = super().to_internal_value(mutable_data)
+        # FIX: super().to_internal_value() silently drops write_only nested list fields.
+        # Inject the pre-parsed data back if they got stripped.
+        if parsed_variants is not None and 'variants_input' not in internal:
+            print(f"[SERIALIZER] RE-INJECTING variants_input into internal value (count={len(parsed_variants)})")
+            internal['variants_input'] = parsed_variants
+        # extra_images is also write_only; preserve from FILES via initial_data if missing
+        if 'extra_images' not in internal and hasattr(self, 'initial_data'):
+            files_raw = self.initial_data.get('extra_images')
+            if not files_raw:
+                request = self.context.get('request')
+                if request is not None:
+                    files_raw = request.FILES.getlist('extra_images')
+            if files_raw:
+                print(f"[SERIALIZER] RE-INJECTING extra_images into internal value (count={len(files_raw)})")
+                internal['extra_images'] = files_raw
+        print(f"[SERIALIZER] to_internal_value returned keys={list(internal.keys())}")
+        print(f"[SERIALIZER] variants_input in internal={('variants_input' in internal)}, type={type(internal.get('variants_input'))}")
+        if 'variants_input' in internal:
+            print(f"[SERIALIZER] variants_input count in internal={len(internal['variants_input']) if isinstance(internal['variants_input'], list) else 'NOT_LIST'}")
+        return internal
 
     def get_vendor_shop(self, obj):
         return obj.vendor.shop_name
@@ -176,6 +248,33 @@ class ProductSerializer(SanitizedSerializer):
 
     def get_review_count(self, obj):
         return obj.reviews.count()
+
+    @transaction.atomic
+    def create(self, validated_data):
+        variants_data = validated_data.pop('variants_input', [])
+        extra_images_data = validated_data.pop('extra_images', [])
+        print(f"[SERIALIZER CREATE] variants_data count={len(variants_data)}, content={variants_data!r}")
+        print(f"[SERIALIZER CREATE] extra_images count={len(extra_images_data)}")
+
+        product = super().create(validated_data)
+        print(f"[SERIALIZER CREATE] product id={product.id} created")
+
+        created_variants = []
+        for idx, variant_data in enumerate(variants_data):
+            print(f"[SERIALIZER CREATE] creating variant #{idx}: {variant_data!r}")
+            try:
+                variant = ProductVariant.objects.create(product=product, **variant_data)
+                print(f"[SERIALIZER CREATE] variant #{idx} created id={variant.id}")
+                created_variants.append(variant)
+            except Exception as e:
+                print(f"[SERIALIZER CREATE] variant #{idx} FAILED: {e}")
+                raise
+
+        for image in extra_images_data:
+            ProductImage.objects.create(product=product, image=image)
+
+        print(f"[SERIALIZER CREATE] done. total variants={len(created_variants)}")
+        return product
     
 # ---------------- REVIEWS ----------------
 class ProductReviewSerializer(SanitizedSerializer):
@@ -197,6 +296,7 @@ class PlatformReviewSerializer(SanitizedSerializer):
 # ---------------- ORDER ----------------
 class OrderItemSerializer(SanitizedSerializer):
     product_details = ProductSerializer(source='product', read_only=True)
+    variant_details = ProductVariantSerializer(source='product_variant', read_only=True)
     vendor_shop = serializers.CharField(source='vendor.shop_name', read_only=True)
     
     # Extra fields for the Vendor view
@@ -210,8 +310,10 @@ class OrderItemSerializer(SanitizedSerializer):
         model = OrderItem
         fields = [
             'id', 'order_id', 'buyer_name', 'address', 'phone', 'order_date',
-            'product', 'product_details', 'vendor', 'vendor_shop',
-            'quantity', 'price', 'status', 'confirmed_at', 'shipped_at', 'delivered_at'
+            'product', 'product_variant', 'product_details', 'variant_details',
+            'vendor', 'vendor_shop',
+            'quantity', 'price', 'variant_options_snapshot', 'status',
+            'confirmed_at', 'shipped_at', 'delivered_at',
         ]
 
 class OrderSerializer(SanitizedSerializer):
@@ -249,10 +351,13 @@ class CategorySerializer(SanitizedSerializer):
 
 class CartItemSerializer(SanitizedSerializer):
     product_details = ProductSerializer(source='product', read_only=True)
+    variant_details = ProductVariantSerializer(source='product_variant', read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_details', 'quantity']
+        fields = [
+            'id', 'product', 'product_variant', 'product_details', 'variant_details', 'quantity',
+        ]
 
 
 class CartSerializer(SanitizedSerializer):

@@ -22,6 +22,17 @@ export type Review = {
   date: string;
 };
 
+/** One SKU (e.g. color × size) with its own price and stock — from `/api/products/`. */
+export type ProductVariant = {
+  id: string;
+  sku: string;
+  image?: string;
+  images?: string[];
+  price: number;
+  stock_quantity: number;
+  option_values: Record<string, string>;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -34,11 +45,16 @@ export type Product = {
   vendorId: string;
   category: string;
   image: string;
+  product_images?: string[];
+  vendor_shop?: string;
+  stock_quantity?: number;
   inStock: boolean;
   isNew: boolean;
   isTrending: boolean;
   reviews: Review[];
   specs: Record<string, string>;
+  /** When present (API products), cart/checkout should use selected variant pricing. */
+  variants?: ProductVariant[];
 };
 
 export type Order = {

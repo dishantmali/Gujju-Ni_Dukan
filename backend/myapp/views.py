@@ -16,7 +16,7 @@ from django.db import transaction , models
 from django.contrib.auth import update_session_auth_hash
 import requests 
 from .models import (
-    CustomUser, Product, Order, VendorProfile, OrderItem, Address, UserProfile ,
+    CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
     Category, Cart, CartItem, CategoryRequest, Offer , Wishlist,
     ProductReview, PlatformReview , Banner , SubscriptionPlan, VendorSubscription
 )
@@ -94,12 +94,14 @@ class HomePageView(APIView):
 
     def get(self, request):
         categories = Category.objects.all()
-        products = Product.objects.filter(status='approved').annotate(
+        products = Product.objects.filter(status='approved').prefetch_related(
+            'variants'
+        ).annotate(
             review_count=models.Count('reviews')
         ).order_by('-review_count', '-created_at')[:10]
         new_products = Product.objects.filter(
             status='approved'
-        ).order_by('-created_at')[:10]
+        ).prefetch_related('variants').order_by('-created_at')[:10]
 
         today = date.today()
         active_offers = Offer.objects.filter(
@@ -144,7 +146,9 @@ class ProductListView(generics.ListAPIView):
 
     def get_queryset(self):
         # FIX: Ensure we ONLY fetch products that are approved AND active
-        queryset = Product.objects.filter(status='approved', is_active=True)
+        queryset = Product.objects.filter(
+            status='approved', is_active=True
+        ).prefetch_related('variants')
 
         # Category Filter
         category_id = self.request.query_params.get('category')
@@ -161,19 +165,21 @@ class ProductListView(generics.ListAPIView):
                 models.Q(category__name__icontains=search)
             )
             
-        # Price Filters
+        # Price Filters (applied to variant SKU prices)
         min_price = self.request.query_params.get('min_price')
         max_price = self.request.query_params.get('max_price')
         if min_price:
-            queryset = queryset.filter(price__gte=min_price)
+            queryset = queryset.filter(variants__price__gte=min_price)
         if max_price:
-            queryset = queryset.filter(price__lte=max_price)
+            queryset = queryset.filter(variants__price__lte=max_price)
 
         return queryset.distinct()
 
 
 class ProductDetailView(generics.RetrieveAPIView):
-    queryset = Product.objects.filter(status='approved')
+    queryset = Product.objects.filter(status='approved').prefetch_related(
+        'variants', 'variants__images', 'product_images', 'reviews'
+    )
     serializer_class = ProductSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -204,6 +210,7 @@ class CategoryListView(APIView):
 class VendorProductListCreateView(generics.ListCreateAPIView):
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         if self.request.user.role != 'vendor':
@@ -238,7 +245,52 @@ class VendorProductListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied("You need an active subscription plan to add products.")
         # -------------------------------------
 
+        print(f"[VIEW] request.data keys: {list(self.request.data.keys())}")
+        print(f"[VIEW] variants_input in request.data: {self.request.data.get('variants_input', 'NOT FOUND')!r}")
+        print(f"[VIEW] request.FILES keys: {list(self.request.FILES.keys())}")
+
         serializer.save(vendor=vendor_profile, status='pending')
+        product = serializer.instance
+        print(f"[VIEW] after save: product.id={product.id}, variant count={product.variants.count()}")
+
+        variants = list(product.variants.all().order_by('id'))
+        print(f"[VIEW] processing {len(variants)} variants for images")
+        for idx, variant in enumerate(variants):
+            # Handle multiple images per variant
+            image_idx = 0
+            while True:
+                img = self.request.FILES.get(f'variant_image_{idx}_{image_idx}')
+                if not img:
+                    break
+                ProductVariantImage.objects.create(variant=variant, image=img)
+                image_idx += 1
+            # Fallback single image for backward compat + primary variant.image
+            single_img = self.request.FILES.get(f'variant_image_{idx}')
+            if single_img:
+                variant.image = single_img
+                variant.save(update_fields=['image'])
+                ProductVariantImage.objects.create(variant=variant, image=single_img)
+
+        if not product.variants.exists():
+            print("[VIEW] FALLBACK: no variants exist, creating fallback variant")
+            fallback_variant = ProductVariant.objects.create(
+                product=product,
+                price=product.price,
+                stock_quantity=product.stock_quantity,
+                option_values={},
+            )
+            image_idx = 0
+            while True:
+                img = self.request.FILES.get(f'variant_image_0_{image_idx}')
+                if not img:
+                    break
+                ProductVariantImage.objects.create(variant=fallback_variant, image=img)
+                image_idx += 1
+            fallback_image = self.request.FILES.get('variant_image_0')
+            if fallback_image:
+                fallback_variant.image = fallback_image
+                fallback_variant.save(update_fields=['image'])
+                ProductVariantImage.objects.create(variant=fallback_variant, image=fallback_image)
 
 
 class VendorProductUpdateView(generics.RetrieveUpdateDestroyAPIView):
@@ -334,8 +386,14 @@ class AdminPendingProductsView(generics.ListAPIView):
     def get_queryset(self):
         if self.request.user.role != 'admin':
             raise PermissionDenied("Only admin can view products.")
-        # Return ALL products, putting 'pending' at the top
-        return Product.objects.all().order_by('status', '-created_at')
+        # Put pending first so admin page-1 always shows new review requests.
+        return Product.objects.annotate(
+            pending_priority=models.Case(
+                models.When(status='pending', then=models.Value(0)),
+                default=models.Value(1),
+                output_field=models.IntegerField(),
+            )
+        ).order_by('pending_priority', '-created_at')
 
 
 class AdminPendingVendorsView(generics.ListAPIView):
@@ -627,6 +685,7 @@ class CreateRazorpayOrderView(APIView):
             )
 
         product_id = request.data.get('product_id')
+        variant_id = request.data.get('variant_id')
         address = request.data.get('address')
         phone = request.data.get('phone')
         quantity = int(request.data.get('quantity', 1))
@@ -645,7 +704,14 @@ class CreateRazorpayOrderView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        base_amount = float(product.price) * quantity
+        if variant_id:
+            pv = ProductVariant.objects.filter(id=variant_id, product_id=product_id).first()
+        else:
+            pv = ProductVariant.objects.filter(product=product).order_by('id').first()
+        if not pv:
+            return Response({"error": "Product has no variants."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_amount = float(pv.price) * quantity
         platform_fee = base_amount * 0.05
         gst = platform_fee * 0.18
         total_amount = base_amount + platform_fee + gst
@@ -665,6 +731,7 @@ class CreateRazorpayOrderView(APIView):
             "product_name": product.name,
             "delivery_info": {
                 "product_id": product.id,
+                "variant_id": pv.id,
                 "address": address,
                 "phone": phone,
                 "quantity": quantity,
@@ -688,6 +755,7 @@ class VerifyPaymentView(APIView):
         razorpay_payment_id = request.data.get('razorpay_payment_id')
         razorpay_signature = request.data.get('razorpay_signature')
         product_id = request.data.get('product_id')
+        variant_id = request.data.get('variant_id')
         address = request.data.get('address')
         phone = request.data.get('phone')
         quantity = int(request.data.get('quantity', 1))
@@ -704,49 +772,59 @@ class VerifyPaymentView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         # 2. Atomic Transaction for Stock Check, Decrement, and Order Creation
-        try:
-            with transaction.atomic():
-                # Lock the product row using select_for_update() to prevent race conditions
-                product = Product.objects.select_for_update().get(id=product_id)
+        product = Product.objects.filter(id=product_id, status='approved').first()
+        if not product:
+            return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
 
-                # Check if enough stock is available
-                if product.stock_quantity < quantity:
-                    return Response(
-                        {"error": f"Insufficient stock. Only {product.stock_quantity} available."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+        with transaction.atomic():
+            if variant_id:
+                locked = list(
+                    ProductVariant.objects.select_for_update().filter(id=variant_id, product_id=product_id)[:1]
+                )
+            else:
+                locked = list(
+                    ProductVariant.objects.select_for_update()
+                    .filter(product_id=product_id)
+                    .order_by('id')[:1]
+                )
+            pv = locked[0] if locked else None
+            if not pv:
+                return Response({"error": "Variant not found."}, status=status.HTTP_404_NOT_FOUND)
 
-                # Decrement the stock quantity and save
-                product.stock_quantity -= quantity
-                product.save()
-
-                total_amount = float(product.price) * quantity
-
-                # Create Order
-                order = Order.objects.create(
-                    user=user,
-                    address=address,
-                    phone=phone,
-                    status='pending',
-                    payment_status='paid',
-                    razorpay_order_id=razorpay_order_id,
-                    razorpay_payment_id=razorpay_payment_id,
-                    razorpay_signature=razorpay_signature,
-                    total_price=total_amount
+            # Check if enough stock is available
+            if pv.stock_quantity < quantity:
+                return Response(
+                    {"error": f"Insufficient stock. Only {pv.stock_quantity} available."},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
 
-                # Create OrderItem
-                OrderItem.objects.create(
-                    order=order,
-                    product=product,
-                    vendor=product.vendor,
-                    quantity=quantity,
-                    price=product.price
-                )
+            # Decrement variant stock and save
+            pv.stock_quantity -= quantity
+            pv.save()
 
-        except Product.DoesNotExist:
-            return Response({"error": "Product not found."},
-                            status=status.HTTP_404_NOT_FOUND)
+            total_amount = float(pv.price) * quantity
+
+            # Create Order
+            order = Order.objects.create(
+                user=user,
+                address=address,
+                phone=phone,
+                payment_status='paid',
+                razorpay_order_id=razorpay_order_id,
+                razorpay_payment_id=razorpay_payment_id,
+                razorpay_signature=razorpay_signature,
+                total_price=total_amount
+            )
+
+            # Create OrderItem
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_variant=pv,
+                vendor=product.vendor,
+                quantity=quantity,
+                price=pv.price
+            )
 
         serializer = OrderSerializer(order)
 
@@ -814,6 +892,7 @@ class AddToCartView(APIView):
 
     def post(self, request):
         product_id = request.data.get('product_id')
+        variant_id = request.data.get('variant_id')
         quantity = int(request.data.get('quantity', 1))
 
         try:
@@ -821,21 +900,28 @@ class AddToCartView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        if variant_id:
+            pv = ProductVariant.objects.filter(id=variant_id, product_id=product_id).first()
+        else:
+            pv = ProductVariant.objects.filter(product=product).order_by('id').first()
+        if not pv:
+            return Response({"error": "Product has no variants."}, status=status.HTTP_400_BAD_REQUEST)
+
         # 1. Immediate Stock Check
-        if product.stock_quantity <= 0:
+        if pv.stock_quantity <= 0:
             return Response({"error": "This product is currently out of stock."}, status=status.HTTP_400_BAD_REQUEST)
 
         cart, _ = Cart.objects.get_or_create(user=request.user)
         
         # 2. Check existing cart quantity
-        item = CartItem.objects.filter(cart=cart, product=product).first()
+        item = CartItem.objects.filter(cart=cart, product_variant=pv).first()
         current_qty = item.quantity if item else 0
         new_qty = current_qty + quantity
 
         # 3. Limit Check
-        if new_qty > product.stock_quantity:
+        if new_qty > pv.stock_quantity:
              return Response(
-                 {"error": f"Cannot add. Only {product.stock_quantity} available (You have {current_qty} in cart)."}, 
+                 {"error": f"Cannot add. Only {pv.stock_quantity} available (You have {current_qty} in cart)."}, 
                  status=status.HTTP_400_BAD_REQUEST
              )
 
@@ -844,7 +930,7 @@ class AddToCartView(APIView):
             item.quantity = new_qty
             item.save()
         else:
-            CartItem.objects.create(cart=cart, product=product, quantity=new_qty)
+            CartItem.objects.create(cart=cart, product=product, product_variant=pv, quantity=new_qty)
 
         return Response({"message": "Added to cart"})
 
@@ -879,8 +965,8 @@ class CheckoutView(APIView):
         if not items:
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Calculate total amount
-        base_amount = sum(float(item.product.price) * item.quantity for item in items)
+        # Calculate total amount (per variant SKU price)
+        base_amount = sum(float(item.product_variant.price) * item.quantity for item in items)
         platform_fee = base_amount * 0.05
         gst = platform_fee * 0.18
         total_amount = base_amount + platform_fee + gst
@@ -927,22 +1013,26 @@ class VerifyCartPaymentView(APIView):
             items = cart.items.all()
             
             with transaction.atomic():
-                # Lock all products in the cart
-                product_ids = [item.product.id for item in items]
-                products = Product.objects.select_for_update().filter(id__in=product_ids)
-                product_map = {p.id: p for p in products}
+                variant_ids = [item.product_variant_id for item in items]
+                variants = ProductVariant.objects.select_for_update().filter(id__in=variant_ids)
+                variant_map = {v.id: v for v in variants}
                 
                 total_amount = 0
                 
                 # Check stock for all items
                 for item in items:
-                    product = product_map.get(item.product.id)
-                    if product.stock_quantity < item.quantity:
+                    v = variant_map.get(item.product_variant_id)
+                    if not v:
                         return Response(
-                            {"error": f"Insufficient stock for {product.name}. Only {product.stock_quantity} left."},
+                            {"error": "A cart item references a missing product variant."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
-                    total_amount += float(product.price) * item.quantity
+                    if v.stock_quantity < item.quantity:
+                        return Response(
+                            {"error": f"Insufficient stock for {v.product.name}. Only {v.stock_quantity} left."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    total_amount += float(v.price) * item.quantity
                     
                 # Add fees
                 platform_fee = total_amount * 0.05
@@ -962,13 +1052,13 @@ class VerifyCartPaymentView(APIView):
 
                 # Create OrderItems & Decrement Stock
                 for item in items:
-                    product = product_map[item.product.id]
-                    product.stock_quantity -= item.quantity
-                    product.save()
+                    v = variant_map[item.product_variant_id]
+                    v.stock_quantity -= item.quantity
+                    v.save()
                     
                     OrderItem.objects.create(
-                        order=order, product=product, vendor=product.vendor,
-                        quantity=item.quantity, price=product.price
+                        order=order, product=v.product, product_variant=v, vendor=v.product.vendor,
+                        quantity=item.quantity, price=v.price
                     )
 
                 # Clear Cart NOW (after successful payment and order creation)
@@ -1028,12 +1118,20 @@ class MergeCartView(APIView):
 
         for item in local_items:
             product_id = item.get('product_id')
+            variant_id = item.get('variant_id')
             quantity = item.get('quantity', 1)
             
             try:
                 product = Product.objects.get(id=product_id, status='approved')
-                if product.stock_quantity > 0:
-                    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+                if variant_id:
+                    pv = ProductVariant.objects.filter(id=variant_id, product_id=product_id).first()
+                else:
+                    pv = ProductVariant.objects.filter(product=product).order_by('id').first()
+                if pv and pv.stock_quantity > 0:
+                    cart_item, created = CartItem.objects.get_or_create(
+                        cart=cart, product_variant=pv,
+                        defaults={'product': product, 'quantity': quantity},
+                    )
                     if not created:
                         cart_item.quantity += quantity
                     else:

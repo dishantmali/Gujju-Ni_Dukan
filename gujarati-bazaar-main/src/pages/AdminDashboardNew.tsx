@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -324,7 +324,7 @@ const AdminDashboard = () => {
     formData.append('image', newCatImage);
     try {
       const res = await api.post('/admin/categories/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setCategories([...categories, res.data]);
+      setCategories([...categories, res]);
       setNewCatName(''); setNewCatImage(null);
       const fi = document.getElementById('catImageInput') as HTMLInputElement; if (fi) fi.value = '';
       toast.success("Category created!");
@@ -350,7 +350,7 @@ const AdminDashboard = () => {
     formData.append('image', offerImageFile);
     try {
       const res = await api.post('/admin/offers/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setOffers([res.data, ...offers]);
+      setOffers([res, ...offers]);
       setNewOffer({ title: '', start_date: '', end_date: '' }); setOfferImageFile(null);
       const fi = document.getElementById('offerImageInput') as HTMLInputElement; if (fi) fi.value = '';
       toast.success("Offer created!");
@@ -366,7 +366,7 @@ const AdminDashboard = () => {
     formData.append('title', 'Promo Banner');
     try {
       const res = await api.post('/admin/banners/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setBanners([res.data, ...banners]); setBannerImageFile(null);
+      setBanners([res, ...banners]); setBannerImageFile(null);
       const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = '';
       toast.success("Banner uploaded!");
     } catch { toast.error("Failed to upload banner"); }
@@ -386,11 +386,11 @@ const AdminDashboard = () => {
     try {
       if (editingPlan) {
         const res = await api.put(`/admin/subscription-plans/${editingPlan.id}/`, newPlan);
-        setSubscriptionPlans(subscriptionPlans.map(p => p.id === editingPlan.id ? res.data : p));
+        setSubscriptionPlans(subscriptionPlans.map(p => p.id === editingPlan.id ? res : p));
         toast.success("Plan updated!");
       } else {
         const res = await api.post('/admin/subscription-plans/', newPlan);
-        setSubscriptionPlans([...subscriptionPlans, res.data]);
+        setSubscriptionPlans([...subscriptionPlans, res]);
         toast.success("Plan created!");
       }
       setNewPlan({ name: '', price: '', product_limit: '', duration_days: 30, features: '' });
@@ -469,7 +469,7 @@ const AdminDashboard = () => {
       {/* ── Sidebar ── */}
       <aside className={`absolute lg:relative w-[260px] bg-white border-r border-[#E8D5BC] flex flex-col h-full shrink-0 shadow-sm z-50 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="flex items-center px-6 h-[80px] shrink-0 cursor-pointer" onClick={() => navigate('/')}>
-          <img src={dukanLogo} alt="Logo" className="h-18 w-auto object-contain" />
+          <img src={dukanLogo} alt="Logo" className="h-18 w-auto object-contain logo-transparent bg-white" />
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-4 space-y-1 custom-scrollbar">
           <p className="px-3 text-[10px] font-bold text-[#A87C51] uppercase tracking-widest mb-4 mt-2">Admin Controls</p>
@@ -1056,7 +1056,7 @@ const AdminDashboard = () => {
                         <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
                           {categories.length === 0
                             ? <p className="p-10 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30">No categories active.</p>
-                            : categories.map(cat => (
+                            : categories.filter(Boolean).map(cat => (
                               <div key={cat.id} className="p-4 px-6 flex justify-between items-center hover:bg-[var(--bg-main)] transition-colors">
                                 <div className="flex items-center gap-5">
                                   {cat.image ? <img src={cat.image} className="w-14 h-14 object-cover rounded-xl border border-[var(--border)] shadow-sm" alt={cat.name} /> : <div className="w-14 h-14 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]"></div>}

@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { ShoppingBag, User, Menu, X, Heart, ChevronDown, LogIn, UserPlus } from "lucide-react";
+import { ShoppingBag, User, Menu, X, Heart, ChevronDown, LogIn, UserPlus, LayoutGrid, ArrowRight } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/store/cart";
@@ -25,13 +25,20 @@ export const Navbar = () => {
     return () => clearTimeout(t);
   }, [count]);
 
-  // Close category dropdown on outside click
+  // Close category dropdown on outside click and Escape
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCatOpen(false);
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
 
   return (
@@ -40,7 +47,7 @@ export const Navbar = () => {
       <div className="container flex items-center gap-3 sm:gap-5 h-16 sm:h-[72px]">
         {/* Logo */}
         <Link to="/" className="flex items-center shrink-0">
-          <img src={logo} alt="Gujju ni Dukan" className="h-14 sm:h-16 w-auto mix-blend-multiply object-contain" />
+          <img src={logo} alt="Gujju ni Dukan" className="h-14 sm:h-16 w-auto object-contain logo-transparent bg-background" />
         </Link>
 
         {/* Search Bar - desktop */}
@@ -64,20 +71,39 @@ export const Navbar = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute top-full mt-2 right-0 w-64 rounded-2xl bg-card border border-border shadow-lift overflow-hidden z-50"
+                className="absolute top-full mt-2 right-0 w-72 sm:w-80 rounded-2xl bg-card border border-border shadow-lift overflow-hidden z-50"
               >
-                <div className="p-2">
+                {/* Header */}
+                <div className="px-4 pt-4 pb-2 border-b border-border/50">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                    <LayoutGrid size={12} /> Browse Categories
+                  </p>
+                </div>
+
+                <div className="p-2 grid grid-cols-1 gap-0.5">
                   {categories.map((c) => (
                     <Link
                       key={c.slug}
                       to={`/category/${c.slug}`}
                       onClick={() => setCatOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/60 text-sm transition-colors"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/60 text-sm transition-colors group"
                     >
-                      <span className="text-lg">{c.emoji}</span>
+                      <span className="text-xl group-hover:scale-110 transition-transform duration-200">{c.emoji}</span>
                       <span className="font-medium">{c.name}</span>
+                      <ArrowRight size={14} className="ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
                     </Link>
                   ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-2 pb-2 pt-1 border-t border-border/50">
+                  <Link
+                    to="/search"
+                    onClick={() => setCatOpen(false)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-brown-mid hover:bg-secondary/60 transition-colors"
+                  >
+                    View all categories <ArrowRight size={12} />
+                  </Link>
                 </div>
               </motion.div>
             )}

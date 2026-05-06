@@ -3,6 +3,8 @@ from .models import (
     CustomUser,
     VendorProfile,
     Product,
+    ProductVariant,
+    ProductVariantImage,
     Category,
     Order,
     OrderItem,
@@ -12,7 +14,7 @@ from .models import (
     Offer,
     ProductReview,
     PlatformReview,
-    SubscriptionPlan, 
+    SubscriptionPlan,
     VendorSubscription
 )
 
@@ -48,13 +50,31 @@ class CategoryAdmin(admin.ModelAdmin):
             category.delete()
 
 # ---------------- PRODUCT ---------------- #
+class ProductVariantImageInline(admin.TabularInline):
+    model = ProductVariantImage
+    extra = 1
+
+
+class ProductVariantInline(admin.TabularInline):
+    model = ProductVariant
+    extra = 0
+    inlines = [ProductVariantImageInline]
+
+
+@admin.register(ProductVariant)
+class ProductVariantAdmin(admin.ModelAdmin):
+    list_display = ('id', 'product', 'sku', 'price', 'stock_quantity')
+    inlines = [ProductVariantImageInline]
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'vendor', 'price', 'status', 'created_at')
     list_filter = ('status', 'category')
     search_fields = ('name',)
+    inlines = [ProductVariantInline]
 
-    # 🔥 Quick approve from admin panel
+    # Quick approve from admin panel
     actions = ['approve_products']
 
     def approve_products(self, request, queryset):
@@ -67,7 +87,7 @@ class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     # Added the new fields so you can manage them inside the Order view
-    fields = ('product', 'vendor', 'quantity', 'price', 'status', 'confirmed_at', 'shipped_at', 'delivered_at')
+    fields = ('product', 'product_variant', 'vendor', 'quantity', 'price', 'status', 'confirmed_at', 'shipped_at', 'delivered_at')
 
 
 # ---------------- ORDER ---------------- #
@@ -91,6 +111,7 @@ class OrderAdmin(admin.ModelAdmin):
 class CartItemInline(admin.TabularInline):
     model = CartItem
     extra = 0
+    fields = ('product', 'product_variant', 'quantity')
 
 
 @admin.register(Cart)

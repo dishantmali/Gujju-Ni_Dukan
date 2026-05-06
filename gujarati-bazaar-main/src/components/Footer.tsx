@@ -6,7 +6,7 @@ export const Footer = () => (
   <footer className="mt-24 border-t border-border bg-gradient-warm">
     <div className="container py-12 grid gap-10 md:grid-cols-4">
       <div className="md:col-span-1">
-        <img src={logo} alt="Gujju ni Dukan" className="h-16 w-auto mb-3 mix-blend-multiply object-contain" />
+        <img src={logo} alt="Gujju ni Dukan" className="h-16 w-auto mb-3 object-contain logo-transparent bg-background" />
         <p className="text-sm text-muted-foreground max-w-xs">
           A modern bazaar for authentic Gujarati products — from family vendors to your doorstep.
         </p>
