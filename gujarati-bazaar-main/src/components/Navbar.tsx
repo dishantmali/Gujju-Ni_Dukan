@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/context/AuthContext";
 import { SearchBar } from "./SearchBar";
-import logo from "@/assets/logo.jpeg";
-import { categories } from "@/data/vendors-categories";
+import api from '@/lib/api';
+import { CategoryIcon } from "./CategoryIcon";
+import logo from '@/assets/logo.jpeg';
 
 export const Navbar = () => {
   const count = useCart((s) => s.count());
@@ -17,6 +18,14 @@ export const Navbar = () => {
   const catRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.get('/categories/')
+      .then((res: any) => setCategories(res || []))
+      .catch(err => console.error("Failed to fetch nav categories:", err));
+  }, []);
+
 
   useEffect(() => {
     if (count === 0) return;
@@ -24,6 +33,17 @@ export const Navbar = () => {
     const t = setTimeout(() => setBumped(false), 400);
     return () => clearTimeout(t);
   }, [count]);
+
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   // Close category dropdown on outside click and Escape
   useEffect(() => {
@@ -83,12 +103,14 @@ export const Navbar = () => {
                 <div className="p-2 grid grid-cols-1 gap-0.5">
                   {categories.map((c) => (
                     <Link
-                      key={c.slug}
-                      to={`/category/${c.slug}`}
+                      key={c.id || c.slug}
+                      to={`/category/${c.slug || c.id}`}
                       onClick={() => setCatOpen(false)}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/60 text-sm transition-colors group"
                     >
-                      <span className="text-xl group-hover:scale-110 transition-transform duration-200">{c.emoji}</span>
+                      <span className="text-xl group-hover:scale-110 transition-transform duration-200 text-brown-mid">
+                        <CategoryIcon name={c.icon} size={20} />
+                      </span>
                       <span className="font-medium">{c.name}</span>
                       <ArrowRight size={14} className="ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
                     </Link>
@@ -217,15 +239,16 @@ export const Navbar = () => {
               <div className="grid grid-cols-2 gap-1.5">
                 {categories.slice(0, 8).map((c) => (
                   <Link
-                    key={c.slug}
-                    to={`/category/${c.slug}`}
+                    key={c.id || c.slug}
+                    to={`/category/${c.slug || c.id}`}
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-secondary text-sm"
                   >
-                    <span>{c.emoji}</span>
+                    <span className="text-brown-mid"><CategoryIcon name={c.icon} size={18} /></span>
                     <span>{c.name}</span>
                   </Link>
                 ))}
+
               </div>
               <div className="border-t border-border mt-2 pt-2 space-y-1">
                 {(!isAuthenticated || user?.role === 'buyer') && (

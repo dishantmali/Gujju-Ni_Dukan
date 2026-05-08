@@ -19,11 +19,26 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
+import { IconPicker } from "@/components/IconPicker";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 import api from '@/lib/api';
+
+const ImagePreview = ({ file, className }: { file: File; className?: string }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  if (!url) return null;
+  return <img src={url} alt={file.name} className={className} />;
+};
+
+const isValidImageFile = (file: File) => file.type.startsWith('image/');
 
 const VendorDashboard = () => {
   type VariantAttribute = {
@@ -71,7 +86,8 @@ const VendorDashboard = () => {
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductExtraImages, setNewProductExtraImages] = useState<File[]>([]);
   const [variantImageFiles, setVariantImageFiles] = useState<Record<number, File[]>>({});
-  const [newCategory, setNewCategory] = useState({ name: "" });
+  const [newCategory, setNewCategory] = useState({ name: "", icon: "FaShoppingBasket" });
+
   const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "" });
 
   // Mock data queries (replace with actual API calls)
@@ -199,9 +215,10 @@ const VendorDashboard = () => {
     mutationFn: (data: any) => api.post('/vendor/category-requests/', data),
     onSuccess: () => {
       toast.success('Category request submitted successfully');
-      setNewCategory({ name: "" });
+      setNewCategory({ name: "", icon: "FaShoppingBasket" });
       setActiveTab("products");
     },
+
     onError: (error: any) => {
       toast.error(error.message || 'Failed to request category');
     }
@@ -578,7 +595,7 @@ const VendorDashboard = () => {
     { key: "request_offer", label: "Request Offer", icon: Clock, badge: null },
   ];
 
-  if (productsLoading || categoriesLoading || ordersLoading) {
+  if (productsLoading || categoriesLoading || ordersLoading || plansLoading) {
     return (
       <PageShell>
         <div className="container py-20 text-center">
@@ -1002,7 +1019,14 @@ const VendorDashboard = () => {
                           accept="image/*"
                           required
                           className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-muted file:text-foreground file:cursor-pointer hover:file:bg-accent hover:file:text-accent-foreground transition-all"
-                          onChange={(e) => setNewProductImage(e.target.files?.[0] || null)}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            if (file && !isValidImageFile(file)) {
+                              toast.error("Only image files are allowed.");
+                              return;
+                            }
+                            setNewProductImage(file);
+                          }}
                         />
                       </div>
                       <div>
@@ -1107,8 +1131,8 @@ const VendorDashboard = () => {
                             {newProductVariants.map((variant, index) => (
                               <div key={`variant-${index}`} className="grid grid-cols-12 gap-2">
                                 {columnKeys.length > 0 ? (
-                                  <div className="col-span-4 grid grid-cols-2 gap-2">
-                                    {columnKeys.slice(0, 2).map((key) => (
+                                  <div className="col-span-4 grid gap-2" style={{ gridTemplateColumns: `repeat(${columnKeys.length}, minmax(0, 1fr))` }}>
+                                    {columnKeys.map((key) => (
                                       <input
                                         key={`${index}-${key}`}
                                         type="text"
@@ -1204,9 +1228,8 @@ const VendorDashboard = () => {
                                   <div className="flex flex-wrap gap-2">
                                     {files.map((file, fidx) => (
                                       <div key={fidx} className="relative group">
-                                        <img
-                                          src={URL.createObjectURL(file)}
-                                          alt={file.name}
+                                        <ImagePreview
+                                          file={file}
                                           className="h-16 w-16 rounded-lg object-cover border border-border"
                                         />
                                         <button
@@ -1238,10 +1261,17 @@ const VendorDashboard = () => {
                                       className="hidden"
                                       onChange={(e) => {
                                         const newFiles = Array.from(e.target.files || []);
-                                        if (newFiles.length === 0) return;
+                                        const validFiles = newFiles.filter((f) => {
+                                          if (!isValidImageFile(f)) {
+                                            toast.error(`"${f.name}" is not a valid image file.`);
+                                            return false;
+                                          }
+                                          return true;
+                                        });
+                                        if (validFiles.length === 0) return;
                                         setVariantImageFiles((prev) => ({
                                           ...prev,
-                                          [index]: [...(prev[index] || []), ...newFiles],
+                                          [index]: [...(prev[index] || []), ...validFiles],
                                         }));
                                       }}
                                     />
@@ -1265,9 +1295,8 @@ const VendorDashboard = () => {
                             <div className="flex flex-wrap gap-2">
                               {newProductExtraImages.map((file, idx) => (
                                 <div key={idx} className="relative group">
-                                  <img
-                                    src={URL.createObjectURL(file)}
-                                    alt={file.name}
+                                  <ImagePreview
+                                    file={file}
                                     className="h-16 w-16 rounded-lg object-cover border border-border"
                                   />
                                   <button
@@ -1291,7 +1320,14 @@ const VendorDashboard = () => {
                               className="hidden"
                               onChange={(e) => {
                                 const files = Array.from(e.target.files || []);
-                                setNewProductExtraImages((prev) => [...prev, ...files]);
+                                const validFiles = files.filter((f) => {
+                                  if (!isValidImageFile(f)) {
+                                    toast.error(`"${f.name}" is not a valid image file.`);
+                                    return false;
+                                  }
+                                  return true;
+                                });
+                                setNewProductExtraImages((prev) => [...prev, ...validFiles]);
                               }}
                             />
                           </label>
@@ -1507,13 +1543,13 @@ const VendorDashboard = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Category Image (Optional)</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-muted file:text-foreground file:cursor-pointer hover:file:bg-accent hover:file:text-accent-foreground transition-all"
+                    <label className="block text-sm font-bold text-muted-foreground mb-3">Category Icon</label>
+                    <IconPicker 
+                      value={newCategory.icon} 
+                      onChange={(icon) => setNewCategory({ ...newCategory, icon })} 
                     />
                   </div>
+
                   <button
                     type="submit"
                     disabled={requestCategoryMutation.isPending}

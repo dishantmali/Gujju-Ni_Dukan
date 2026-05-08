@@ -16,14 +16,17 @@ import {
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
 import { VendorCard } from "@/components/VendorCard";
-import { categories, vendors } from "@/data/vendors";
+import { vendors as mockVendors } from "@/data/vendors";
+import { CategoryIcon } from "@/components/CategoryIcon";
+
 import { products as mockProducts, getProductsByCategory } from "@/data/products";
+import banner1 from "@/assets/promo-banner-1.png";
+import banner2 from "@/assets/promo-banner-2.png";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
 
 import heroBanner from "@/assets/hero-banner.png";
-import promoBanner1 from "@/assets/promo-banner-1.png";
-import promoBanner2 from "@/assets/promo-banner-2.png";
+import { BannerSlider, BannerItem } from "@/components/BannerSlider";
 
 /* ── Helpers ── */
 const SectionHeader = ({
@@ -135,20 +138,21 @@ const useHScroll = () => {
 };
 
 /* ── Category Auto-Scroll Marquee ── */
-const CategoryMarquee = () => {
+const CategoryMarquee = ({ categories }: { categories: any[] }) => {
   /* Duplicate items 3× so the loop is seamless */
   const tripled = [...categories, ...categories, ...categories];
+  if (categories.length === 0) return null;
   return (
     <div className="category-marquee-wrap overflow-hidden">
       <div className="category-marquee-track flex gap-4 py-2">
         {tripled.map((c, i) => (
           <Link
-            key={`${c.slug}-${i}`}
-            to={`/category/${c.slug}`}
+            key={`${c.slug || c.id}-${i}`}
+            to={`/category/${c.slug || c.id}`}
             className="group/cat flex flex-col items-center justify-center w-[100px] sm:w-[120px] shrink-0 p-4 sm:p-5 rounded-2xl bg-card border border-border/60 hover:border-accent/50 hover:-translate-y-1.5 hover:shadow-lift transition-all duration-300"
           >
-            <span className="text-3xl sm:text-4xl group-hover/cat:scale-110 transition-transform duration-300">
-              {c.emoji}
+            <span className="text-3xl sm:text-4xl group-hover/cat:scale-110 transition-transform duration-300 text-brown-mid">
+              <CategoryIcon name={c.icon} size={40} />
             </span>
             <span className="mt-2 text-xs sm:text-sm font-medium text-center leading-tight">
               {c.name}
@@ -159,6 +163,7 @@ const CategoryMarquee = () => {
     </div>
   );
 };
+
 
 /* ── Review Card ── */
 const ReviewCard = ({
@@ -215,16 +220,24 @@ const ReviewCard = ({
 const Index = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [offersMarquee, setOffersMarquee] = useState<string[]>(offers);
+  const [banners, setBanners] = useState<{ left: BannerItem[]; right: BannerItem[] }>({ left: [], right: [] });
+
+  const [heroBannerUrl, setHeroBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
   const fetchHomeData = async () => {
     try {
-      const [homeRes, prodsRes]: any = await Promise.all([
+      const [homeRes, prodsRes, catsRes]: any = await Promise.all([
         api.get('/homepage/'),
-        api.get('/products/')
+        api.get('/products/'),
+        api.get('/categories/')
       ]);
+
 
       const featured = (homeRes.featured_products || []).map(mapProduct);
       const newProds = (homeRes.new_products || []).map(mapProduct);
@@ -235,10 +248,41 @@ const Index = () => {
 
       setProducts([...featured, ...newProds, ...mockTrending, ...mockNew]);
       setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
+      setCategories(catsRes || []);
+      
+      if (homeRes.vendors && homeRes.vendors.length > 0) {
+        setVendors(homeRes.vendors.map((v: any) => ({
+          ...v,
+          rating: v.average_rating || 0,
+          joined: "2024", // Fallback for joined date
+        })));
+      } else {
+        setVendors(mockVendors);
+      }
+
+      if (homeRes.offers_marquee && homeRes.offers_marquee.length > 0) {
+        setOffersMarquee(homeRes.offers_marquee);
+      }
+
+      if (homeRes.banners) {
+        setBanners({
+          left: homeRes.banners.left.length > 0 ? homeRes.banners.left : [{ id: 1001, title: 'Promo 1', image: banner1, link_url: '/category/snacks' }],
+          right: homeRes.banners.right.length > 0 ? homeRes.banners.right : [{ id: 1002, title: 'Promo 2', image: banner2, link_url: '/category/clothing' }],
+        });
+      } else {
+        setBanners({
+          left: [{ id: 1001, title: 'Promo 1', image: banner1, link_url: '/category/snacks' }],
+          right: [{ id: 1002, title: 'Promo 2', image: banner2, link_url: '/category/clothing' }],
+        });
+      }
+      setHeroBannerUrl(homeRes.hero_banner || null);
+
     } catch (err) {
       console.error("Failed to fetch home data:", err);
       setProducts(mockProducts.filter(p => p.isTrending || p.isNew));
       setAllProducts(mockProducts);
+      setBanners({ left: [], right: [] });
+      setHeroBannerUrl(null);
     } finally {
       setLoading(false);
     }
@@ -253,6 +297,7 @@ const Index = () => {
   const trendingScroll = useHScroll();
   const newArrivalsScroll = useHScroll();
   const reviewScroll = useHScroll();
+  const vendorScroll = useHScroll();
 
   /* Category filter state */
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -261,6 +306,40 @@ const Index = () => {
   useEffect(() => {
     setIsExpanded(false);
   }, [selectedCategory]);
+
+  /* Vendor auto-scroll one-by-one */
+  useEffect(() => {
+    const el = vendorScroll.ref.current;
+    if (!el) return;
+    const id = setInterval(() => {
+      const child = el.querySelector(":scope > div > div:first-child") as HTMLElement | null;
+      const gap = parseFloat(getComputedStyle(el.querySelector(":scope > div") as HTMLElement).gap || "0");
+      const step = (child?.offsetWidth ?? 170) + (Number.isFinite(gap) ? gap : 16);
+      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - step - 4) {
+        el.scrollTo({ left: 0, behavior: "auto" });
+      } else {
+        el.scrollBy({ left: step, behavior: "smooth" });
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* Review auto-scroll one-by-one */
+  useEffect(() => {
+    const el = reviewScroll.ref.current;
+    if (!el) return;
+    const id = setInterval(() => {
+      const child = el.querySelector(":scope > div > div:first-child") as HTMLElement | null;
+      const gap = parseFloat(getComputedStyle(el.querySelector(":scope > div") as HTMLElement).gap || "0");
+      const step = (child?.offsetWidth ?? 320) + (Number.isFinite(gap) ? gap : 16);
+      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - step - 4) {
+        el.scrollTo({ left: 0, behavior: "auto" });
+      } else {
+        el.scrollBy({ left: step, behavior: "smooth" });
+      }
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
 
   const list = useMemo(() => {
     if (selectedCategory === "all") return allProducts;
@@ -300,7 +379,7 @@ const Index = () => {
               transform: `translateX(${marqueeOffset}px)`,
             }}
           >
-            {[...offers, ...offers, ...offers].map((o, i) => (
+            {[...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
               <span key={i} className="text-xs sm:text-sm font-medium inline-flex items-center gap-2">
                 {o}
                 <span className="text-accent/60">•</span>
@@ -311,47 +390,19 @@ const Index = () => {
       </div>
 
       {/* ─── 2. Hero Banner ─── */}
-      <section className="relative w-full overflow-hidden" style={{ maxHeight: "320px" }}>
+      <section className="relative w-full overflow-hidden" style={{ maxHeight: "180px" }}>
         <img
-          src={heroBanner}
+          src={heroBannerUrl || heroBanner}
           alt="Gujju ni Dukan — Authentic Gujarati Products"
-          className="w-full h-[200px] sm:h-[260px] lg:h-[320px] object-cover"
+          className="w-full h-[140px] sm:h-[160px] lg:h-[180px] object-cover"
         />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary/40 to-transparent" />
-        <div className="absolute inset-0 flex items-center">
-          <div className="container">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="max-w-lg"
-            >
-              <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight drop-shadow-lg">
-                Authentic Gujarati
-                <br />
-                <span className="text-accent">Products Delivered</span>
-              </h1>
-              <p className="mt-2 text-white/80 text-sm sm:text-base max-w-xs drop-shadow">
-                From family vendors to your doorstep — snacks, spices, sweets & more.
-              </p>
-
-              <Link
-                to="/category/snacks"
-                className="mt-3 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm hover:bg-brown-light transition-colors shadow-card"
-              >
-                Shop Now <ArrowRight size={16} />
-              </Link>
-            </motion.div>
-          </div>
-        </div>
       </section>
 
       {/* ─── 3. Category Slider ─── */}
       <section className="container py-8">
-
-        <CategoryMarquee />
+        <CategoryMarquee categories={categories} />
       </section>
+
 
       {/* ─── 4. Trending Now — horizontal scroll ─── */}
       <section className="container py-8">
@@ -426,76 +477,11 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ─── 6. Promotion Banners (2 side by side) ─── */}
+      {/* ─── 6. Promotion Banners (2 side by side sliders) ─── */}
       <section className="container py-6">
         <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Banner 1 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="relative rounded-2xl overflow-hidden cursor-pointer group"
-          >
-            <img
-              src={promoBanner1}
-              alt="Festival Special & Free Delivery Offers"
-              className="w-full h-[180px] sm:h-[220px] object-cover group-hover:scale-[1.02] transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/75 via-primary/35 to-transparent flex items-center">
-              <div className="p-5 sm:p-7">
-                <span className="inline-block px-3 py-1 rounded-full bg-accent text-accent-foreground text-[10px] sm:text-xs font-bold mb-2">
-                  🎉 FESTIVAL SPECIAL
-                </span>
-                <h3 className="font-display text-lg sm:text-xl font-bold text-white leading-tight">
-                  Up to 40% Off on Sweets & Dry Fruits
-                </h3>
-                <p className="mt-1 text-white/70 text-xs sm:text-sm">
-                  Celebrate with premium mithai & gift hampers
-                </p>
-                <Link
-                  to="/category/sweets"
-                  className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-primary font-semibold text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  Shop Sweets <ArrowRight size={14} />
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Banner 2 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative rounded-2xl overflow-hidden cursor-pointer group"
-          >
-            <img
-              src={promoBanner2}
-              alt="Summer Sale on Traditional Products"
-              className="w-full h-[180px] sm:h-[220px] object-cover group-hover:scale-[1.02] transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-l from-primary/75 via-primary/35 to-transparent flex items-center justify-end">
-              <div className="p-5 sm:p-7 text-right">
-                <span className="inline-block px-3 py-1 rounded-full bg-accent text-accent-foreground text-[10px] sm:text-xs font-bold mb-2">
-                  ☀️ SUMMER SALE
-                </span>
-                <h3 className="font-display text-lg sm:text-xl font-bold text-white leading-tight">
-                  Fresh Pickles & Cold-Pressed Oils
-                </h3>
-                <p className="mt-1 text-white/70 text-xs sm:text-sm">
-                  Stock up on summer essentials at amazing prices
-                </p>
-                <Link
-                  to="/category/pickles"
-                  className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-primary font-semibold text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  Shop Now <ArrowRight size={14} />
-                </Link>
-              </div>
-            </div>
-          </motion.div>
+          <BannerSlider banners={banners.left} position="left" />
+          <BannerSlider banners={banners.right} position="right" />
         </div>
       </section>
 
@@ -512,24 +498,25 @@ const Index = () => {
           <div className="container">
             <div className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <div className="flex items-center gap-2 min-w-max py-1">
-            {[{ slug: "all", name: "All", emoji: "✨" }, ...categories].map(
-              (c) => {
-                const isActive = selectedCategory === c.slug;
+            {[{ slug: "all", name: "All", icon: "FaSparkles" }, ...categories].map(
+              (c: any) => {
+                const isActive = selectedCategory === (c.slug || c.id.toString());
                 return (
                   <button
-                    key={c.slug}
-                    onClick={() => setSelectedCategory(c.slug)}
+                    key={c.slug || c.id}
+                    onClick={() => setSelectedCategory(c.slug || c.id.toString())}
                     className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-foreground hover:bg-secondary"
                       }`}
                   >
-                    <span>{c.emoji}</span>
+                    <span><CategoryIcon name={c.icon || 'FaSparkles'} size={14} /></span>
                     <span>{c.name}</span>
                   </button>
                 );
               }
             )}
+
               </div>
             </div>
           </div>
@@ -541,7 +528,7 @@ const Index = () => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5"
         >
           {filteredProducts.map((p, i) => (
             <ProductCard key={p.id} product={p} index={i} />
@@ -573,10 +560,33 @@ const Index = () => {
           icon={<Store size={22} />}
           title="Our Trusted Vendors"
         />
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 bg-gradient-warm rounded-3xl p-4 sm:p-6">
-          {vendors.map((v) => (
-            <VendorCard key={v.id} vendor={v} />
-          ))}
+        <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
+          <button
+            onClick={() => vendorScroll.scroll("left")}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div
+            ref={vendorScroll.ref}
+            className="pill-scroll overflow-x-auto"
+          >
+            <div className="flex gap-3 sm:gap-4 min-w-max pb-2">
+              {[...vendors, ...vendors, ...vendors].map((v, i) => (
+                <div key={`${v.id}-${i}`} className="w-[150px] sm:w-[170px] shrink-0">
+                  <VendorCard vendor={v} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => vendorScroll.scroll("right")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+            aria-label="Scroll right"
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       </section>
 
@@ -599,8 +609,8 @@ const Index = () => {
             className="pill-scroll overflow-x-auto"
           >
             <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-              {customerReviews.map((r, i) => (
-                <ReviewCard key={r.id} review={r} index={i} />
+              {[...customerReviews, ...customerReviews, ...customerReviews].map((r, i) => (
+                <ReviewCard key={`${r.id}-${i}`} review={r} index={i} />
               ))}
             </div>
           </div>

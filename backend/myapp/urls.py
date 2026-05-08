@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView, TokenRefreshView
 )
 from rest_framework.routers import DefaultRouter
+# pyrefly: ignore [missing-import]
 from .views import (
     # Auth
     LoginView, RegisterView, MeView,
@@ -22,8 +23,9 @@ from .views import (
     AdminCategoryDetailView, AdminOrderListView,
     AdminCategoryRequestListView, AdminCategoryRequestActionView,
     AdminOfferListCreateView, AdminOfferActionView,
-    AdminBannerView,AdminSubscriptionPlanListCreateView, AdminSubscriptionPlanDetailView,
+    AdminBannerView, AdminHeroBannerView, AdminSubscriptionPlanListCreateView, AdminSubscriptionPlanDetailView,
     AdminVendorSubscriptionsView,
+    IconAssetUploadView, IconAssetListView,
 
     # Category
     CategoryListView,WishlistToggleView,WishlistListView,MergeWishlistView,
@@ -140,6 +142,10 @@ urlpatterns = [
          AdminVendorSubscriptionsView.as_view(),
          name='admin_vendor_subscriptions'),
 
+    # Icon Assets
+    path('admin/icon-assets/', IconAssetListView.as_view(), name='icon_asset_list'),
+    path('admin/icon-assets/upload/', IconAssetUploadView.as_view(), name='icon_asset_upload'),
+
     # ---------------- CATEGORY ---------------- #
     path('categories/', CategoryListView.as_view(), name='category_list'),
 
@@ -187,7 +193,9 @@ urlpatterns = [
 
     path('admin/banners/', AdminBannerView.as_view()),
     path('admin/banners/<int:pk>/', AdminBannerView.as_view()),
-    
+    path('admin/hero-banners/', AdminHeroBannerView.as_view()),
+    path('admin/hero-banners/<int:pk>/', AdminHeroBannerView.as_view()),
+
     # Address URLs
     path('', include(router.urls)),
     path('profile/', UserProfileView.as_view(), name='user-profile'),

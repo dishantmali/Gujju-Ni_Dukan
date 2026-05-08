@@ -1,6 +1,6 @@
 import type { Product, ProductVariant } from "@/data/types";
 
-const MEDIA_BASE_URL = "http://localhost:8000";
+const MEDIA_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || "http://localhost:8000";
 
 function normalizeMediaUrl(value: unknown): string {
   const raw = String(value ?? "").trim();
@@ -64,7 +64,6 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
       : basePrice;
 
   return {
-    ...(p as unknown as Product),
     id: String(p.id),
     name: String(p.name ?? ""),
     description: String(p.description ?? ""),
@@ -78,6 +77,7 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
         ? String((p as { vendor?: number | string }).vendor)
         : "",
     vendor_shop: String((p as { vendor_shop?: string }).vendor_shop ?? ""),
+    categoryId: String((p as { category?: unknown }).category ?? ""),
     category: (() => {
       const name = String((p as { category_name?: string }).category_name ?? "");
       const raw = String((p as { category?: unknown }).category ?? "");

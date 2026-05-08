@@ -53,6 +53,7 @@ const ProductPage = () => {
   const { id = "" } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [qty, setQty] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
@@ -79,6 +80,24 @@ const ProductPage = () => {
     };
     if (id) fetchProduct();
   }, [id]);
+
+  useEffect(() => {
+    const fetchRelated = async () => {
+      if (!product?.categoryId) return;
+      try {
+        const res: any = await api.get(`/products/?category=${product.categoryId}`);
+        const all = (res || []).map((p: any) => mapApiProduct(p as Record<string, unknown>));
+        const filtered = all.filter((p: Product) => String(p.id) !== String(product.id));
+        // Shuffle and take up to 8
+        const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 8);
+        setRelatedProducts(shuffled);
+      } catch {
+        // Fallback to local mock data
+        setRelatedProducts(getRelatedProducts(product, 8));
+      }
+    };
+    if (product) fetchRelated();
+  }, [product?.id]);
 
   useEffect(() => {
     const list = product?.variants ?? [];
@@ -177,7 +196,7 @@ const ProductPage = () => {
 
   const vendor = vendors.find((v) => v.id === product.vendorId);
   const isWish = wishlist.includes(product.id.toString());
-  const related = getRelatedProducts(product, 8);
+  const related = relatedProducts.length > 0 ? relatedProducts : getRelatedProducts(product, 8);
   const displayPrice = selectedVariant ? selectedVariant.price : product.price;
   const displayOriginal = displayPrice * 1.2;
   const selectedStock =

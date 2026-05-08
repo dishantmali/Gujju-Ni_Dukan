@@ -10,12 +10,15 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CategoryPills } from "@/components/CategoryPills";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
+import { CategoryIcon } from "@/components/CategoryIcon";
+
 
 type Sort = "relevance" | "price-asc" | "price-desc" | "newest" | "top-rated";
 
 const CategoryPage = () => {
   const { slug = "" } = useParams();
-  const cat = categories.find((c) => c.slug === slug);
+  const [cat, setCat] = useState<any>(null);
+
   const [all, setAll] = useState<any[]>([]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sort, setSort] = useState<Sort>("relevance");
@@ -46,7 +49,19 @@ const CategoryPage = () => {
     setFilters(defaultFilters);
     setPage(1);
     fetchCategoryProducts();
+    
+    if (slug !== "all") {
+      api.get(`/categories/`)
+        .then((res: any) => {
+          const found = res.find((c: any) => (c.slug || c.id.toString()) === slug);
+          setCat(found);
+        })
+        .catch(err => console.error("Failed to fetch category details:", err));
+    } else {
+      setCat({ name: "All Products", icon: "FaSparkles" });
+    }
   }, [slug]);
+
 
   useEffect(() => {
     setPage(1);
@@ -101,8 +116,9 @@ const CategoryPage = () => {
           <span className="text-foreground">{cat?.name || (slug === "all" ? "All Products" : slug)}</span>
         </nav>
         <h1 className="font-display text-3xl sm:text-4xl font-semibold inline-flex items-center gap-3">
-          {cat?.emoji ? <span>{cat.emoji}</span> : <span>✨</span>} {cat?.name || (slug === "all" ? "All Products" : "Category")}
+          <span className="text-brown-mid"><CategoryIcon name={cat?.icon || 'FaSparkles'} size={32} /></span> {cat?.name || (slug === "all" ? "All Products" : "Category")}
         </h1>
+
         <p className="text-sm text-muted-foreground mt-1">{all.length} products</p>
         <div className="mt-5"><CategoryPills activeSlug={slug} /></div>
       </div>

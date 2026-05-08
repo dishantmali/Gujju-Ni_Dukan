@@ -8,30 +8,39 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import generics, permissions, status , viewsets
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db import transaction , models
 from django.contrib.auth import update_session_auth_hash
 import requests 
+# pyrefly: ignore [missing-import]
 from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
-    Category, Cart, CartItem, CategoryRequest, Offer , Wishlist,
-    ProductReview, PlatformReview , Banner , SubscriptionPlan, VendorSubscription
+    Category ,Cart, CartItem, CategoryRequest, Offer , Wishlist,
+    ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
+    IconAsset
 )
+# pyrefly: ignore [missing-import]
 from .serializers import (
     RegisterSerializer, CustomUserSerializer, ProductSerializer,
     OrderSerializer,OrderItemSerializer, VendorOrderUpdateSerializer, CategorySerializer,
     CartSerializer, CategoryRequestSerializer, OfferSerializer, WishlistSerializer ,
-    ProductReviewSerializer, PlatformReviewSerializer , BannerSerializer , UserSerializer ,
-    SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer
+    ProductReviewSerializer, PlatformReviewSerializer , BannerSerializer , HeroBannerSerializer, UserSerializer ,
+    SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
+    IconAssetSerializer
 )
 import random
-# Initialize Razorpay client
-razorpay_client = razorpay.Client(
-    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-)
+# Initialize Razorpay client gracefully
+razorpay_key_id = getattr(settings, 'RAZORPAY_KEY_ID', None)
+razorpay_key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', None)
+razorpay_client = None
+if razorpay_key_id and razorpay_key_secret:
+    try:
+        razorpay_client = razorpay.Client(auth=(razorpay_key_id, razorpay_key_secret))
+    except Exception:
+        pass
 
 
 # ---------------- Auth APIs ---------------- #
@@ -111,6 +120,19 @@ class HomePageView(APIView):
         
         top_vendors = VendorProfile.objects.filter(is_approved=True)[:10]
         active_banners = Banner.objects.filter(is_active=True)
+        left_banners = active_banners.filter(position='left').order_by('display_order', 'id')
+        right_banners = active_banners.filter(position='right').order_by('display_order', 'id')
+
+        hero = HeroBanner.objects.filter(is_active=True).order_by('-updated_at').first()
+
+        def banner_dict(b):
+            return {
+                "id": b.id,
+                "title": b.title,
+                "image": request.build_absolute_uri(b.image.url),
+                "link_url": b.link_url,
+            }
+
         return Response({
             "categories": CategorySerializer(
                 categories, many=True,
@@ -128,15 +150,16 @@ class HomePageView(APIView):
                 active_offers, many=True,
                 context={'request': request}
             ).data,
-            "vendors": [
-                {
-                    "shop_name": v.shop_name,
-                    # build_absolute_uri ensures the full URL is sent (e.g., http://127.0.0.1:8000/media/...)
-                    "logo": request.build_absolute_uri(v.logo.url) if v.logo else None
-                } 
-                for v in top_vendors
-            ],
-            "banners": [{"id": b.id, "image": request.build_absolute_uri(b.image.url)} for b in active_banners],
+            "offers_marquee": [o.title for o in active_offers if o.status == 'approved'],
+            "vendors": VendorProfileSerializer(
+                top_vendors, many=True,
+                context={'request': request}
+            ).data,
+            "hero_banner": request.build_absolute_uri(hero.image.url) if hero else None,
+            "banners": {
+                "left": [banner_dict(b) for b in left_banners],
+                "right": [banner_dict(b) for b in right_banners],
+            },
         })
 
 
@@ -374,7 +397,9 @@ class AdminVendorApprovalView(APIView):
             vendor.save()
             
             # Automatically suspend all their products so buyers can't see them
-            Product.objects.filter(vendor=vendor).update(is_active=False)           
+            for product in Product.objects.filter(vendor=vendor):
+                product.is_active = False
+                product.save()
             return Response({"message": "Vendor account suspended. Products hidden."})
 
         return Response({"error": "Invalid action"}, status=400)
@@ -434,7 +459,7 @@ class AdminUserListView(generics.ListAPIView):
 class AdminCategoryListCreateView(generics.ListCreateAPIView):
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     queryset = Category.objects.all()
 
     def perform_create(self, serializer):
@@ -446,6 +471,7 @@ class AdminCategoryListCreateView(generics.ListCreateAPIView):
 class AdminCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     queryset = Category.objects.all()
 
     def perform_destroy(self, instance):
@@ -464,41 +490,78 @@ class AdminOrderListView(generics.ListAPIView):
         return Order.objects.all().order_by('-created_at')
     
 class AdminBannerView(APIView):
-    permission_classes = [permissions.IsAdminUser] 
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # FIX 1: Order by 'id' since 'created_at' does not exist on the Banner model
-        banners = Banner.objects.all().order_by('id')
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can view banners.")
+        banners = Banner.objects.all().order_by('position', 'display_order', 'id')
         serializer = BannerSerializer(banners, many=True, context={'request': request})
         return Response(serializer.data)
 
     def post(self, request):
-        # STRICT LIMIT: Max 2 banners
-        if Banner.objects.count() >= 2:
-            return Response({"error": "Maximum of 2 banners allowed."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # FIX 2: Create a mutable copy of the data and inject a default title
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can manage banners.")
         data = request.data.copy()
         if 'title' not in data:
-            data['title'] = f"Promo Banner {Banner.objects.count() + 1}"
+            position_label = data.get('position', 'left').capitalize()
+            count = Banner.objects.filter(position=data.get('position', 'left')).count()
+            data['title'] = f"{position_label} Banner {count + 1}"
 
         serializer = BannerSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        # If it fails, print the errors to the terminal so we can see exactly what went wrong
+
         print("Banner Upload Errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can manage banners.")
         try:
             banner = Banner.objects.get(pk=pk)
             banner.delete()
             return Response({"success": True}, status=status.HTTP_204_NO_CONTENT)
         except Banner.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        
+
+class AdminHeroBannerView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can view hero banners.")
+        heroes = HeroBanner.objects.all().order_by('-updated_at')
+        serializer = HeroBannerSerializer(heroes, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can manage hero banners.")
+        data = request.data.copy()
+        if 'title' not in data:
+            count = HeroBanner.objects.count()
+            data['title'] = f"Hero Banner {count + 1}"
+
+        serializer = HeroBannerSerializer(data=data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        print("Hero Banner Upload Errors:", serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can manage hero banners.")
+        try:
+            hero = HeroBanner.objects.get(pk=pk)
+            hero.delete()
+            return Response({"success": True}, status=status.HTTP_204_NO_CONTENT)
+        except HeroBanner.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
 # ---------------- ADMIN SUBSCRIPTION APIs ---------------- #
 
 class AdminSubscriptionPlanListCreateView(generics.ListCreateAPIView):
@@ -594,7 +657,8 @@ class AdminCategoryRequestActionView(APIView):
         if action == 'approve':
             Category.objects.create(
                 name=cat_req.name,
-                image=cat_req.image
+                icon=cat_req.icon,
+                icon_type=cat_req.icon_type
             )
             cat_req.status = 'approved'
             cat_req.save()
@@ -609,6 +673,84 @@ class AdminCategoryRequestActionView(APIView):
             )
 
         return Response({"error": "Invalid action"}, status=400)
+
+
+# ---------- Icon Asset Management ---------- #
+
+import re
+import os
+
+def sanitize_svg(content_bytes):
+    """Basic SVG sanitization: remove script tags and event handlers."""
+    content = content_bytes.decode('utf-8', errors='ignore')
+    # Remove script tags
+    content = re.sub(r'<script[^>]*>.*?</script>', '', content, flags=re.DOTALL | re.IGNORECASE)
+    # Remove on* event handlers
+    content = re.sub(r'\bon\w+\s*=\s*"[^"]*"', '', content, flags=re.IGNORECASE)
+    content = re.sub(r"\bon\w+\s*=\s*'[^']*'", '', content, flags=re.IGNORECASE)
+    # Remove javascript: URIs
+    content = re.sub(r'href\s*=\s*"javascript:[^"]*"', 'href="#"', content, flags=re.IGNORECASE)
+    return content.encode('utf-8')
+
+
+class IconAssetUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can upload icon assets.")
+
+        file = request.FILES.get('file')
+        name = request.data.get('name', '')
+
+        if not file:
+            return Response({"error": "No file provided"}, status=400)
+
+        # Validate file size (max 500KB)
+        if file.size > 512000:
+            return Response({"error": "File size must be under 500KB"}, status=400)
+
+        # Determine icon type from mime/extension
+        ext = os.path.splitext(file.name)[1].lower()
+        mime = file.content_type or ''
+
+        if ext == '.svg' or 'svg' in mime:
+            icon_type = 'uploaded_svg'
+            # Sanitize SVG content
+            raw = file.read()
+            sanitized = sanitize_svg(raw)
+            from django.core.files.base import ContentFile
+            file = ContentFile(sanitized, name=file.name)
+        elif ext in ('.png', '.webp', '.jpg', '.jpeg') or mime.startswith('image/'):
+            icon_type = 'uploaded_image'
+        else:
+            return Response(
+                {"error": "Only SVG, PNG, WEBP, JPG files are allowed"},
+                status=400
+            )
+
+        if not name:
+            name = os.path.splitext(file.name)[0]
+
+        asset = IconAsset.objects.create(
+            name=name,
+            icon_type=icon_type,
+            file=file,
+            uploaded_by=request.user
+        )
+
+        serializer = IconAssetSerializer(asset, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class IconAssetListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        assets = IconAsset.objects.all()
+        serializer = IconAssetSerializer(assets, many=True, context={'request': request})
+        return Response(serializer.data)
 
 
 # ---------- Admin Offer Management ---------- #
@@ -696,6 +838,15 @@ class CreateRazorpayOrderView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate phone format
+        phone_digits = phone.strip()
+        if phone_digits.startswith('+'):
+            phone_digits = phone_digits[1:]
+        if phone_digits.startswith('91'):
+            phone_digits = phone_digits[2:]
+        if not phone_digits.isdigit() or len(phone_digits) != 10:
+            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             product = Product.objects.get(id=product_id, status='approved')
         except Product.DoesNotExist:
@@ -716,6 +867,9 @@ class CreateRazorpayOrderView(APIView):
         gst = platform_fee * 0.18
         total_amount = base_amount + platform_fee + gst
         amount_in_paise = int(total_amount * 100)
+
+        if not razorpay_client:
+            return Response({"error": "Payment gateway not configured"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         razorpay_order = razorpay_client.order.create({
             "amount": amount_in_paise,
@@ -759,6 +913,15 @@ class VerifyPaymentView(APIView):
         address = request.data.get('address')
         phone = request.data.get('phone')
         quantity = int(request.data.get('quantity', 1))
+
+        # Validate phone format
+        phone_digits = phone.strip()
+        if phone_digits.startswith('+'):
+            phone_digits = phone_digits[1:]
+        if phone_digits.startswith('91'):
+            phone_digits = phone_digits[2:]
+        if not phone_digits.isdigit() or len(phone_digits) != 10:
+            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 1. Verify Razorpay Signature
         try:
@@ -893,7 +1056,15 @@ class AddToCartView(APIView):
     def post(self, request):
         product_id = request.data.get('product_id')
         variant_id = request.data.get('variant_id')
-        quantity = int(request.data.get('quantity', 1))
+        
+        # Validate quantity
+        try:
+            quantity = int(request.data.get('quantity', 1))
+        except (ValueError, TypeError):
+            return Response({"error": "Quantity must be a valid number."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if quantity < 1:
+            return Response({"error": "Quantity must be at least 1."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             product = Product.objects.get(id=product_id, status='approved')
@@ -1407,6 +1578,15 @@ class RequestContactOTPView(APIView):
         # --------------------------------------------------
         if contact_type == 'phone':
             formatted_number = new_value.strip()
+            # Validate phone format (10 digits, optional +91 prefix)
+            check_digits = formatted_number
+            if check_digits.startswith('+'):
+                check_digits = check_digits[1:]
+            if check_digits.startswith('91'):
+                check_digits = check_digits[2:]
+            if not check_digits.isdigit() or len(check_digits) != 10:
+                return Response({"error": "Phone number must contain exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+
             if not formatted_number.startswith('+'):
                 formatted_number = '+91' + formatted_number # Format for India
 
@@ -1456,6 +1636,17 @@ class VerifyContactOTPView(APIView):
         
         cache_key = f"otp_{request.user.id}_{contact_type}"
         cached_data = cache.get(cache_key)
+
+        if contact_type == 'phone':
+            new_phone = cached_data['new_value']
+            # Validate phone format before saving
+            check_digits = new_phone
+            if check_digits.startswith('+'):
+                check_digits = check_digits[1:]
+            if check_digits.startswith('91'):
+                check_digits = check_digits[2:]
+            if not check_digits.isdigit() or len(check_digits) != 10:
+                return Response({"error": "Invalid phone number format."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not cached_data or cached_data['otp'] != provided_otp:
             return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)

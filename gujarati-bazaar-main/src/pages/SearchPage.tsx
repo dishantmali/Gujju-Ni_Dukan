@@ -1,27 +1,32 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { ProductGrid } from "@/components/ProductGrid";
 import { FilterSidebar, Filters, defaultFilters } from "@/components/FilterSidebar";
-import { searchProducts } from "@/data/products";
 import { EmptyState } from "@/components/EmptyState";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
+import api from "@/lib/api";
+import { mapApiProduct } from "@/lib/mapApiProduct";
+import type { Product } from "@/data/types";
 
 const SearchPage = () => {
   const [params] = useSearchParams();
   const q = params.get("q") || "";
   const [filters, setFilters] = useState<Filters>(defaultFilters);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    const t = setTimeout(() => setLoading(false), 250);
-    return () => clearTimeout(t);
-  }, [q]);
+  const { data: all = [], isLoading: loading } = useQuery<Product[]>({
+    queryKey: ["search", q],
+    queryFn: async () => {
+      if (!q.trim()) return [];
+      const data = await api.get(`/products/?search=${encodeURIComponent(q)}`);
+      return (Array.isArray(data) ? data : []).map(mapApiProduct);
+    },
+    enabled: !!q.trim(),
+  });
 
-  const all = useMemo(() => searchProducts(q), [q]);
   const filtered = useMemo(() => all.filter((p) =>
     p.price >= filters.price[0] && p.price <= filters.price[1] &&
     p.rating >= filters.minRating &&

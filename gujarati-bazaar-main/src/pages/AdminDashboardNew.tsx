@@ -6,6 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import dukanLogo from '@/assets/logo.jpeg';
 
 import api from '@/lib/api';
+import { IconPickerModal } from '@/components/IconPickerModal';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Pencil, X } from 'lucide-react';
+
 
 const Icons = {
   Overview: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" /></svg>,
@@ -175,6 +179,8 @@ const SalesLineChart = ({ data }) => {
   );
 };
 
+const isValidImageFile = (file: File) => file.type.startsWith('image/');
+
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -199,10 +205,18 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const [newCatName, setNewCatName] = useState('');
-  const [newCatImage, setNewCatImage] = useState(null);
+  const [newCatIcon, setNewCatIcon] = useState('mdi:shopping');
+  const [newCatIconType, setNewCatIconType] = useState('iconify');
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+
   const [newOffer, setNewOffer] = useState({ title: '', start_date: '', end_date: '' });
   const [offerImageFile, setOfferImageFile] = useState(null);
   const [bannerImageFile, setBannerImageFile] = useState(null);
+  const [newBannerPosition, setNewBannerPosition] = useState<'left' | 'right'>('left');
+  const [newBannerOrder, setNewBannerOrder] = useState(0);
+  const [heroBanners, setHeroBanners] = useState<any[]>([]);
+  const [heroBannerImageFile, setHeroBannerImageFile] = useState(null);
   const [salesRange, setSalesRange] = useState('Last 7 Days');
   const [revenueRange, setRevenueRange] = useState('This Month');
   const [ordersRange, setOrdersRange] = useState('This Month');
@@ -232,6 +246,11 @@ const AdminDashboard = () => {
           const bannerRes: any = await api.get('/admin/banners/');
           setBanners(bannerRes || []);
         } catch (e) { console.warn("Banners endpoint not ready yet", e); }
+
+        try {
+          const heroRes: any = await api.get('/admin/hero-banners/');
+          setHeroBanners(heroRes || []);
+        } catch (e) { console.warn("Hero banners endpoint not ready yet", e); }
 
         try {
           const subRes: any = await api.get('/admin/subscription-plans/');
@@ -318,18 +337,47 @@ const AdminDashboard = () => {
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
-    if (!newCatImage) return toast.error("Please provide an image for the category");
-    const formData = new FormData();
-    formData.append('name', newCatName);
-    formData.append('image', newCatImage);
+    if (!newCatIcon) return toast.error("Please select an icon for the category");
     try {
-      const res = await api.post('/admin/categories/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setCategories([...categories, res]);
-      setNewCatName(''); setNewCatImage(null);
-      const fi = document.getElementById('catImageInput') as HTMLInputElement; if (fi) fi.value = '';
-      toast.success("Category created!");
-    } catch { toast.error("Failed to create category"); }
+      if (editingCategoryId) {
+        const res = await api.put(`/admin/categories/${editingCategoryId}/`, {
+          name: newCatName,
+          icon: newCatIcon,
+          icon_type: newCatIconType
+        });
+        setCategories(categories.map(c => c.id === editingCategoryId ? res : c));
+        setEditingCategoryId(null);
+        toast.success("Category updated!");
+      } else {
+        const res = await api.post('/admin/categories/', {
+          name: newCatName,
+          icon: newCatIcon,
+          icon_type: newCatIconType
+        });
+        setCategories([...categories, res]);
+        toast.success("Category created!");
+      }
+      setNewCatName('');
+      setNewCatIcon('mdi:shopping');
+      setNewCatIconType('iconify');
+    } catch { toast.error(editingCategoryId ? "Failed to update category" : "Failed to create category"); }
   };
+
+  const handleEditCategory = (cat) => {
+    setEditingCategoryId(cat.id);
+    setNewCatName(cat.name);
+    setNewCatIcon(cat.icon);
+    setNewCatIconType(cat.icon_type || 'iconify');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCategoryId(null);
+    setNewCatName('');
+    setNewCatIcon('mdi:shopping');
+    setNewCatIconType('iconify');
+  };
+
 
   const handleDeleteCategory = async (id) => {
     if (!window.confirm("Are you sure? This may affect products in this category.")) return;
@@ -363,10 +411,14 @@ const AdminDashboard = () => {
     const formData = new FormData();
     formData.append('image', bannerImageFile);
     formData.append('is_active', 'true');
-    formData.append('title', 'Promo Banner');
+    formData.append('position', newBannerPosition);
+    formData.append('display_order', String(newBannerOrder));
+    formData.append('title', `Promo Banner ${newBannerPosition === 'left' ? 'Left' : 'Right'}`);
     try {
       const res = await api.post('/admin/banners/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setBanners([res, ...banners]); setBannerImageFile(null);
+      setBanners([res, ...banners]);
+      setBannerImageFile(null);
+      setNewBannerOrder(0);
       const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = '';
       toast.success("Banner uploaded!");
     } catch { toast.error("Failed to upload banner"); }
@@ -379,6 +431,31 @@ const AdminDashboard = () => {
       setBanners(banners.filter(b => b.id !== id));
       toast.success("Banner deleted");
     } catch { toast.error("Failed to delete banner"); }
+  };
+
+  const handleCreateHeroBanner = async (e) => {
+    e.preventDefault();
+    if (!heroBannerImageFile) return toast.error("Please provide an image for the hero banner");
+    const formData = new FormData();
+    formData.append('image', heroBannerImageFile);
+    formData.append('is_active', 'true');
+    formData.append('title', 'Hero Banner');
+    try {
+      const res = await api.post('/admin/hero-banners/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setHeroBanners([res, ...heroBanners]);
+      setHeroBannerImageFile(null);
+      const fi = document.getElementById('heroBannerInput') as HTMLInputElement; if (fi) fi.value = '';
+      toast.success("Hero banner uploaded!");
+    } catch { toast.error("Failed to upload hero banner"); }
+  };
+
+  const handleDeleteHeroBanner = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this hero banner?")) return;
+    try {
+      await api.delete(`/admin/hero-banners/${id}/`);
+      setHeroBanners(heroBanners.filter(b => b.id !== id));
+      toast.success("Hero banner deleted");
+    } catch { toast.error("Failed to delete hero banner"); }
   };
 
   const handleSavePlan = async (e) => {
@@ -1021,9 +1098,12 @@ const AdminDashboard = () => {
                       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 bg-[var(--bg-main)]/30">
                         {pendingCatReqs.map(req => (
                           <div key={req.id} className="bg-white border border-[#E8D5BC] rounded-2xl p-5 hover:border-[#E8D5BC]/40 transition-colors">
-                            {req.image && <img src={req.image} className="w-full h-36 object-cover rounded-xl mb-5 shadow-sm" alt={req.name} />}
+                            <div className="w-full h-36 bg-gray-50 flex items-center justify-center rounded-xl mb-5 shadow-inner text-indigo-600">
+                               <CategoryIcon name={req.icon} iconType={req.icon_type} size={64} />
+                            </div>
                             <p className="text-[10px] font-black text-[#8C7B6E] uppercase tracking-widest mb-1 truncate">Req by: {req.vendor_shop}</p>
                             <h3 className="font-bold text-[#5A3825] text-xl truncate mb-5">{req.name}</h3>
+
                             <div className="grid grid-cols-2 gap-3">
                               <button onClick={() => handleCatRequestAction(req.id, 'reject')} className="w-full py-2.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Reject</button>
                               <button onClick={() => handleCatRequestAction(req.id, 'approve')} className="w-full py-2.5 text-xs font-bold text-white bg-[var(--coffee-light)] hover:bg-[var(--coffee-brown)] rounded-lg transition-colors shadow-md">Approve</button>
@@ -1036,17 +1116,47 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <div className="xl:col-span-1">
                       <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Create Category</h2>
+                        <div className="flex items-center justify-between mb-8">
+                          <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">{editingCategoryId ? 'Edit Category' : 'Create Category'}</h2>
+                          {editingCategoryId && (
+                            <button onClick={handleCancelEdit} className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-1 transition-colors">
+                              <X size={12} /> Cancel
+                            </button>
+                          )}
+                        </div>
                         <form onSubmit={handleCreateCategory} className="space-y-5">
                           <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Category Name</label>
                             <input type="text" placeholder="e.g., Sweets" required value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors" />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Cover Image</label>
-                            <input id="catImageInput" type="file" accept="image/*" required onChange={e => setNewCatImage(e.target.files[0])} className="w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-[var(--bg-main)] file:text-[var(--coffee-light)] hover:file:bg-[var(--brown-mid)] hover:file:text-white file:transition-colors cursor-pointer" />
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Category Icon</label>
+                            <button
+                              type="button"
+                              onClick={() => setIconPickerOpen(true)}
+                              className="w-full flex items-center gap-4 p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl hover:border-[var(--brown-mid)] hover:bg-[#F5EFE7] active:bg-[#EDE4D3] transition-all duration-200 text-left cursor-pointer group"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-white border border-border/40 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                                <CategoryIcon name={newCatIcon} iconType={newCatIconType} size={22} className="text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{newCatIcon || 'Select an icon'}</p>
+                                <p className="text-[10px] text-muted-foreground">Click to open icon picker</p>
+                              </div>
+                              <svg className="w-4 h-4 text-muted-foreground group-hover:text-[var(--brown-mid)] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                            <IconPickerModal
+                              open={iconPickerOpen}
+                              onOpenChange={setIconPickerOpen}
+                              value={newCatIcon}
+                              iconType={newCatIconType}
+                              onChange={(v, t) => { setNewCatIcon(v); setNewCatIconType(t); }}
+                            />
                           </div>
-                          <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-2">Publish Category</button>
+
+                          <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-2">
+                            {editingCategoryId ? 'Update Category' : 'Publish Category'}
+                          </button>
                         </form>
                       </div>
                     </div>
@@ -1059,10 +1169,18 @@ const AdminDashboard = () => {
                             : categories.filter(Boolean).map(cat => (
                               <div key={cat.id} className="p-4 px-6 flex justify-between items-center hover:bg-[var(--bg-main)] transition-colors">
                                 <div className="flex items-center gap-5">
-                                  {cat.image ? <img src={cat.image} className="w-14 h-14 object-cover rounded-xl border border-[var(--border)] shadow-sm" alt={cat.name} /> : <div className="w-14 h-14 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]"></div>}
+                                  <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm">
+                                    <CategoryIcon name={cat.icon} iconType={cat.icon_type} size={28} />
+                                  </div>
                                   <span className="font-bold text-[var(--text-dark)] text-lg">{cat.name}</span>
                                 </div>
-                                <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-red-100 transition-all duration-200 active:scale-95">Delete</button>
+
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => handleEditCategory(cat)} className="text-[var(--brown-mid)] hover:bg-[var(--bg-main)] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-[var(--border)] transition-all duration-200 active:scale-95 flex items-center gap-1.5">
+                                    <Pencil size={12} /> Edit
+                                  </button>
+                                  <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-red-100 transition-all duration-200 active:scale-95">Delete</button>
+                                </div>
                               </div>
                             ))
                           }
@@ -1116,7 +1234,14 @@ const AdminDashboard = () => {
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1 mt-2">Banner Graphic</label>
-                            <input id="offerImageInput" type="file" accept="image/*" required onChange={e => setOfferImageFile(e.target.files[0])} className="w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-[var(--bg-main)] file:text-[var(--coffee-light)] hover:file:bg-[var(--brown-mid)] hover:file:text-white file:transition-colors cursor-pointer" />
+                            <input id="offerImageInput" type="file" accept="image/*" required onChange={e => {
+                              const file = e.target.files?.[0] || null;
+                              if (file && !isValidImageFile(file)) {
+                                toast.error("Only image files are allowed.");
+                                return;
+                              }
+                              setOfferImageFile(file);
+                            }} className="w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-[var(--bg-main)] file:text-[var(--coffee-light)] hover:file:bg-[var(--brown-mid)] hover:file:text-white file:transition-colors cursor-pointer" />
                           </div>
                           <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4">Broadcast Offer</button>
                         </form>
@@ -1151,42 +1276,188 @@ const AdminDashboard = () => {
               {/* ── BANNERS TAB ── */}
               {activeTab === 'banners' && (
                 <div className="animate-fade-in flex flex-col gap-8">
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                    <div className="xl:col-span-1">
-                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Upload Banner</h2>
-                        <form onSubmit={handleCreateBanner} className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Banner Graphic</label>
-                            <input id="bannerImageInput" type="file" accept="image/*" required onChange={e => setBannerImageFile(e.target.files[0])} disabled={banners.length >= 2} className="w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-[var(--bg-main)] file:text-[var(--coffee-light)] hover:file:bg-[var(--brown-mid)] hover:file:text-white file:transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" />
-                            <p className="text-xs text-[var(--text-light)] mt-2 ml-1">Upload high-quality promotional banners. Recommended ratio: 16:9.</p>
+                  {/* HERO BANNER */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
+                    <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Hero Banner (Header Image)</h2>
+                    </div>
+                    <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30">
+                      {/* + Upload area */}
+                      <form onSubmit={handleCreateHeroBanner} className="flex flex-col gap-3">
+                        <label
+                          htmlFor="heroBannerInput"
+                          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
+                        >
+                          <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                          <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Hero Banner</span>
+                          <span className="text-[10px] text-[var(--text-light)]">Click to choose image (wide banner recommended)</span>
+                        </label>
+                        <input id="heroBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
+                          const file = e.target.files?.[0] || null;
+                          if (file && !isValidImageFile(file)) {
+                            toast.error("Only image files are allowed.");
+                            return;
+                          }
+                          setHeroBannerImageFile(file);
+                        }} />
+
+                        {heroBannerImageFile && (
+                          <div className="flex items-center gap-3 animate-fade-in">
+                            <button type="submit" className="bg-[#5A3825] text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-[#432A1C] transition-colors shadow-sm">Upload</button>
+                            <button type="button" onClick={() => setHeroBannerImageFile(null)} className="text-[var(--text-muted)] hover:text-red-500 text-xs font-bold uppercase tracking-wider">Cancel</button>
                           </div>
-                          {banners.length >= 2 && (
-                            <p className="text-xs font-bold text-red-500 ml-1">Maximum limit of 2 banners reached. Delete one to upload a new one.</p>
-                          )}
-                          <button type="submit" disabled={!bannerImageFile || banners.length >= 2} className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4 disabled:opacity-50 disabled:cursor-not-allowed">
-                            Upload Banner
-                          </button>
-                        </form>
+                        )}
+                      </form>
+
+                      {/* Hero banner preview */}
+                      <div className="flex flex-col gap-4">
+                        {heroBanners.length === 0 ? (
+                          <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
+                            <p className="text-[var(--coffee-light)] font-light text-sm">No custom hero banner uploaded. Default design is live.</p>
+                          </div>
+                        ) : (
+                          heroBanners.map(hero => (
+                            <div key={hero.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
+                              <img src={hero.image} alt="Hero banner" className="w-full h-48 object-cover" />
+                              <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
+                                <button onClick={() => handleDeleteHeroBanner(hero.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete Hero Banner</button>
+                              </div>
+                              <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
-                    <div className="xl:col-span-2">
-                      <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
-                        <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0"><h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Live Banners</h2></div>
-                        <div className="p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-6 bg-[var(--bg-main)]/30">
-                          {banners.length === 0 ? (
-                            <div className="col-span-full py-12 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                              <span className="text-[var(--brown-mid)] font-bold tracking-[0.2em] uppercase text-xs block mb-2">System Status</span>
-                              <p className="text-[var(--coffee-light)] font-light">No custom banners uploaded. Default designs are live.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* LEFT BANNERS */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Left Live Banners</h2>
+                      </div>
+                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
+                        {/* + Upload area */}
+                        <form
+                          onSubmit={(e) => { setNewBannerPosition('left'); handleCreateBanner(e); }}
+                          className="flex flex-col gap-3"
+                        >
+                          <label
+                            htmlFor="leftBannerInput"
+                            className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
+                          >
+                            <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Banner</span>
+                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9)</span>
+                          </label>
+                          <input id="leftBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
+                            const file = e.target.files?.[0] || null;
+                            if (file && !isValidImageFile(file)) {
+                              toast.error("Only image files are allowed.");
+                              return;
+                            }
+                            setNewBannerPosition('left');
+                            setBannerImageFile(file);
+                          }} />
+
+                          {bannerImageFile && newBannerPosition === 'left' && (
+                            <div className="flex items-center gap-3 animate-fade-in">
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Order"
+                                value={newBannerOrder}
+                                onChange={e => setNewBannerOrder(Number(e.target.value))}
+                                className="w-20 rounded-lg border border-[var(--border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A87C51] bg-white"
+                              />
+                              <button type="submit" className="bg-[#5A3825] text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-[#432A1C] transition-colors shadow-sm">Upload</button>
+                              <button type="button" onClick={() => setBannerImageFile(null)} className="text-[var(--text-muted)] hover:text-red-500 text-xs font-bold uppercase tracking-wider">Cancel</button>
+                            </div>
+                          )}
+                        </form>
+
+                        {/* Left banner previews */}
+                        <div className="flex flex-col gap-4">
+                          {banners.filter(b => b.position === 'left' || !b.position).length === 0 ? (
+                            <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
+                              <p className="text-[var(--coffee-light)] font-light text-sm">No left banners yet.</p>
                             </div>
                           ) : (
-                            banners.map(banner => (
+                            banners.filter(b => b.position === 'left' || !b.position).map(banner => (
                               <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
                                 <img src={banner.image} alt="Promo banner" className="w-full h-40 object-cover" />
                                 <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
-                                  <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete Banner</button>
+                                  <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
                                 </div>
                                 <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
+                                <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT BANNERS */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Right Live Banners</h2>
+                      </div>
+                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
+                        {/* + Upload area */}
+                        <form
+                          onSubmit={(e) => { setNewBannerPosition('right'); handleCreateBanner(e); }}
+                          className="flex flex-col gap-3"
+                        >
+                          <label
+                            htmlFor="rightBannerInput"
+                            className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
+                          >
+                            <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Banner</span>
+                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9)</span>
+                          </label>
+                          <input id="rightBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
+                            const file = e.target.files?.[0] || null;
+                            if (file && !isValidImageFile(file)) {
+                              toast.error("Only image files are allowed.");
+                              return;
+                            }
+                            setNewBannerPosition('right');
+                            setBannerImageFile(file);
+                          }} />
+
+                          {bannerImageFile && newBannerPosition === 'right' && (
+                            <div className="flex items-center gap-3 animate-fade-in">
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Order"
+                                value={newBannerOrder}
+                                onChange={e => setNewBannerOrder(Number(e.target.value))}
+                                className="w-20 rounded-lg border border-[var(--border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A87C51] bg-white"
+                              />
+                              <button type="submit" className="bg-[#5A3825] text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-[#432A1C] transition-colors shadow-sm">Upload</button>
+                              <button type="button" onClick={() => setBannerImageFile(null)} className="text-[var(--text-muted)] hover:text-red-500 text-xs font-bold uppercase tracking-wider">Cancel</button>
+                            </div>
+                          )}
+                        </form>
+
+                        {/* Right banner previews */}
+                        <div className="flex flex-col gap-4">
+                          {banners.filter(b => b.position === 'right').length === 0 ? (
+                            <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
+                              <p className="text-[var(--coffee-light)] font-light text-sm">No right banners yet.</p>
+                            </div>
+                          ) : (
+                            banners.filter(b => b.position === 'right').map(banner => (
+                              <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
+                                <img src={banner.image} alt="Promo banner" className="w-full h-40 object-cover" />
+                                <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
+                                  <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
+                                </div>
+                                <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
+                                <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
                               </div>
                             ))
                           )}

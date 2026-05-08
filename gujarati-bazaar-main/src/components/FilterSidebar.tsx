@@ -13,7 +13,7 @@ export type Filters = {
 };
 
 export const defaultFilters: Filters = {
-  price: [0, 25000],
+  price: [0, 100000],
   minRating: 0,
   vendorIds: [],
   inStock: false,
@@ -41,7 +41,7 @@ export const FilterSidebar = ({
         <Slider
           value={value.price}
           onValueChange={(v) => onChange({ ...value, price: [v[0], v[1]] as [number, number] })}
-          min={0} max={25000} step={50}
+          min={0} max={100000} step={50}
         />
         <div className="mt-2 flex justify-between text-xs text-muted-foreground">
           <span>₹{value.price[0].toLocaleString("en-IN")}</span>

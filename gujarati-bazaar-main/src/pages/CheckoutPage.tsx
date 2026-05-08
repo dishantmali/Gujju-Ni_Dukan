@@ -1,39 +1,164 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CreditCard, Smartphone, Banknote, Check } from "lucide-react";
+import { CreditCard, Smartphone, Banknote, Check, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { CheckoutStepper } from "@/components/CheckoutStepper";
 import { CartSummary } from "@/components/CartSummary";
-import { useCart } from "@/store/cart";
+import { useCart, cartLineUnitPrice, cartLineId } from "@/store/cart";
 import { toast } from "sonner";
+import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
-const FloatInput = ({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) => (
+const FloatInput = ({ label, error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) => (
   <div className="float-label">
     <input
       {...props}
       placeholder=" "
-      className="w-full h-12 px-3 pt-1 rounded-xl border border-border bg-card outline-none focus:border-brown-light text-sm"
+      className={`w-full h-12 px-3 pt-1 rounded-xl border ${error ? "border-red-400" : "border-border"} bg-card outline-none focus:border-brown-light text-sm`}
     />
     <label>{label}</label>
+    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
   </div>
 );
+
+const loadRazorpayScript = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (document.getElementById("razorpay-checkout-js")) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "razorpay-checkout-js";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 const CheckoutPage = () => {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const [payment, setPayment] = useState<"upi" | "card" | "cod">("upi");
+  const [processing, setProcessing] = useState(false);
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  const [address, setAddress] = useState({
+    fullName: "",
+    phone: "",
+    addressLine: "",
+    city: "",
+    state: "",
+    pincode: "",
+    email: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to checkout");
+      navigate("/login", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const go = (s: number) => { setDirection(s > step ? 1 : -1); setStep(s); };
 
-  const placeOrder = () => {
-    toast.success("Order placed!", { description: "You'll get a confirmation shortly." });
-    clear();
-    setTimeout(() => navigate("/account"), 1200);
+  const validateAddress = () => {
+    const newErrors: Record<string, string> = {};
+    if (!address.fullName.trim()) newErrors.fullName = "Required";
+    if (!address.phone.trim() || !/^\d{10}$/.test(address.phone.trim())) newErrors.phone = "Enter a valid 10-digit number";
+    if (!address.addressLine.trim()) newErrors.addressLine = "Required";
+    if (!address.city.trim()) newErrors.city = "Required";
+    if (!address.state.trim()) newErrors.state = "Required";
+    if (!address.pincode.trim() || !/^\d{6}$/.test(address.pincode.trim())) newErrors.pincode = "Enter a valid 6-digit pincode";
+    if (!address.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email.trim())) newErrors.email = "Enter a valid email";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
+
+  const mergeCart = async () => {
+    const mergeItems = items
+      .filter((l) => !isNaN(Number(l.product.id)) && l.product.id.toString() !== "")
+      .map((l) => ({
+        product_id: Number(l.product.id),
+        variant_id: l.variant ? Number(l.variant.id) : undefined,
+        quantity: l.qty,
+      }));
+    if (mergeItems.length > 0) {
+      await api.post("/cart/merge/", { items: mergeItems });
+    }
+  };
+
+  const placeOrder = useCallback(async () => {
+    if (payment === "cod") {
+      toast.error("Cash on Delivery is not available at the moment.");
+      return;
+    }
+
+    if (!validateAddress()) {
+      go(1);
+      toast.error("Please fix the address errors");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await mergeCart();
+
+      const checkoutRes: any = await api.post("/checkout/");
+      const { razorpay_order_id, razorpay_key_id, amount } = checkoutRes;
+
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Failed to load Razorpay");
+
+      const options = {
+        key: razorpay_key_id,
+        amount,
+        currency: "INR",
+        name: "Gujju Ni Dukan",
+        description: "Order Payment",
+        order_id: razorpay_order_id,
+        handler: async (response: any) => {
+          try {
+            await api.post("/payment/verify-cart/", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              address: `${address.fullName}\n${address.addressLine}\n${address.city}, ${address.state} - ${address.pincode}`,
+              phone: address.phone,
+            });
+            toast.success("Order placed!", { description: "You'll get a confirmation shortly." });
+            clear();
+            navigate("/account");
+          } catch (err: any) {
+            toast.error(err?.response?.data?.error || "Payment verification failed");
+            setProcessing(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setProcessing(false),
+        },
+        prefill: {
+          name: address.fullName,
+          email: address.email,
+          contact: address.phone,
+        },
+        theme: { color: "#8B5E3C" },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Checkout failed. Please try again.");
+      setProcessing(false);
+    }
+  }, [payment, address, items, clear, navigate]);
+
+  if (!isAuthenticated) return null;
 
   return (
     <PageShell>
@@ -56,16 +181,16 @@ const CheckoutPage = () => {
                 >
                   <h3 className="font-display text-lg font-semibold mb-5">Delivery Address</h3>
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <FloatInput label="Full name" />
-                    <FloatInput label="Phone number" inputMode="tel" />
-                    <div className="sm:col-span-2"><FloatInput label="Address line" /></div>
-                    <FloatInput label="City" />
-                    <FloatInput label="State" />
-                    <FloatInput label="Pincode" inputMode="numeric" />
-                    <FloatInput label="Email" type="email" />
+                    <FloatInput label="Full name" value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} error={errors.fullName} />
+                    <FloatInput label="Phone number" inputMode="tel" value={address.phone} onChange={(e) => setAddress({ ...address, phone: e.target.value })} error={errors.phone} />
+                    <div className="sm:col-span-2"><FloatInput label="Address line" value={address.addressLine} onChange={(e) => setAddress({ ...address, addressLine: e.target.value })} error={errors.addressLine} /></div>
+                    <FloatInput label="City" value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} error={errors.city} />
+                    <FloatInput label="State" value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} error={errors.state} />
+                    <FloatInput label="Pincode" inputMode="numeric" value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} error={errors.pincode} />
+                    <FloatInput label="Email" type="email" value={address.email} onChange={(e) => setAddress({ ...address, email: e.target.value })} error={errors.email} />
                   </div>
                   <div className="mt-6 flex justify-end">
-                    <button onClick={() => go(2)} className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-brown-mid">Continue to Payment</button>
+                    <button onClick={() => { if (validateAddress()) go(2); }} className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-brown-mid">Continue to Payment</button>
                   </div>
                 </motion.div>
               )}
@@ -127,16 +252,23 @@ const CheckoutPage = () => {
                   <h3 className="font-display text-lg font-semibold mb-5">Confirm Order</h3>
                   <div className="space-y-2 text-sm">
                     {items.map((l) => (
-                      <div key={l.product.id} className="flex justify-between border-b border-border py-2">
+                      <div key={cartLineId(l)} className="flex justify-between border-b border-border py-2">
                         <span className="text-muted-foreground">{l.product.name} × {l.qty}</span>
-                        <span className="font-medium">₹{(l.product.price * l.qty).toLocaleString("en-IN")}</span>
+                        <span className="font-medium">₹{(cartLineUnitPrice(l) * l.qty).toLocaleString("en-IN")}</span>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-4 text-xs text-muted-foreground">Payment: {payment.toUpperCase()}</p>
+                  <p className="mt-4 text-xs text-muted-foreground">Payment: {payment === "cod" ? "Cash on Delivery" : payment.toUpperCase()}</p>
                   <div className="mt-6 flex justify-between">
                     <button onClick={() => go(2)} className="h-11 px-5 rounded-full bg-secondary text-foreground font-medium hover:bg-muted">Back</button>
-                    <button onClick={placeOrder} className="h-11 px-6 rounded-full bg-accent text-accent-foreground font-semibold hover:opacity-95">Place Order</button>
+                    <button
+                      onClick={placeOrder}
+                      disabled={processing || payment === "cod"}
+                      className="h-11 px-6 rounded-full bg-accent text-accent-foreground font-semibold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                    >
+                      {processing && <Loader2 size={16} className="animate-spin" />}
+                      Place Order
+                    </button>
                   </div>
                 </motion.div>
               )}

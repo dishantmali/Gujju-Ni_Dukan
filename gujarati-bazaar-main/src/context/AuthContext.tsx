@@ -9,8 +9,8 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (userData: RegisterData | FormData) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (userData: RegisterData | FormData) => Promise<User>;
   logout: () => void;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -79,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Sync wishlist if the user is a buyer
           if (userData.role === 'buyer') {
             useCart.getState().syncWishlist();
+            useCart.getState().syncCart();
           }
         }
       } catch (error) {
@@ -103,7 +104,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Sync wishlist if the user is a buyer
       if (userData.role === 'buyer') {
         useCart.getState().syncWishlist();
+        useCart.getState().syncCart();
       }
+      return userData;
     } catch (error) {
       throw error;
     } finally {
@@ -118,7 +121,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Auto login after registration
       const email = userData instanceof FormData ? userData.get('email') : userData.email;
       const password = userData instanceof FormData ? userData.get('password') : userData.password;
-      await login(email as string, password as string);
+      const loggedInUser = await login(email as string, password as string);
+      return loggedInUser;
     } catch (error) {
       throw error;
     } finally {

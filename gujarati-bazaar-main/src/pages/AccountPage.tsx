@@ -131,6 +131,13 @@ const AccountPage = () => {
   // --- OTP Handlers for Email/Phone ---
   const requestOtp = async (e) => {
     e.preventDefault();
+    if (otpModal.type === 'phone') {
+      const digits = otpModal.newValue.trim().replace(/^\+91/, '');
+      if (!/^\d{10}$/.test(digits)) {
+        toast.error("Phone number must be exactly 10 digits.");
+        return;
+      }
+    }
     setOtpModal(prev => ({ ...prev, loading: true }));
     try {
       await api.post('/request-contact-otp/', { type: otpModal.type, new_value: otpModal.newValue });

@@ -63,6 +63,8 @@ class VendorProfile(models.Model):
     shop_name = models.CharField(max_length=255)
     contact_details = models.TextField()
     logo = models.ImageField(upload_to='vendor_logos/', null=True, blank=True)
+    tagline = models.CharField(max_length=255, null=True, blank=True)
+    city = models.CharField(max_length=100, null=True, blank=True)
     address = models.TextField(null=True, blank=True)
     phone = models.CharField(
         max_length=10, 
@@ -90,8 +92,19 @@ class VendorProfile(models.Model):
         return self.shop_name
 
 class Category(models.Model):
+    ICON_TYPE_CHOICES = (
+        ('iconify', 'Iconify'),
+        ('uploaded_svg', 'Uploaded SVG'),
+        ('uploaded_image', 'Uploaded Image'),
+        ('legacy', 'Legacy React-Icons'),
+    )
     name = models.CharField(max_length=255)
-    image = models.ImageField(upload_to='category_images/', null=True, blank=True)
+    icon = models.CharField(max_length=255, default='mdi:shopping')
+    icon_type = models.CharField(
+        max_length=20,
+        choices=ICON_TYPE_CHOICES,
+        default='iconify'
+    )
     parent = models.ForeignKey(
         'self',
         null=True,
@@ -353,8 +366,19 @@ class CartItem(models.Model):
 
 class CategoryRequest(models.Model):
     STATUS_CHOICES = (('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'))
+    ICON_TYPE_CHOICES = (
+        ('iconify', 'Iconify'),
+        ('uploaded_svg', 'Uploaded SVG'),
+        ('uploaded_image', 'Uploaded Image'),
+        ('legacy', 'Legacy React-Icons'),
+    )
     name = models.CharField(max_length=255)
-    image = models.ImageField(upload_to='category_request_images/', null=True, blank=True)
+    icon = models.CharField(max_length=255, default='mdi:shopping')
+    icon_type = models.CharField(
+        max_length=20,
+        choices=ICON_TYPE_CHOICES,
+        default='iconify'
+    )
     requested_by = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name='category_requests')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -373,6 +397,29 @@ class Banner(models.Model):
     title = models.CharField(max_length=255)
     image = models.ImageField(upload_to='banners/')
     is_active = models.BooleanField(default=True)
+    position = models.CharField(
+        max_length=10,
+        choices=[('left', 'Left'), ('right', 'Right')],
+        default='left',
+        help_text="Which promo slot this banner appears in"
+    )
+    display_order = models.PositiveIntegerField(default=0, help_text="Sort order within its position")
+    link_url = models.CharField(max_length=500, blank=True, null=True, help_text="Optional click-through URL")
+
+    class Meta:
+        ordering = ['position', 'display_order', 'id']
+
+class HeroBanner(models.Model):
+    title = models.CharField(max_length=255, blank=True)
+    image = models.ImageField(upload_to='hero_banners/')
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.title or f"Hero Banner {self.id}"
 
 class Wishlist(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wishlist')
@@ -381,6 +428,29 @@ class Wishlist(models.Model):
 
     class Meta:
         unique_together = ('user', 'product') # Prevent duplicate likes
+
+class IconAsset(models.Model):
+    """Reusable uploaded icon assets, decoupled from categories."""
+    ICON_TYPE_CHOICES = (
+        ('uploaded_svg', 'SVG'),
+        ('uploaded_image', 'Image'),
+    )
+    name = models.CharField(max_length=255)
+    icon_type = models.CharField(max_length=20, choices=ICON_TYPE_CHOICES)
+    file = models.FileField(upload_to='category-icons/')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
 
 @receiver([post_save, post_delete], sender=Category)
 def invalidate_category_cache(sender, **kwargs):

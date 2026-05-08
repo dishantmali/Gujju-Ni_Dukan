@@ -3,10 +3,12 @@ import json
 from rest_framework import serializers
 from django.db import models, transaction
 from django.contrib.auth import get_user_model
+# pyrefly: ignore [missing-import]
 from .models import (
     CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
     Category, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
-    ProductReview, PlatformReview , Banner , SubscriptionPlan, VendorSubscription
+    ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
+    IconAsset
 )
 User = get_user_model()
 # ---------------- BASE SANITIZER (The Armor) ----------------
@@ -138,6 +140,28 @@ class RegisterSerializer(SanitizedSerializer):
             )
 
         return user
+
+
+# ---------------- VENDOR ----------------
+class VendorProfileSerializer(SanitizedSerializer):
+    initials = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    name = serializers.CharField(source='shop_name')
+
+    class Meta:
+        model = VendorProfile
+        fields = ['id', 'name', 'tagline', 'city', 'logo', 'initials', 'average_rating']
+
+    def get_initials(self, obj):
+        if not obj.shop_name: return "VN"
+        parts = obj.shop_name.split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[1][0]).upper()
+        return obj.shop_name[:2].upper()
+
+    def get_average_rating(self, obj):
+        avg = obj.vendor_reviews.aggregate(models.Avg('rating'))['rating__avg']
+        return round(avg, 1) if avg else 0.0
 
 
 # ---------------- PRODUCT ----------------
@@ -346,7 +370,22 @@ class VendorOrderUpdateSerializer(SanitizedSerializer):
 class CategorySerializer(SanitizedSerializer):
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'icon', 'icon_type', 'parent']
+
+
+class IconAssetSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IconAsset
+        fields = ['id', 'name', 'icon_type', 'file', 'file_url', 'uploaded_by', 'created_at']
+        read_only_fields = ['uploaded_by', 'created_at']
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else None
 
 
 class CartItemSerializer(SanitizedSerializer):
@@ -376,7 +415,7 @@ class CategoryRequestSerializer(SanitizedSerializer):
     class Meta:
         model = CategoryRequest
         fields = [
-            'id', 'name', 'image', 'requested_by',
+            'id', 'name', 'icon', 'icon_type', 'requested_by',
             'vendor_shop', 'status', 'created_at'
         ]
         read_only_fields = ['requested_by', 'status', 'created_at']
@@ -410,6 +449,11 @@ class BannerSerializer(SanitizedSerializer):
     class Meta:
         model = Banner
         fields = ['id', 'title', 'image', 'is_active']
+
+class HeroBannerSerializer(SanitizedSerializer):
+    class Meta:
+        model = HeroBanner
+        fields = ['id', 'title', 'image', 'is_active', 'updated_at']
 
 # ---------------- SUBSCRIPTIONS ----------------
 class SubscriptionPlanSerializer(SanitizedSerializer):

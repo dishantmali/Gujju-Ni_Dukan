@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -29,8 +32,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const data = response.data;
-    // Unwrap 'results' if it exists (common pattern in this project's previous fetch wrappers)
-    return data && data.results !== undefined ? data.results : data;
+    // Only unwrap DRF paginated responses: object with array 'results' and numeric 'count'
+    if (data && Array.isArray(data.results) && typeof data.count === 'number') {
+      return data.results;
+    }
+    return data;
   },
   async (error) => {
     const originalRequest = error.config;
@@ -45,7 +51,7 @@ api.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        const response = await axios.post('http://localhost:8000/api/auth/token/refresh/', {
+        const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
           refresh: refreshToken,
         });
 

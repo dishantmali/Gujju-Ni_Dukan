@@ -25,6 +25,7 @@ type CartState = {
   toggleWishlist: (p: Product, authenticated?: boolean) => Promise<void>;
   setWishlist: (ids: string[]) => void;
   syncWishlist: () => Promise<void>;
+  syncCart: () => Promise<void>;
   count: () => number;
   subtotal: () => number;
 };
@@ -40,9 +41,21 @@ export const useCart = create<CartState>()(
         set((s) => {
           const v =
             variant ??
-            (p.variants && p.variants.length > 0 ? p.variants[0] : undefined);
+            (p.variants && p.variants.length > 0 
+              ? p.variants.find(v => v.stock_quantity > 0) || p.variants[0] 
+              : undefined);
           const lid = `${String(p.id)}:${v?.id ?? "_"}`;
           const existing = s.items.find((i) => cartLineId(i) === lid);
+          
+          const currentQty = existing ? existing.qty : 0;
+          const maxStock = v ? v.stock_quantity : p.stock_quantity;
+          
+          if (currentQty + qty > maxStock) {
+            const allowedQty = Math.max(0, maxStock - currentQty);
+            if (allowedQty === 0) return s;
+            qty = allowedQty;
+          }
+
           if (existing) {
             return {
               items: s.items.map((i) =>
@@ -51,6 +64,10 @@ export const useCart = create<CartState>()(
             };
           }
           const line: CartLine = v ? { product: p, qty, variant: v } : { product: p, qty };
+          
+          // Optionally sync to backend if authenticated
+          // This would ideally be done in a separate action or debounced
+          
           return { items: [...s.items, line] };
         }),
       remove: (lineId) =>
@@ -125,6 +142,21 @@ export const useCart = create<CartState>()(
           });
         } catch (err) {
           console.error("Failed to sync wishlist:", err);
+        }
+      },
+      syncCart: async () => {
+        try {
+          const res: any = await api.get("/cart/");
+          if (res && res.items) {
+            const serverItems: CartLine[] = res.items.map((item: any) => ({
+              product: mapApiProduct(item.product_details),
+              qty: item.quantity,
+              variant: item.variant_details
+            }));
+            set({ items: serverItems });
+          }
+        } catch (err) {
+          console.error("Failed to sync cart:", err);
         }
       },
       count: () => get().items.reduce((a, i) => a + i.qty, 0),

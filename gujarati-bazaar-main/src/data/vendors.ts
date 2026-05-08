@@ -1,17 +1,18 @@
 import { Category, Vendor } from "./types";
 
 export const categories: Category[] = [
-  { slug: "groceries", name: "Groceries", emoji: "🌾" },
-  { slug: "snacks", name: "Snacks", emoji: "🥨" },
-  { slug: "pickles", name: "Pickles", emoji: "🥭" },
-  { slug: "spices", name: "Spices", emoji: "🌶️" },
-  { slug: "sweets", name: "Sweets", emoji: "🍬" },
-  { slug: "dry-fruits", name: "Dry Fruits", emoji: "🥜" },
-  { slug: "handicrafts", name: "Handicrafts", emoji: "🪔" },
-  { slug: "clothing", name: "Clothing", emoji: "👘" },
-  { slug: "pooja-items", name: "Pooja Items", emoji: "🕉️" },
-  { slug: "home-decor", name: "Home Decor", emoji: "🏺" },
+  { slug: "groceries", name: "Groceries", icon: "GiWheat" },
+  { slug: "snacks", name: "Snacks", icon: "FaCookie" },
+  { slug: "pickles", name: "Pickles", icon: "GiJar" },
+  { slug: "spices", name: "Spices", icon: "GiChiliPepper" },
+  { slug: "sweets", name: "Sweets", icon: "LuCandy" },
+  { slug: "dry-fruits", name: "Dry Fruits", icon: "GiPeanut" },
+  { slug: "handicrafts", name: "Handicrafts", icon: "GiAmphora" },
+  { slug: "clothing", name: "Clothing", icon: "GiDress" },
+  { slug: "pooja-items", name: "Pooja Items", icon: "GiOm" },
+  { slug: "home-decor", name: "Home Decor", icon: "FaHome" },
 ];
+
 
 export const vendors: Vendor[] = [
   { id: "v1", name: "Raju Farsan Wala", tagline: "Crispy snacks since 1962", rating: 4.7, joined: "2019", city: "Ahmedabad", initials: "RF" },

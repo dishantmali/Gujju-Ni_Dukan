@@ -1,8 +1,9 @@
 export type Category = {
   slug: string;
   name: string;
-  emoji: string;
+  icon: string;
 };
+
 
 export type Vendor = {
   id: string;
@@ -44,6 +45,7 @@ export type Product = {
   reviewCount: number;
   vendorId: string;
   category: string;
+  categoryId?: string;
   image: string;
   product_images?: string[];
   vendor_shop?: string;
