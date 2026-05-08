@@ -29,7 +29,7 @@ from .serializers import (
     CartSerializer, CategoryRequestSerializer, OfferSerializer, WishlistSerializer ,
     ProductReviewSerializer, PlatformReviewSerializer , BannerSerializer , HeroBannerSerializer, UserSerializer ,
     SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
-    IconAssetSerializer
+    IconAssetSerializer, VendorProfileSerializer
 )
 import random
 # Initialize Razorpay client gracefully
@@ -869,7 +869,7 @@ class CreateRazorpayOrderView(APIView):
         amount_in_paise = int(total_amount * 100)
 
         if not razorpay_client:
-            return Response({"error": "Payment gateway not configured"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response({"error": "Payment gateway not configured. Please contact administrator."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         razorpay_order = razorpay_client.order.create({
             "amount": amount_in_paise,
@@ -1468,6 +1468,9 @@ class CreateSubscriptionOrderView(APIView):
             return Response({"message": "Free plan activated successfully!"})
 
         # Paid Plans: Create Razorpay Order
+        if not razorpay_client:
+            return Response({"error": "Payment gateway not configured. Please contact administrator."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
         razorpay_order = razorpay_client.order.create({
             "amount": amount_in_paise,
             "currency": "INR",

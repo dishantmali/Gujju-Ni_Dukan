@@ -390,12 +390,10 @@ const AdminDashboard = () => {
 
   const handleCreateOffer = async (e) => {
     e.preventDefault();
-    if (!offerImageFile) return toast.error("Please provide an image for the offer");
     const formData = new FormData();
     formData.append('title', newOffer.title);
     formData.append('start_date', newOffer.start_date);
     formData.append('end_date', newOffer.end_date);
-    formData.append('image', offerImageFile);
     try {
       const res = await api.post('/admin/offers/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setOffers([res, ...offers]);
@@ -1200,7 +1198,6 @@ const AdminDashboard = () => {
                       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-[var(--bg-main)]/30">
                         {pendingOfferReqs.map(offer => (
                           <div key={offer.id} className="bg-white border border-[#E8D5BC] rounded-2xl p-5 hover:border-[#E8D5BC]/40 transition-colors">
-                            {offer.image && <img src={offer.image} className="w-full h-36 object-cover rounded-xl mb-4 shadow-sm" alt={offer.title} />}
                             <p className="text-[10px] font-black text-[#8C7B6E] uppercase tracking-widest mb-1 truncate">Req by: {offer.vendor_shop}</p>
                             <h3 className="font-bold text-[#5A3825] text-lg truncate">{offer.title}</h3>
                             <p className="text-xs font-medium text-[var(--text-muted)] mb-5 bg-[var(--bg-secondary)] inline-block px-2 py-1 rounded mt-2">{offer.start_date} → {offer.end_date}</p>
@@ -1232,17 +1229,6 @@ const AdminDashboard = () => {
                               <input type="date" required value={newOffer.end_date} onChange={e => setNewOffer({ ...newOffer, end_date: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm" />
                             </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1 mt-2">Banner Graphic</label>
-                            <input id="offerImageInput" type="file" accept="image/*" required onChange={e => {
-                              const file = e.target.files?.[0] || null;
-                              if (file && !isValidImageFile(file)) {
-                                toast.error("Only image files are allowed.");
-                                return;
-                              }
-                              setOfferImageFile(file);
-                            }} className="w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-[var(--bg-main)] file:text-[var(--coffee-light)] hover:file:bg-[var(--brown-mid)] hover:file:text-white file:transition-colors cursor-pointer" />
-                          </div>
                           <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4">Broadcast Offer</button>
                         </form>
                       </div>
@@ -1256,7 +1242,6 @@ const AdminDashboard = () => {
                             : offers.filter(o => o.status === 'approved').map(offer => (
                               <div key={offer.id} className="p-4 px-6 flex justify-between items-center hover:bg-[var(--bg-main)] transition-colors">
                                 <div className="flex items-center gap-5">
-                                  {offer.image && <img src={offer.image} className="w-24 h-14 object-cover rounded-lg border border-[var(--border)] shadow-sm" alt={offer.title} />}
                                   <div>
                                     <span className="font-bold text-[var(--text-dark)] text-base block">{offer.title}</span>
                                     <span className="text-xs font-medium text-[var(--brown-mid)] bg-[var(--brown-mid)]/10 px-2 py-0.5 rounded mt-1 inline-block">{offer.start_date} → {offer.end_date}</span>

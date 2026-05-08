@@ -16,7 +16,7 @@ import {
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
 import { VendorCard } from "@/components/VendorCard";
-import { vendors as mockVendors } from "@/data/vendors";
+import { vendors as mockVendors, categories as mockCategories } from "@/data/vendors";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
 import { products as mockProducts, getProductsByCategory } from "@/data/products";
@@ -222,7 +222,7 @@ const Index = () => {
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
-  const [offersMarquee, setOffersMarquee] = useState<string[]>(offers);
+  const [offersMarquee, setOffersMarquee] = useState<string[]>([]);
   const [banners, setBanners] = useState<{ left: BannerItem[]; right: BannerItem[] }>({ left: [], right: [] });
 
   const [heroBannerUrl, setHeroBannerUrl] = useState<string | null>(null);
@@ -248,7 +248,7 @@ const Index = () => {
 
       setProducts([...featured, ...newProds, ...mockTrending, ...mockNew]);
       setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
-      setCategories(catsRes || []);
+      setCategories(catsRes && catsRes.length > 0 ? catsRes : mockCategories);
       
       if (homeRes.vendors && homeRes.vendors.length > 0) {
         setVendors(homeRes.vendors.map((v: any) => ({

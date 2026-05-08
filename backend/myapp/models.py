@@ -386,7 +386,7 @@ class CategoryRequest(models.Model):
 class Offer(models.Model):
     STATUS_CHOICES = (('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected'))
     title = models.CharField(max_length=255)
-    image = models.ImageField(upload_to='offer_images/')
+    image = models.ImageField(upload_to='offer_images/', null=True, blank=True)
     start_date = models.DateField()
     end_date = models.DateField(db_index=True)
     requested_by = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name='offer_requests', null=True, blank=True)
