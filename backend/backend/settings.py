@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG") == "True"
 
-ALLOWED_HOSTS = ['127.0.0.1', '.onrender.com', 'localhost','e-commerce-multivendor-nu.vercel.app']
+ALLOWED_HOSTS = ['127.0.0.1', '.onrender.com', 'localhost','https://gujju-ni-dukan.vercel.app']
 
 # Application definition
 
