@@ -243,11 +243,22 @@ const Index = () => {
       const newProds = (homeRes.new_products || []).map(mapProduct);
       const fetchedAll = (prodsRes || []).map(mapProduct);
 
-      // Merge backend products with mock data, ensuring uniqueness by ID
+      // Prefer backend products if any exist; otherwise use mock data
+      const hasBackendProducts = featured.length > 0 || newProds.length > 0;
+      
       const productMap = new Map();
-      [...featured, ...newProds, ...mockProducts.filter(p => p.isTrending || p.isNew)].forEach(p => {
-        productMap.set(p.id, p);
-      });
+      
+      if (hasBackendProducts) {
+        // Only show backend products
+        [...featured, ...newProds].forEach(p => {
+          productMap.set(p.id, p);
+        });
+      } else {
+        // No backend products yet, show mock data
+        mockProducts.filter(p => p.isTrending || p.isNew).forEach(p => {
+          productMap.set(p.id, p);
+        });
+      }
       
       setProducts(Array.from(productMap.values()));
       setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
@@ -265,6 +276,8 @@ const Index = () => {
 
       if (homeRes.offers_marquee && homeRes.offers_marquee.length > 0) {
         setOffersMarquee(homeRes.offers_marquee);
+      } else {
+        setOffersMarquee(offers); // Use the local mock offers as fallback
       }
 
       if (homeRes.banners) {
@@ -367,12 +380,7 @@ const Index = () => {
     return isExpanded ? list.slice(0, 24) : list.slice(0, 12);
   }, [list, isExpanded]);
 
-  /* Marquee animation state */
-  const [marqueeOffset, setMarqueeOffset] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setMarqueeOffset((v) => v - 1), 30);
-    return () => clearInterval(id);
-  }, []);
+
 
   return (
     <PageShell>
@@ -381,9 +389,6 @@ const Index = () => {
         <div className="relative h-9 flex items-center">
           <div
             className="flex gap-16 whitespace-nowrap animate-marquee"
-            style={{
-              transform: `translateX(${marqueeOffset}px)`,
-            }}
           >
             {[...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
               <span key={i} className="text-xs sm:text-sm font-medium inline-flex items-center gap-2">
@@ -415,7 +420,6 @@ const Index = () => {
         <SectionHeader
           icon={<TrendingUp size={22} />}
           title="Trending Now"
-          to="/category/snacks"
         />
         <div className="relative group">
           <button
