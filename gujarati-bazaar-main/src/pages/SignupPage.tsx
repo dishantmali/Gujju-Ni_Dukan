@@ -339,12 +339,12 @@ const SignupPage = () => {
                 <motion.div
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.96 }}
-                  className="relative p-1 bg-primary/5 rounded-[2rem] border border-primary/10 shadow-2xl"
+                  className="relative p-2 bg-white rounded-[2rem] border border-primary/15 shadow-2xl"
                 >
                   <img
                     src={logo}
                     alt="Gujju ni Dukan"
-                    className="w-20 h-20 object-cover rounded-[1.75rem] shadow-inner"
+                    className="w-32 h-16 object-contain rounded-[1.75rem]"
                   />
                 </motion.div>
               </Link>
