@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { CategoryIcon } from "./CategoryIcon";
 
 
-export const CategoryPills = ({ activeSlug }: { activeSlug?: string }) => {
+export const CategoryPills = ({ activeSlug, autoScroll = false }: { activeSlug?: string; autoScroll?: boolean }) => {
   const location = useLocation();
   const [categories, setCategories] = useState<any[]>([]);
   const [active, setActive] = useState(activeSlug || "all");
@@ -24,33 +24,47 @@ export const CategoryPills = ({ activeSlug }: { activeSlug?: string }) => {
 
   const items = [{ slug: "all", name: "All", icon: "FaSparkles" }, ...categories];
 
+  const renderPill = (c: any, i: number) => {
+    const isActive = active === (c.slug || c.id?.toString());
+    const to = (c.slug || c.id?.toString()) === "all" ? "/" : `/category/${c.slug || c.id}`;
+    return (
+      <Link key={`${c.slug || c.id}-${i}`} to={to} className="relative">
+        <span className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+          isActive ? "text-primary-foreground" : "text-foreground hover:bg-secondary"
+        }`}>
+          {isActive && (
+            autoScroll ? (
+              <span className="absolute inset-0 rounded-full bg-primary" />
+            ) : (
+              <motion.span
+                layoutId="active-pill"
+                className="absolute inset-0 rounded-full bg-primary"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            )
+          )}
+          <span className="relative"><CategoryIcon name={c.icon || 'FaSparkles'} size={14} /></span>
+          <span className="relative">{c.name}</span>
+        </span>
+      </Link>
+    );
+  };
+
+  if (autoScroll && items.length > 0) {
+    const tripled = [...items, ...items, ...items];
+    return (
+      <div className="category-marquee-wrap">
+        <div className="category-marquee-track-slow flex items-center gap-2 min-w-max py-1">
+          {tripled.map((c, i) => renderPill(c, i))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <div className="flex items-center gap-2 min-w-max py-1">
-        {items.map((c: any) => {
-          const isActive = active === (c.slug || c.id?.toString());
-          const to = (c.slug || c.id?.toString()) === "all" ? "/" : `/category/${c.slug || c.id}`;
-          return (
-            <Link key={c.slug || c.id} to={to} className="relative">
-
-              <span className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                isActive ? "text-primary-foreground" : "text-foreground hover:bg-secondary"
-              }`}>
-                {isActive && (
-                  <motion.span
-                    layoutId="active-pill"
-                    className="absolute inset-0 rounded-full bg-primary"
-                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                  />
-                )}
-                <span className="relative"><CategoryIcon name={c.icon || 'FaSparkles'} size={14} /></span>
-
-                <span className="relative">{c.name}</span>
-              </span>
-            </Link>
-          );
-        })}
+        {items.map((c, i) => renderPill(c, i))}
       </div>
     </div>
   );

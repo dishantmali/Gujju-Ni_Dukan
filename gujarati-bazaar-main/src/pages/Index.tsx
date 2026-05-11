@@ -143,8 +143,8 @@ const CategoryMarquee = ({ categories }: { categories: any[] }) => {
   const tripled = [...categories, ...categories, ...categories];
   if (categories.length === 0) return null;
   return (
-    <div className="category-marquee-wrap overflow-hidden">
-      <div className="category-marquee-track flex gap-4 py-2">
+    <div className="category-marquee-wrap">
+      <div className="category-marquee-track flex gap-3 py-2">
         {tripled.map((c, i) => (
           <Link
             key={`${c.slug || c.id}-${i}`}
@@ -387,17 +387,11 @@ const Index = () => {
       {/* ─── 1. Marquee Offers ─── */}
       <div className="bg-primary text-primary-foreground overflow-hidden">
         <div className="relative h-9 flex items-center overflow-hidden">
-          <div className="animate-marquee whitespace-nowrap flex items-center min-w-full">
-            {[...offersMarquee, ...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
-              <span key={i} className="mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
-                {o}
-                <span className="text-accent/60">•</span>
-              </span>
-            ))}
-          </div>
-          <div className="animate-marquee whitespace-nowrap flex items-center min-w-full" aria-hidden="true">
-            {[...offersMarquee, ...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
-              <span key={i} className="mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
+          <div className="marquee-fade-left" />
+          <div className="marquee-fade-right" />
+          <div className="offers-marquee-track whitespace-nowrap flex items-center">
+            {[...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
+              <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
                 {o}
                 <span className="text-accent/60">•</span>
               </span>

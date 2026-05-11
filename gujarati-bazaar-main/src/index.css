@@ -147,13 +147,89 @@
 .category-marquee-wrap {
   mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+  overflow: hidden;
 }
 
 .category-marquee-track {
-  animation: category-scroll 25s linear infinite;
+  animation: category-scroll 60s linear infinite;
   width: max-content;
 }
 
 .category-marquee-track:hover {
   animation-play-state: paused;
+}
+
+.category-marquee-track-slow {
+  animation: category-scroll 40s linear infinite;
+  width: max-content;
+}
+.category-marquee-track-slow:hover {
+  animation-play-state: paused;
+}
+
+/* ── Touch devices: disable infinite scroll, enable native swipe ── */
+@media (hover: none) and (pointer: coarse) {
+  .category-marquee-wrap {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+  .category-marquee-wrap::-webkit-scrollbar {
+    display: none;
+  }
+  .category-marquee-track-slow {
+    animation: none !important;
+  }
+  .category-marquee-track-slow > * {
+    scroll-snap-align: start;
+  }
+}
+
+/* ── Offers marquee infinite scroll ── */
+@keyframes offers-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+.offers-marquee-track {
+  animation: offers-scroll 60s linear infinite;
+  width: max-content;
+}
+.offers-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* ── Offers marquee: slower on mobile for readability ── */
+@media (max-width: 640px) {
+  .animate-marquee {
+    animation-duration: 50s !important;
+  }
+}
+
+/* ── Marquee edge fades ── */
+.marquee-fade-left,
+.marquee-fade-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5rem;
+  pointer-events: none;
+  z-index: 10;
+}
+.marquee-fade-left {
+  left: 0;
+  background: linear-gradient(to right, hsl(var(--primary)), transparent);
+}
+.marquee-fade-right {
+  right: 0;
+  background: linear-gradient(to left, hsl(var(--primary)), transparent);
+}
+@media (min-width: 640px) {
+  .marquee-fade-left,
+  .marquee-fade-right {
+    width: 2.5rem;
+  }
 }
