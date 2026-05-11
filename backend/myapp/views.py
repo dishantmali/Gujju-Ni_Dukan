@@ -587,7 +587,7 @@ class AdminVendorSubscriptionsView(generics.ListAPIView):
 class VendorCategoryRequestView(generics.ListCreateAPIView):
     serializer_class = CategoryRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         if self.request.user.role != 'vendor':
@@ -608,7 +608,7 @@ class VendorCategoryRequestView(generics.ListCreateAPIView):
 class VendorOfferRequestView(generics.ListCreateAPIView):
     serializer_class = OfferSerializer
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         if self.request.user.role != 'vendor':
