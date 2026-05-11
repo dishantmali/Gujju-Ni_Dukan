@@ -299,6 +299,79 @@ class ProductSerializer(SanitizedSerializer):
 
         print(f"[SERIALIZER CREATE] done. total variants={len(created_variants)}")
         return product
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        variants_data = validated_data.pop('variants_input', None)
+        extra_images_data = validated_data.pop('extra_images', [])
+        request = self.context.get('request')
+
+        # Update basic product fields
+        instance = super().update(instance, validated_data)
+
+        # Handle variants if provided
+        if variants_data is not None:
+            # Get existing variant IDs
+            existing_variants = {v.id: v for v in instance.variants.all()}
+            provided_variant_ids = set()
+
+            for idx, variant_data in enumerate(variants_data):
+                variant_id = variant_data.get('id')
+                if variant_id and variant_id in existing_variants:
+                    # Update existing variant
+                    variant = existing_variants[variant_id]
+                    for attr, value in variant_data.items():
+                        if attr not in ('id', 'images'):
+                            setattr(variant, attr, value)
+                    variant.save()
+                    provided_variant_ids.add(variant_id)
+                else:
+                    # Create new variant
+                    # Pop 'id' if it's None or empty string to let DB generate it
+                    variant_data.pop('id', None)
+                    variant_data.pop('images', None) # Don't try to save nested images here
+                    variant = ProductVariant.objects.create(product=instance, **variant_data)
+
+                # Handle NEW images for this specific variant (via idx)
+                if request and request.FILES:
+                    image_idx = 0
+                    while True:
+                        img = request.FILES.get(f'variant_image_{idx}_{image_idx}')
+                        if not img:
+                            break
+                        ProductVariantImage.objects.create(variant=variant, image=img)
+                        image_idx += 1
+
+            # Handle variant image DELETIONS
+            delete_image_ids_raw = request.data.get('delete_variant_image_ids') if request else None
+            if delete_image_ids_raw:
+                try:
+                    import json
+                    delete_ids = json.loads(delete_image_ids_raw)
+                    ProductVariantImage.objects.filter(id__in=delete_ids).delete()
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Handle product gallery image DELETIONS
+            delete_product_image_ids_raw = request.data.get('delete_product_image_ids') if request else None
+            if delete_product_image_ids_raw:
+                try:
+                    import json
+                    delete_pids = json.loads(delete_product_image_ids_raw)
+                    ProductImage.objects.filter(id__in=delete_pids).delete()
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Sync variants (remove those not in provided_variant_ids)
+            for vid, vobj in existing_variants.items():
+                if vid not in provided_variant_ids:
+                    vobj.delete()
+
+        # Handle extra images
+        for image in extra_images_data:
+            ProductImage.objects.create(product=instance, image=image)
+
+        return instance
     
 # ---------------- REVIEWS ----------------
 class ProductReviewSerializer(SanitizedSerializer):
