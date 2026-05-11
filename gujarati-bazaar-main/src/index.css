@@ -188,11 +188,18 @@
   }
 }
 
-/* ── Offers marquee: slower on mobile for readability ── */
-@media (max-width: 640px) {
-  .animate-marquee {
-    animation-duration: 80s !important;
-  }
+/* ── Offers marquee infinite scroll ── */
+@keyframes offers-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.offers-marquee-track {
+  animation: offers-scroll 60s linear infinite;
+  width: max-content;
+}
+.offers-marquee-track:hover {
+  animation-play-state: paused;
 }
 
 /* ── Marquee edge fades ── */

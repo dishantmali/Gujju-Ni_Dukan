@@ -29,7 +29,7 @@ const CategoryPage = () => {
   const fetchCategoryProducts = async () => {
     try {
       setLoading(true);
-      const url = slug === "all" ? '/products/' : `/products/?category_slug=${slug}`;
+      const url = slug === "all" ? '/products/' : `/products/?category=${slug}`;
       const res: any = await api.get(url);
 
       const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
