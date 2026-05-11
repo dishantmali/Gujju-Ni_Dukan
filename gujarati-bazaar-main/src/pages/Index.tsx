@@ -386,12 +386,18 @@ const Index = () => {
     <PageShell>
       {/* ─── 1. Marquee Offers ─── */}
       <div className="bg-primary text-primary-foreground overflow-hidden">
-        <div className="relative h-9 flex items-center">
-          <div
-            className="flex gap-16 whitespace-nowrap animate-marquee"
-          >
-            {[...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
-              <span key={i} className="text-xs sm:text-sm font-medium inline-flex items-center gap-2">
+        <div className="relative h-9 flex items-center overflow-hidden">
+          <div className="animate-marquee whitespace-nowrap flex items-center">
+            {[...offersMarquee, ...offersMarquee].map((o, i) => (
+              <span key={i} className="mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
+                {o}
+                <span className="text-accent/60">•</span>
+              </span>
+            ))}
+          </div>
+          <div className="animate-marquee whitespace-nowrap flex items-center" aria-hidden="true">
+            {[...offersMarquee, ...offersMarquee].map((o, i) => (
+              <span key={i} className="mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
                 {o}
                 <span className="text-accent/60">•</span>
               </span>

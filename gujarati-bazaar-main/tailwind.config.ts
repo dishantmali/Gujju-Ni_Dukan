@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -99,7 +100,7 @@ export default {
         "slide-in-right": { "0%": { transform: "translateX(40px)", opacity: "0" }, "100%": { transform: "translateX(0)", opacity: "1" } },
         "marquee": {
           "0%": { transform: "translateX(0%)" },
-          "100%": { transform: "translateX(-50%)" }
+          "100%": { transform: "translateX(-100%)" }
         }
       },
       backgroundImage: {
@@ -107,5 +108,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;
