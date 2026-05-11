@@ -188,17 +188,8 @@
   }
 }
 
-/* ── Offers marquee infinite scroll ── */
-@keyframes offers-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.offers-marquee-track {
-  animation: offers-scroll 60s linear infinite;
-  width: max-content;
-}
-.offers-marquee-track:hover {
+/* ── Offers marquee hover pause ── */
+.animate-offers-scroll:hover {
   animation-play-state: paused;
 }
 

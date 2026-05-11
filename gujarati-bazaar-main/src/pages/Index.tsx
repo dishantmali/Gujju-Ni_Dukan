@@ -389,7 +389,7 @@ const Index = () => {
         <div className="relative h-9 flex items-center overflow-hidden">
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
-          <div className="offers-marquee-track flex items-center">
+          <div className="animate-offers-scroll flex items-center w-max">
             {[...offersMarquee, ...offersMarquee].map((o, i) => (
               <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0">
                 {o}
