@@ -389,8 +389,16 @@ const Index = () => {
         <div className="relative h-9 flex items-center overflow-hidden">
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
-          <div className="offers-marquee-track whitespace-nowrap flex items-center">
-            {[...offersMarquee, ...offersMarquee, ...offersMarquee].map((o, i) => (
+          <div className="animate-marquee whitespace-nowrap flex items-center min-w-full shrink-0">
+            {offersMarquee.map((o, i) => (
+              <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
+                {o}
+                <span className="text-accent/60">•</span>
+              </span>
+            ))}
+          </div>
+          <div className="animate-marquee whitespace-nowrap flex items-center min-w-full shrink-0" aria-hidden="true">
+            {offersMarquee.map((o, i) => (
               <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white">
                 {o}
                 <span className="text-accent/60">•</span>

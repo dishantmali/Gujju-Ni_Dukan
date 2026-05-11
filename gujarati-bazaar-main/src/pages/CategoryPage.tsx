@@ -31,14 +31,23 @@ const CategoryPage = () => {
       setLoading(true);
       const url = slug === "all" ? '/products/' : `/products/?category_slug=${slug}`;
       const res: any = await api.get(url);
-      
+
       const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
       const prods = (Array.isArray(res) ? res : res.results || []).map(mapProduct);
-      setAll(prods.length > 0 ? prods : products.filter(p => slug === "all" || p.category === slug));
+      const fallback = products.filter(p => slug === "all" || p.category === slug);
+
+      console.log("[CategoryPage] slug:", slug);
+      console.log("[CategoryPage] API response type:", Array.isArray(res) ? "array" : "object", "| results count:", Array.isArray(res) ? res.length : (res.results || []).length);
+      console.log("[CategoryPage] mapped prods:", prods.length, "| fallback mock:", fallback.length);
+      console.log("[CategoryPage] using:", prods.length > 0 ? "API products" : "mock fallback");
+
+      setAll(prods.length > 0 ? prods : fallback);
     } catch (err) {
-      console.error("Failed to fetch category products:", err);
-      setAll(products.filter(p => slug === "all" || p.category === slug));
+      console.error("[CategoryPage] API error:", err);
+      const fallback = products.filter(p => slug === "all" || p.category === slug);
+      console.log("[CategoryPage] catch fallback mock:", fallback.length);
+      setAll(fallback);
     } finally {
       setLoading(false);
     }

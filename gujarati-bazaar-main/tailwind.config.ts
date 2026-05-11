@@ -86,7 +86,7 @@ export default {
         "bounce-soft": "bounce-soft 0.6s ease-out",
         "shimmer": "shimmer 1.6s linear infinite",
         "slide-in-right": "slide-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
-        "marquee": "marquee 60s linear infinite",
+        "marquee": "marquee 80s linear infinite",
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
