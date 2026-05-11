@@ -99,6 +99,7 @@ class Category(models.Model):
         ('legacy', 'Legacy React-Icons'),
     )
     name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, null=True, blank=True)
     icon = models.CharField(max_length=255, default='mdi:shopping')
     icon_type = models.CharField(
         max_length=20,
@@ -115,6 +116,12 @@ class Category(models.Model):
 
     class Meta:
         verbose_name_plural = 'Categories'
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

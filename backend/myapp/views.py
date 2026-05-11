@@ -107,10 +107,10 @@ class HomePageView(APIView):
             'variants'
         ).annotate(
             review_count=models.Count('reviews')
-        ).order_by('-review_count', '-created_at')[:10]
+        ).distinct().order_by('-review_count', '-created_at')[:10]
         new_products = Product.objects.filter(
             status='approved'
-        ).prefetch_related('variants').order_by('-created_at')[:10]
+        ).prefetch_related('variants').distinct().order_by('-created_at')[:10]
 
         today = date.today()
         active_offers = Offer.objects.filter(
@@ -164,8 +164,16 @@ class HomePageView(APIView):
 
 
 # ---------------- Product APIs ---------------- #
+from rest_framework.pagination import PageNumberPagination
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class ProductListView(generics.ListAPIView):
     serializer_class = ProductSerializer
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         # FIX: Ensure we ONLY fetch products that are approved AND active
@@ -173,10 +181,18 @@ class ProductListView(generics.ListAPIView):
             status='approved', is_active=True
         ).prefetch_related('variants')
 
-        # Category Filter
-        category_id = self.request.query_params.get('category')
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
+        # Category Filter (supports both ID and slug)
+        category_param = self.request.query_params.get('category')
+        category_slug = self.request.query_params.get('category_slug')
+        
+        if category_param:
+            if category_param.isdigit():
+                queryset = queryset.filter(category_id=category_param)
+            else:
+                queryset = queryset.filter(category__slug=category_param)
+        
+        if category_slug:
+            queryset = queryset.filter(category__slug=category_slug)
 
         # Search Filter
         search = self.request.query_params.get('search')

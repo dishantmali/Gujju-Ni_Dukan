@@ -234,7 +234,7 @@ const Index = () => {
     try {
       const [homeRes, prodsRes, catsRes]: any = await Promise.all([
         api.get('/homepage/'),
-        api.get('/products/'),
+        api.get('/products/?page_size=50'),
         api.get('/categories/')
       ]);
 
@@ -243,10 +243,13 @@ const Index = () => {
       const newProds = (homeRes.new_products || []).map(mapProduct);
       const fetchedAll = (prodsRes || []).map(mapProduct);
 
-      const mockTrending = mockProducts.filter(p => p.isTrending);
-      const mockNew = mockProducts.filter(p => p.isNew);
-
-      setProducts([...featured, ...newProds, ...mockTrending, ...mockNew]);
+      // Merge backend products with mock data, ensuring uniqueness by ID
+      const productMap = new Map();
+      [...featured, ...newProds, ...mockProducts.filter(p => p.isTrending || p.isNew)].forEach(p => {
+        productMap.set(p.id, p);
+      });
+      
+      setProducts(Array.from(productMap.values()));
       setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
       setCategories(catsRes && catsRes.length > 0 ? catsRes : mockCategories);
       
@@ -344,16 +347,19 @@ const Index = () => {
   const list = useMemo(() => {
     if (selectedCategory === "all") return allProducts;
     
-    // Filter from allProducts (which includes backend products)
-    const filtered = allProducts.filter(p => 
-      p.category === selectedCategory || 
-      (p.category && typeof p.category === 'object' && p.category.slug === selectedCategory)
-    );
+    // Filter from allProducts
+    const filtered = allProducts.filter(p => {
+      // Check for category slug or name match
+      const pCat = p.categoryId || (p.category && typeof p.category === 'object' ? p.category.id : p.category);
+      const pCatSlug = p.category && typeof p.category === 'object' ? p.category.slug : null;
+      
+      return pCat === selectedCategory || 
+             pCatSlug === selectedCategory || 
+             p.category === selectedCategory ||
+             p.category_name?.toLowerCase() === selectedCategory.toLowerCase();
+    });
 
-    // If we have products in this category from backend/allProducts, use them
     if (filtered.length > 0) return filtered;
-
-    // Otherwise fallback to mock data for this category
     return getProductsByCategory(selectedCategory);
   }, [selectedCategory, allProducts]);
 

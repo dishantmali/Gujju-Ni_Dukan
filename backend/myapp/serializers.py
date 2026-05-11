@@ -370,7 +370,7 @@ class VendorOrderUpdateSerializer(SanitizedSerializer):
 class CategorySerializer(SanitizedSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'icon', 'icon_type', 'parent']
+        fields = ['id', 'name', 'slug', 'icon', 'icon_type', 'parent']
 
 
 class IconAssetSerializer(serializers.ModelSerializer):
