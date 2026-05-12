@@ -390,17 +390,22 @@ const Index = () => {
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
           <div className="offers-marquee-track">
-            {/* Render two identical sets; CSS slides one full set width, then resets */}
-            {[0, 1].map((copy) => (
-              <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
-                {offersMarquee.map((o, i) => (
-                  <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
-                    {o}
-                    <span className="text-accent/60">•</span>
-                  </span>
-                ))}
-              </div>
-            ))}
+            {/* Each set repeats items enough times to always overflow the viewport */}
+            {[0, 1].map((copy) => {
+              // Ensure each set has at least ~20 items so it's always wider than any screen
+              const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
+              const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
+              return (
+                <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
+                  {filledOffers.map((o, i) => (
+                    <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
+                      {o}
+                      <span className="text-accent/60">•</span>
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

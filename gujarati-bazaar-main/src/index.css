@@ -197,7 +197,8 @@
 .offers-marquee-track {
   display: flex;
   width: max-content;
-  animation: offers-marquee-slide 30s linear infinite;
+  animation: offers-marquee-slide 20s linear infinite;
+  will-change: transform;
 }
 
 .offers-marquee-track:hover {
