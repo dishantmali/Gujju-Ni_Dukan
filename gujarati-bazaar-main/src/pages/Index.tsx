@@ -514,7 +514,7 @@ const Index = () => {
           />
         </div>
         {/* Category Tabs */}
-        <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 mb-6 shadow-sm transition-all">
+        <div className="sticky top-0 z-50 bg-background border-b border-border/50 py-4 sm:py-[18px] mb-6 shadow-md transition-all">
           <div className="container">
             <div className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <div className="flex items-center gap-2 min-w-max py-1">

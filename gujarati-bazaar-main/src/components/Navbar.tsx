@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { ShoppingBag, User, Menu, X, Heart, ChevronDown, LogIn, UserPlus, LayoutGrid, ArrowRight } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ export const Navbar = () => {
   const catRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -61,8 +62,12 @@ export const Navbar = () => {
     };
   }, []);
 
+  const isIndexPage = location.pathname === "/";
+
   return (
-    <header className="sticky top-0 z-40 bg-background/85 backdrop-blur-lg border-b border-border/60">
+    <header
+      className={`${isIndexPage ? "relative" : "sticky top-0"} z-40 bg-background/85 backdrop-blur-lg border-b border-border/60`}
+    >
       {/* Main navbar row */}
       <div className="container flex items-center gap-3 sm:gap-5 h-16 sm:h-[72px]">
         {/* Logo */}
