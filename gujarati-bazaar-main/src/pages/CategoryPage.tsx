@@ -6,7 +6,7 @@ import { ProductGrid } from "@/components/ProductGrid";
 import { FilterSidebar, Filters, defaultFilters } from "@/components/FilterSidebar";
 import { categories, vendors } from "@/data/vendors";
 import { getProductsByCategory, products } from "@/data/products";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CategoryPills } from "@/components/CategoryPills";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
@@ -145,10 +145,14 @@ const CategoryPage = () => {
               <SheetTrigger className="lg:hidden inline-flex items-center gap-1.5 px-3 h-9 rounded-full bg-secondary text-sm font-medium">
                 <SlidersHorizontal size={14} /> Filters
               </SheetTrigger>
-              <SheetContent side="left" className="w-80 overflow-y-auto">
-                <h3 className="font-display text-lg font-semibold mb-4">Filters</h3>
-                <FilterSidebar value={filters} onChange={setFilters} vendorIdsInUse={vendorIdsInUse} />
-              </SheetContent>
+    <SheetContent side="left" className="w-80 overflow-y-auto">
+      <SheetHeader className="text-left">
+        <SheetTitle className="font-display text-lg font-semibold">Filters</SheetTitle>
+      </SheetHeader>
+      <div className="mt-4">
+        <FilterSidebar value={filters} onChange={setFilters} vendorIdsInUse={vendorIdsInUse} />
+      </div>
+    </SheetContent>
             </Sheet>
             <p className="text-sm text-muted-foreground hidden sm:block">Showing {filtered.length} of {all.length}</p>
             <select

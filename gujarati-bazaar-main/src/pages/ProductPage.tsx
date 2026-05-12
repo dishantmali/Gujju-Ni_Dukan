@@ -217,83 +217,117 @@ const ProductPage = () => {
 
   return (
     <PageShell>
-      <div className="container pt-6 pb-10">
+      <div className="container px-4 sm:px-6 pt-4 pb-10">
         {/* Breadcrumb */}
-        <nav className="text-xs text-muted-foreground inline-flex items-center gap-1.5 mb-5">
-          <Link to="/" className="hover:text-foreground">
+        <nav className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 sm:gap-1.5 mb-4 overflow-x-auto whitespace-nowrap pill-scroll">
+          <Link to="/" className="hover:text-foreground shrink-0">
             Home
           </Link>
-          <ChevronRight size={12} />
+          <ChevronRight size={10} className="shrink-0" />
           {product.category ? (
             <Link
               to={`/category/${product.category.toLowerCase().replace(/\s+/g, "-")}`}
-              className="hover:text-foreground capitalize"
+              className="hover:text-foreground capitalize shrink-0"
             >
               {product.category}
             </Link>
           ) : (
-            <span className="capitalize">Uncategorized</span>
+            <span className="capitalize shrink-0">Uncategorized</span>
           )}
-          <ChevronRight size={12} />
+          <ChevronRight size={10} className="shrink-0" />
           <span className="text-foreground line-clamp-1">{product.name}</span>
         </nav>
 
         <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
           {/* Left: Images */}
           <div className="flex flex-col gap-3 lg:gap-4">
-            {/* Mobile: main image first, then horizontal thumbnails */}
-            <div className="lg:hidden relative aspect-[4/5] rounded-2xl overflow-hidden border border-border bg-card">
-              {selectedImage && (
-                <img
-                  src={selectedImage}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                />
-              )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isBuyerOnly) {
-                    toast.error("Vendors and Admins cannot use wishlist");
-                    return;
-                  }
-                  toggleWish(product, isAuthenticated);
-                }}
-                aria-label="Wishlist"
-                className="absolute top-3 right-3 h-10 w-10 grid place-items-center rounded-full bg-card/90 border border-border shadow-sm"
-              >
-                <Heart
-                  size={18}
-                  className={
-                    isWish
-                      ? "fill-destructive text-destructive"
-                      : "text-brown-mid"
-                  }
-                />
-              </button>
-            </div>
-            {/* Thumbnails — horizontal scroll on mobile, vertical column on desktop */}
-            <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 snap-x">
-              {allImages.slice(0, 6).map((img, index) => (
-                <button
-                  key={`${img}-${index}`}
-                  type="button"
-                  onClick={() => setSelectedImage(img)}
-                  className={cn(
-                    "h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-xl overflow-hidden border transition-all snap-start",
-                    selectedImage === img
-                      ? "border-brown-light ring-1 ring-brown-light"
-                      : "border-border hover:border-brown-light/50"
-                  )}
+            {/* Mobile Image Carousel */}
+            <div className="lg:hidden relative">
+              <div className="overflow-hidden bg-card border-y sm:border sm:rounded-2xl border-border">
+                <motion.div 
+                  className="flex"
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragEnd={(_, info) => {
+                    const threshold = 50;
+                    const currentIndex = allImages.indexOf(selectedImage);
+                    if (info.offset.x < -threshold && currentIndex < allImages.length - 1) {
+                      setSelectedImage(allImages[currentIndex + 1]);
+                    } else if (info.offset.x > threshold && currentIndex > 0) {
+                      setSelectedImage(allImages[currentIndex - 1]);
+                    }
+                  }}
                 >
-                  <img
-                    src={img}
-                    alt={`${product.name} ${index + 1}`}
-                    className="h-full w-full object-cover"
+                  <div className="w-full shrink-0 aspect-[4/5] relative">
+                    {selectedImage && (
+                      <img
+                        src={selectedImage}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                </motion.div>
+                
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isBuyerOnly) {
+                      toast.error("Vendors and Admins cannot use wishlist");
+                      return;
+                    }
+                    toggleWish(product, isAuthenticated);
+                  }}
+                  aria-label="Wishlist"
+                  className="absolute top-4 right-4 h-10 w-10 grid place-items-center rounded-full bg-card/90 border border-border shadow-sm z-10"
+                >
+                  <Heart
+                    size={18}
+                    className={
+                      isWish
+                        ? "fill-destructive text-destructive"
+                        : "text-brown-mid"
+                    }
                   />
                 </button>
-              ))}
+
+                {/* Indicators */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                  {allImages.slice(0, 6).map((img, idx) => (
+                    <div 
+                      key={idx}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all duration-300",
+                        selectedImage === img ? "w-6 bg-brown-light" : "w-1.5 bg-white/60"
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Mobile Thumbnails */}
+              <div className="flex gap-2 overflow-x-auto py-3 pill-scroll snap-x">
+                {allImages.slice(0, 6).map((img, index) => (
+                  <button
+                    key={`${img}-${index}`}
+                    type="button"
+                    onClick={() => setSelectedImage(img)}
+                    className={cn(
+                      "h-16 w-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all snap-start",
+                      selectedImage === img
+                        ? "border-brown-light scale-95"
+                        : "border-border hover:border-brown-light/50"
+                    )}
+                  >
+                    <img
+                      src={img}
+                      alt={`${product.name} ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Desktop: side-by-side grid with vertical thumbnails */}
@@ -596,16 +630,17 @@ const ProductPage = () => {
                         </div>
                       );
                     })}
-
-                    {/* All variants grid */}
-                    <div className="space-y-2 pt-1">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        All variants
-                        <span className="ml-1.5 text-xs text-foreground">
-                          ({variants.length})
+                    {/* All variants grid */}
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">
+                          All combinations
+                        </p>
+                        <span className="text-[10px] font-medium bg-secondary px-2 py-0.5 rounded-full text-muted-foreground uppercase tracking-wider">
+                          {variants.length} options
                         </span>
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      </div>
+                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
                         {variants.map((v) => {
                           const isActive =
                             String(v.id) === selectedVariantId;
@@ -624,29 +659,29 @@ const ProductPage = () => {
                                 setSelectedOptions(v.option_values || {});
                               }}
                               className={cn(
-                                "rounded-xl border p-3 text-left transition-all",
+                                "rounded-xl border p-2.5 text-left transition-all relative group",
                                 isActive
                                   ? "border-brown-light bg-brown-light/5 ring-1 ring-brown-light"
                                   : "border-border hover:border-brown-light/50 bg-card",
-                                !inStock && "opacity-60"
+                                !inStock && "opacity-50 grayscale-[0.5]"
                               )}
                             >
-                              <p className="text-xs font-medium text-foreground truncate">
+                              <p className="text-[10px] font-medium text-muted-foreground truncate uppercase tracking-tight mb-0.5">
                                 {variantLabel || `Variant ${v.id}`}
                               </p>
-                              <p className="text-sm font-bold text-foreground mt-1">
+                              <p className="text-sm font-bold text-foreground">
                                 ₹{v.price.toLocaleString("en-IN")}
                               </p>
-                              <p
-                                className={cn(
-                                  "text-[10px] font-medium mt-0.5",
-                                  inStock ? "text-success" : "text-destructive"
-                                )}
-                              >
-                                {inStock
-                                  ? `${v.stock_quantity} left`
-                                  : "Out of stock"}
-                              </p>
+                              {!inStock && (
+                                <span className="absolute top-1 right-1 text-[8px] font-bold text-destructive uppercase">
+                                  Sold Out
+                                </span>
+                              )}
+                              {isActive && (
+                                <div className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-brown-light rounded-full flex items-center justify-center text-white shadow-sm">
+                                  <Check size={10} strokeWidth={4} />
+                                </div>
+                              )}
                             </button>
                           );
                         })}
@@ -729,73 +764,78 @@ const ProductPage = () => {
             </div>
 
             {/* Quantity + Add to Cart */}
-            <div className="mt-5 flex items-center gap-3 flex-wrap">
-              {/* Quantity stepper */}
-              <div className="inline-flex items-center h-12 rounded-full border border-border bg-card overflow-hidden">
+            <div className="mt-6 flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground">Quantity</span>
+                  {/* Reduced area Quantity stepper */}
+                  <div className="inline-flex items-center h-10 rounded-full border border-border bg-card overflow-hidden">
+                    <button
+                      type="button"
+                      disabled={qty <= 1}
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      className="h-10 w-10 grid place-items-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center text-sm font-bold">
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={selectedStock > 0 ? qty >= selectedStock : true}
+                      onClick={() => setQty((q) => (selectedStock > 0 ? Math.min(q + 1, selectedStock) : q))}
+                      className="h-10 w-10 grid place-items-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Wishlist Icon placed closer to Quantity stepper */}
                 <button
-                  type="button"
-                  disabled={qty <= 1}
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="h-12 w-12 grid place-items-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isBuyerOnly) {
+                      toast.error("Vendors and Admins cannot use wishlist");
+                      return;
+                    }
+                    toggleWish(product, isAuthenticated);
+                  }}
+                  aria-label="Wishlist"
+                  className="h-10 w-10 shrink-0 grid place-items-center rounded-full border border-border bg-card hover:border-brown-light hover:bg-brown-light/5 transition-all shadow-sm"
                 >
-                  <Minus size={16} />
-                </button>
-                <span className="w-8 text-center text-sm font-semibold">
-                  {qty}
-                </span>
-                <button
-                  type="button"
-                  disabled={selectedStock > 0 ? qty >= selectedStock : true}
-                  onClick={() => setQty((q) => (selectedStock > 0 ? Math.min(q + 1, selectedStock) : q))}
-                  className="h-12 w-12 grid place-items-center text-muted-foreground hover:text-foreground disabled:opacity-40"
-                >
-                  <Plus size={16} />
+                  <Heart
+                    size={18}
+                    className={isWish ? "fill-destructive text-destructive" : "text-brown-mid"}
+                  />
                 </button>
               </div>
 
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                disabled={!canAddBuyers}
-                onClick={() => {
-                  if (!isBuyerOnly) {
-                    toast.error("Vendors and Admins cannot add items to cart");
-                    return;
-                  }
-                  if (!canAddBuyers) {
-                    toast.error("This option is out of stock");
-                    return;
-                  }
-                  add(product, qty, selectedVariant ?? variants[0]);
-                  toast.success("Added to cart", {
-                    description: `${qty} × ${product.name}`,
-                  });
-                }}
-                className="inline-flex items-center gap-2 h-12 px-8 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-brown-mid transition-colors disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-              >
-                <ShoppingBag size={18} /> Add to Cart
-              </motion.button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isBuyerOnly) {
-                    toast.error("Vendors and Admins cannot use wishlist");
-                    return;
-                  }
-                  toggleWish(product, isAuthenticated);
-                }}
-                aria-label="Wishlist"
-                className="h-12 w-12 grid place-items-center rounded-full border border-border hover:border-brown-light transition-colors"
-              >
-                <Heart
-                  size={20}
-                  className={
-                    isWish
-                      ? "fill-destructive text-destructive"
-                      : "text-brown-mid"
-                  }
-                />
-              </button>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  disabled={!canAddBuyers}
+                  onClick={() => {
+                    if (!isBuyerOnly) {
+                      toast.error("Vendors and Admins cannot add items to cart");
+                      return;
+                    }
+                    if (!canAddBuyers) {
+                      toast.error("This option is out of stock");
+                      return;
+                    }
+                    add(product, qty, selectedVariant ?? variants[0]);
+                    toast.success("Added to cart", {
+                      description: `${qty} × ${product.name}`,
+                    });
+                  }}
+                  className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/10 hover:bg-brown-mid transition-all disabled:opacity-50 disabled:pointer-events-none text-sm sm:text-base"
+                >
+                  <ShoppingBag size={18} className="sm:w-5 sm:h-5" />
+                  Add to Cart
+                </motion.button>
+              </div>
             </div>
 
             {/* Info Tabs */}
@@ -818,7 +858,7 @@ const ProductPage = () => {
           <h2 className="font-display text-xl sm:text-2xl font-semibold mb-4 sm:mb-5">
             You may also like
           </h2>
-          <div className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="pill-scroll overflow-x-auto">
             <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
               {related.map((p, i) => (
                 <div key={p.id} className="w-[200px] sm:w-[220px] shrink-0">
@@ -830,37 +870,6 @@ const ProductPage = () => {
         </div>
       </div>
 
-      {/* Mobile Sticky Footer */}
-      <div className="lg:hidden sticky bottom-0 z-30 bg-card/95 backdrop-blur-md border-t border-border p-3 flex items-center gap-3">
-        <div>
-          <div className="font-display font-bold text-lg">
-            ₹{displayPrice.toLocaleString("en-IN")}
-          </div>
-          {displayOriginal > displayPrice && (
-            <div className="text-xs text-muted-foreground line-through">
-              ₹{displayOriginal.toLocaleString("en-IN")}
-            </div>
-          )}
-        </div>
-        <button
-          disabled={!canAddBuyers}
-          onClick={() => {
-            if (!isBuyerOnly) {
-              toast.error("Vendors and Admins cannot add items to cart");
-              return;
-            }
-            if (!canAddBuyers) {
-              toast.error("This option is out of stock");
-              return;
-            }
-            add(product, qty, selectedVariant ?? variants[0]);
-            toast.success("Added to cart");
-          }}
-          className="ml-auto inline-flex items-center gap-2 h-11 px-5 rounded-full bg-primary text-primary-foreground font-semibold disabled:opacity-50 disabled:pointer-events-none"
-        >
-          <ShoppingBag size={16} /> Add to Cart
-        </button>
-      </div>
     </PageShell>
   );
 };

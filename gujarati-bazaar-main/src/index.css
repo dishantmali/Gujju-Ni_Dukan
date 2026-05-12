@@ -74,8 +74,9 @@
   * {
     @apply border-border;
   }
-  html {
-    -webkit-font-smoothing: antialiased;
+  html, body {
+    @apply overflow-x-hidden;
+    width: 100%;
   }
   body {
     @apply bg-background text-foreground font-sans;
