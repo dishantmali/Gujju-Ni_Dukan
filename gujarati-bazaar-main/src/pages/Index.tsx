@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useRef, useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -27,6 +28,7 @@ import { mapApiProduct } from "@/lib/mapApiProduct";
 
 import heroBanner from "@/assets/hero-banner.png";
 import { BannerSlider, BannerItem } from "@/components/BannerSlider";
+import { IndexExploreChromeProvider, useIndexExploreChrome } from "@/context/IndexExploreChromeContext";
 
 /* ── Helpers ── */
 const SectionHeader = ({
@@ -217,7 +219,7 @@ const ReviewCard = ({
 /* ════════════════════════════════════════════════════════ */
 /*                     INDEX PAGE                          */
 /* ════════════════════════════════════════════════════════ */
-const Index = () => {
+const IndexPageBody = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -318,6 +320,41 @@ const Index = () => {
   /* Category filter state */
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isExpanded, setIsExpanded] = useState(false);
+  const exploreSectionRef = useRef<HTMLElement | null>(null);
+  const exploreChrome = useIndexExploreChrome();
+
+  const setExploreChromeActive = exploreChrome?.setExploreChromeActive;
+
+  useEffect(() => {
+    if (!setExploreChromeActive) return;
+    let raf = 0;
+    let active = false;
+    const BUFFER = 10;
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = exploreSectionRef.current;
+        if (!el) return;
+        const { top, bottom } = el.getBoundingClientRect();
+        if (!active && top <= -BUFFER && bottom > 0) {
+          active = true;
+          setExploreChromeActive(true);
+        } else if (active && (top > BUFFER || bottom <= 0)) {
+          active = false;
+          setExploreChromeActive(false);
+        }
+      });
+    };
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync);
+    sync();
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+      setExploreChromeActive(false);
+    };
+  }, [setExploreChromeActive]); // setter is referentially stable — runs once
 
   useEffect(() => {
     setIsExpanded(false);
@@ -380,10 +417,38 @@ const Index = () => {
     return isExpanded ? list.slice(0, 24) : list.slice(0, 12);
   }, [list, isExpanded]);
 
+  const chrome = !!exploreChrome?.exploreChromeActive;
 
+  /* Shared category pills content — rendered in both sticky and fixed-overlay elements */
+  const categoryPillsInner = (
+    <div className="container">
+      <div className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-2 min-w-max py-1">
+          {[{ slug: "all", name: "All", icon: "FaSparkles" }, ...categories].map(
+            (c: any) => {
+              const isActive = selectedCategory === (c.slug || c.id.toString());
+              return (
+                <button
+                  key={c.slug || c.id}
+                  onClick={() => setSelectedCategory(c.slug || c.id.toString())}
+                  className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-foreground hover:bg-secondary"
+                    }`}
+                >
+                  <span><CategoryIcon name={c.icon || 'FaSparkles'} size={14} /></span>
+                  <span>{c.name}</span>
+                </button>
+              );
+            }
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <PageShell>
+    <>
       {/* ─── 1. Marquee Offers — infinite loop regardless of content length ─── */}
       <div className="bg-primary text-primary-foreground overflow-hidden">
         <div className="relative h-9 flex items-center overflow-hidden">
@@ -506,41 +571,35 @@ const Index = () => {
       </section>
 
       {/* ─── 7. All Categories with Filterable Products ─── */}
-      <section className="py-10">
+      <section ref={exploreSectionRef} className="py-10">
         <div className="container">
           <SectionHeader
             icon={<LayoutGrid size={22} />}
             title="Explore Products"
           />
         </div>
-        {/* Category Tabs */}
-        <div className="sticky top-0 z-50 bg-background border-b border-border/50 py-4 sm:py-[18px] mb-6 shadow-md transition-all">
-          <div className="container">
-            <div className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="flex items-center gap-2 min-w-max py-1">
-            {[{ slug: "all", name: "All", icon: "FaSparkles" }, ...categories].map(
-              (c: any) => {
-                const isActive = selectedCategory === (c.slug || c.id.toString());
-                return (
-                  <button
-                    key={c.slug || c.id}
-                    onClick={() => setSelectedCategory(c.slug || c.id.toString())}
-                    className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-foreground hover:bg-secondary"
-                      }`}
-                  >
-                    <span><CategoryIcon name={c.icon || 'FaSparkles'} size={14} /></span>
-                    <span>{c.name}</span>
-                  </button>
-                );
-              }
-            )}
-
-              </div>
-            </div>
-          </div>
+        {/* ── Sticky in-flow pills (always in DOM for layout; fades out when fixed overlay appears) ── */}
+        <div
+          className={`sticky top-[130px] md:top-[72px] z-30 mb-6 border-b border-border/50 bg-background/95 backdrop-blur-lg py-4 sm:py-[18px] shadow-md transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            chrome ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          {categoryPillsInner}
         </div>
+
+        {/* ── Fixed overlay pills (portalled to body to escape motion.main's containing block) ── */}
+        {createPortal(
+          <div
+            className={`fixed top-0 left-0 right-0 z-[60] border-b border-border/50 bg-background backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              chrome
+                ? "opacity-100 translate-y-0 pointer-events-auto"
+                : "opacity-0 -translate-y-1 pointer-events-none"
+            }`}
+          >
+            {categoryPillsInner}
+          </div>,
+          document.body
+        )}
         <div className="container">
         {/* Filtered Product Grid */}
         <motion.div
@@ -643,8 +702,16 @@ const Index = () => {
           </button>
         </div>
       </section>
-    </PageShell>
+    </>
   );
 };
 
-export default Index;
+export default function Index() {
+  return (
+    <IndexExploreChromeProvider>
+      <PageShell>
+        <IndexPageBody />
+      </PageShell>
+    </IndexExploreChromeProvider>
+  );
+}

@@ -8,6 +8,7 @@ import { SearchBar } from "./SearchBar";
 import api from '@/lib/api';
 import { CategoryIcon } from "./CategoryIcon";
 import logo from '@/assets/logo.jpeg';
+import { useIndexExploreChrome } from "@/context/IndexExploreChromeContext";
 
 export const Navbar = () => {
   const count = useCart((s) => s.count());
@@ -19,6 +20,9 @@ export const Navbar = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const exploreChrome = useIndexExploreChrome();
+  const hideChromeForExplore =
+    location.pathname === "/" && !!exploreChrome?.exploreChromeActive;
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -62,11 +66,11 @@ export const Navbar = () => {
     };
   }, []);
 
-  const isIndexPage = location.pathname === "/";
-
+  /* Fixed (not sticky): body has overflow-x-hidden which breaks position:sticky in many browsers. */
   return (
+    <>
     <header
-      className={`${isIndexPage ? "relative" : "sticky top-0"} z-40 bg-background/85 backdrop-blur-lg border-b border-border/60`}
+      className={`fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/60 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${hideChromeForExplore ? "opacity-0 pointer-events-none" : "opacity-100"}`}
     >
       {/* Main navbar row */}
       <div className="container flex items-center gap-3 sm:gap-5 h-16 sm:h-[72px]">
@@ -281,5 +285,11 @@ export const Navbar = () => {
         )}
       </AnimatePresence>
     </header>
+    {/* Reserve space so content is not covered by the fixed header (mobile: bar + search row; md+: single bar). */}
+    <div
+      className="shrink-0 h-[130px] md:h-[72px] pointer-events-none"
+      aria-hidden
+    />
+    </>
   );
 };
