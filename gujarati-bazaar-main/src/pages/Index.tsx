@@ -384,17 +384,22 @@ const Index = () => {
 
   return (
     <PageShell>
-      {/* ─── 1. Marquee Offers ─── */}
+      {/* ─── 1. Marquee Offers — infinite loop regardless of content length ─── */}
       <div className="bg-primary text-primary-foreground overflow-hidden">
         <div className="relative h-9 flex items-center overflow-hidden">
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
-          <div className="animate-offers-scroll flex items-center w-max">
-            {[...offersMarquee, ...offersMarquee].map((o, i) => (
-              <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0">
-                {o}
-                <span className="text-accent/60">•</span>
-              </span>
+          <div className="offers-marquee-track">
+            {/* Render two identical sets; CSS slides one full set width, then resets */}
+            {[0, 1].map((copy) => (
+              <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
+                {offersMarquee.map((o, i) => (
+                  <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
+                    {o}
+                    <span className="text-accent/60">•</span>
+                  </span>
+                ))}
+              </div>
             ))}
           </div>
         </div>

@@ -87,7 +87,6 @@ export default {
         "shimmer": "shimmer 1.6s linear infinite",
         "slide-in-right": "slide-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
         "marquee": "marquee 80s linear infinite",
-        "offers-scroll": "offers-scroll 60s linear infinite",
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
@@ -103,10 +102,6 @@ export default {
           "0%": { transform: "translateX(0%)" },
           "100%": { transform: "translateX(-100%)" }
         },
-        "offers-scroll": {
-          "0%": { transform: "translateX(0%)" },
-          "100%": { transform: "translateX(-50%)" }
-        }
       },
       backgroundImage: {
         "skeleton-shimmer": "linear-gradient(90deg, hsl(34 40% 93%) 0%, hsl(33 60% 96%) 40%, hsl(34 40% 93%) 80%)",

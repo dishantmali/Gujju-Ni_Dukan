@@ -188,9 +188,26 @@
   }
 }
 
-/* ── Offers marquee hover pause ── */
-.animate-offers-scroll:hover {
+/* ── Offers marquee — true infinite scroll ── */
+@keyframes offers-marquee-slide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.offers-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: offers-marquee-slide 30s linear infinite;
+}
+
+.offers-marquee-track:hover {
   animation-play-state: paused;
+}
+
+.offers-marquee-set {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* ── Marquee edge fades ── */
