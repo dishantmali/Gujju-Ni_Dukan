@@ -4,7 +4,7 @@ import { Product, ProductVariant } from "@/data/types";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
 
-export type CartLine = { product: Product; qty: number; variant?: ProductVariant };
+export type CartLine = { product: Product; qty: number; variant?: ProductVariant; backendItemId?: number };
 
 export function cartLineId(line: CartLine): string {
   return `${String(line.product.id)}:${line.variant?.id ?? "_"}`;
@@ -12,6 +12,11 @@ export function cartLineId(line: CartLine): string {
 
 export function cartLineUnitPrice(line: CartLine): number {
   return line.variant ? line.variant.price : line.product.price;
+}
+
+/** Check if the user is currently authenticated by looking for an access token. */
+function isAuthenticated(): boolean {
+  return !!localStorage.getItem("access_token");
 }
 
 type CartState = {
@@ -37,7 +42,8 @@ export const useCart = create<CartState>()(
       wishlist: [],
       wishlistItems: [],
       _togglingIds: new Set<string>(),
-      add: (p, qty = 1, variant) =>
+      add: (p, qty = 1, variant) => {
+        let actualQty = qty;
         set((s) => {
           const v =
             variant ??
@@ -50,36 +56,102 @@ export const useCart = create<CartState>()(
           const currentQty = existing ? existing.qty : 0;
           const maxStock = v ? v.stock_quantity : p.stock_quantity;
           
-          if (currentQty + qty > maxStock) {
+          if (currentQty + actualQty > maxStock) {
             const allowedQty = Math.max(0, maxStock - currentQty);
-            if (allowedQty === 0) return s;
-            qty = allowedQty;
+            if (allowedQty === 0) { actualQty = 0; return s; }
+            actualQty = allowedQty;
           }
 
           if (existing) {
             return {
               items: s.items.map((i) =>
-                cartLineId(i) === lid ? { ...i, qty: i.qty + qty } : i
+                cartLineId(i) === lid ? { ...i, qty: i.qty + actualQty } : i
               ),
             };
           }
-          const line: CartLine = v ? { product: p, qty, variant: v } : { product: p, qty };
-          
-          // Optionally sync to backend if authenticated
-          // This would ideally be done in a separate action or debounced
+          const line: CartLine = v ? { product: p, qty: actualQty, variant: v } : { product: p, qty: actualQty };
           
           return { items: [...s.items, line] };
-        }),
-      remove: (lineId) =>
-        set((s) => ({ items: s.items.filter((i) => cartLineId(i) !== lineId) })),
-      setQty: (lineId, qty) =>
+        });
+
+        // Sync to backend (fire-and-forget)
+        if (actualQty > 0 && isAuthenticated()) {
+          const v =
+            variant ??
+            (p.variants && p.variants.length > 0
+              ? p.variants.find(v => v.stock_quantity > 0) || p.variants[0]
+              : undefined);
+          api.post("/cart/add/", {
+            product_id: p.id,
+            variant_id: v?.id ?? null,
+            quantity: actualQty,
+          }).then(() => {
+            // Re-sync to get backend item IDs
+            get().syncCart();
+          }).catch((err) => {
+            console.error("Failed to sync add-to-cart to backend:", err);
+          });
+        }
+      },
+      remove: (lineId) => {
+        // Find the item before removing to get its backendItemId
+        const itemToRemove = get().items.find((i) => cartLineId(i) === lineId);
+        set((s) => ({ items: s.items.filter((i) => cartLineId(i) !== lineId) }));
+
+        // Sync removal to backend (fire-and-forget)
+        if (isAuthenticated() && itemToRemove?.backendItemId) {
+          api.delete(`/cart/remove/${itemToRemove.backendItemId}/`).catch((err) => {
+            console.error("Failed to sync cart removal to backend:", err);
+          });
+        }
+      },
+      setQty: (lineId, qty) => {
+        const prevItem = get().items.find((i) => cartLineId(i) === lineId);
         set((s) => ({
           items:
             qty <= 0
               ? s.items.filter((i) => cartLineId(i) !== lineId)
               : s.items.map((i) => (cartLineId(i) === lineId ? { ...i, qty } : i)),
-        })),
-      clear: () => set({ items: [] }),
+        }));
+
+        // Sync quantity change to backend (fire-and-forget)
+        if (isAuthenticated() && prevItem?.backendItemId) {
+          if (qty <= 0) {
+            // Remove from backend
+            api.delete(`/cart/remove/${prevItem.backendItemId}/`).catch((err) => {
+              console.error("Failed to sync cart removal to backend:", err);
+            });
+          } else {
+            // Remove and re-add with new quantity
+            api.delete(`/cart/remove/${prevItem.backendItemId}/`).then(() => {
+              return api.post("/cart/add/", {
+                product_id: prevItem.product.id,
+                variant_id: prevItem.variant?.id ?? null,
+                quantity: qty,
+              });
+            }).then(() => {
+              get().syncCart();
+            }).catch((err) => {
+              console.error("Failed to sync cart qty change to backend:", err);
+            });
+          }
+        }
+      },
+      clear: () => {
+        const items = get().items;
+        set({ items: [] });
+
+        // Clear backend cart items (fire-and-forget)
+        if (isAuthenticated()) {
+          Promise.all(
+            items
+              .filter((i) => i.backendItemId)
+              .map((i) => api.delete(`/cart/remove/${i.backendItemId}/`))
+          ).catch((err) => {
+            console.error("Failed to clear backend cart:", err);
+          });
+        }
+      },
       toggleWishlist: async (product, authenticated = false) => {
         const s = get() as any;
         const stringId = product.id.toString();
@@ -148,11 +220,24 @@ export const useCart = create<CartState>()(
         try {
           const res: any = await api.get("/cart/");
           if (res && res.items) {
-            const serverItems: CartLine[] = res.items.map((item: any) => ({
-              product: mapApiProduct(item.product_details),
-              qty: item.quantity,
-              variant: item.variant_details
-            }));
+            const serverItems: CartLine[] = res.items.map((item: any) => {
+              const vd = item.variant_details;
+              const mappedVariant: ProductVariant | undefined = vd ? {
+                id: String(vd.id),
+                sku: String(vd.sku ?? ""),
+                image: vd.image ?? undefined,
+                images: vd.images?.map((img: any) => img.image).filter(Boolean) ?? undefined,
+                price: parseFloat(String(vd.price ?? 0)),
+                stock_quantity: Number(vd.stock_quantity ?? 0),
+                option_values: vd.option_values ?? {},
+              } : undefined;
+              return {
+                product: mapApiProduct(item.product_details),
+                qty: item.quantity,
+                variant: mappedVariant,
+                backendItemId: item.id,
+              };
+            });
             set({ items: serverItems });
           }
         } catch (err) {

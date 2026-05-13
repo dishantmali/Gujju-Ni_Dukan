@@ -247,9 +247,9 @@ const IndexPageBody = () => {
 
       // Prefer backend products if any exist; otherwise use mock data
       const hasBackendProducts = featured.length > 0 || newProds.length > 0;
-      
+
       const productMap = new Map();
-      
+
       if (hasBackendProducts) {
         // Only show backend products
         [...featured, ...newProds].forEach(p => {
@@ -261,11 +261,11 @@ const IndexPageBody = () => {
           productMap.set(p.id, p);
         });
       }
-      
+
       setProducts(Array.from(productMap.values()));
       setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
       setCategories(catsRes && catsRes.length > 0 ? catsRes : mockCategories);
-      
+
       if (homeRes.vendors && homeRes.vendors.length > 0) {
         setVendors(homeRes.vendors.map((v: any) => ({
           ...v,
@@ -396,17 +396,17 @@ const IndexPageBody = () => {
 
   const list = useMemo(() => {
     if (selectedCategory === "all") return allProducts;
-    
+
     // Filter from allProducts
     const filtered = allProducts.filter(p => {
       // Check for category slug or name match
       const pCat = p.categoryId || (p.category && typeof p.category === 'object' ? p.category.id : p.category);
       const pCatSlug = p.category && typeof p.category === 'object' ? p.category.slug : null;
-      
-      return pCat === selectedCategory || 
-             pCatSlug === selectedCategory || 
-             p.category === selectedCategory ||
-             p.category_name?.toLowerCase() === selectedCategory.toLowerCase();
+
+      return pCat === selectedCategory ||
+        pCatSlug === selectedCategory ||
+        p.category === selectedCategory ||
+        p.category_name?.toLowerCase() === selectedCategory.toLowerCase();
     });
 
     if (filtered.length > 0) return filtered;
@@ -450,7 +450,7 @@ const IndexPageBody = () => {
   return (
     <>
       {/* ─── 1. Marquee Offers — infinite loop regardless of content length ─── */}
-      <div className="bg-primary text-primary-foreground overflow-hidden">
+      <div className="bg-brown-mid text-primary-foreground overflow-hidden">
         <div className="relative h-9 flex items-center overflow-hidden">
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
@@ -465,7 +465,7 @@ const IndexPageBody = () => {
                   {filledOffers.map((o, i) => (
                     <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
                       {o}
-                      <span className="text-accent/60">•</span>
+                      <span className="text-primary">•</span>
                     </span>
                   ))}
                 </div>
@@ -580,9 +580,8 @@ const IndexPageBody = () => {
         </div>
         {/* ── Sticky in-flow pills (always in DOM for layout; fades out when fixed overlay appears) ── */}
         <div
-          className={`sticky top-[130px] md:top-[72px] z-30 mb-6 border-b border-border/50 bg-background/95 backdrop-blur-lg py-4 sm:py-[18px] shadow-md transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            chrome ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
+          className={`sticky top-[130px] md:top-[72px] z-30 mb-6 border-b border-border/50 bg-background/95 backdrop-blur-lg py-4 sm:py-[18px] shadow-md transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${chrome ? "opacity-0 pointer-events-none" : "opacity-100"
+            }`}
         >
           {categoryPillsInner}
         </div>
@@ -590,46 +589,45 @@ const IndexPageBody = () => {
         {/* ── Fixed overlay pills (portalled to body to escape motion.main's containing block) ── */}
         {createPortal(
           <div
-            className={`fixed top-0 left-0 right-0 z-[60] border-b border-border/50 bg-background backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              chrome
+            className={`fixed top-0 left-0 right-0 z-[60] border-b border-border/50 bg-background backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${chrome
                 ? "opacity-100 translate-y-0 pointer-events-auto"
                 : "opacity-0 -translate-y-1 pointer-events-none"
-            }`}
+              }`}
           >
             {categoryPillsInner}
           </div>,
           document.body
         )}
         <div className="container">
-        {/* Filtered Product Grid */}
-        <motion.div
-          key={selectedCategory}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5"
-        >
-          {filteredProducts.map((p, i) => (
-            <ProductCard key={p.id} product={p} index={i} />
-          ))}
-        </motion.div>
-        <div className="mt-8 text-center">
-          {!isExpanded && list.length > 12 ? (
-            <button
-              onClick={() => setIsExpanded(true)}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-primary text-primary font-semibold text-sm hover:bg-primary hover:text-primary-foreground transition-colors"
-            >
-              Show More <ArrowRight size={14} />
-            </button>
-          ) : (
-            <Link
-              to={`/category/${selectedCategory}`}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-primary text-primary font-semibold text-sm hover:bg-primary hover:text-primary-foreground transition-colors"
-            >
-              View More <ArrowRight size={14} />
-            </Link>
-          )}
-        </div>
+          {/* Filtered Product Grid */}
+          <motion.div
+            key={selectedCategory}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5"
+          >
+            {filteredProducts.map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
+          </motion.div>
+          <div className="mt-8 text-center">
+            {!isExpanded && list.length > 12 ? (
+              <button
+                onClick={() => setIsExpanded(true)}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-primary text-primary font-semibold text-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+              >
+                Show More <ArrowRight size={14} />
+              </button>
+            ) : (
+              <Link
+                to={`/category/${selectedCategory}`}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-primary text-primary font-semibold text-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+              >
+                View More <ArrowRight size={14} />
+              </Link>
+            )}
+          </div>
         </div>
       </section>
 

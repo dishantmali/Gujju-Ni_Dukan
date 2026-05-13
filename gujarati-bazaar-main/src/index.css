@@ -198,7 +198,7 @@
 .offers-marquee-track {
   display: flex;
   width: max-content;
-  animation: offers-marquee-slide 20s linear infinite;
+  animation: offers-marquee-slide 60s linear infinite;
   will-change: transform;
 }
 
@@ -224,11 +224,11 @@
 }
 .marquee-fade-left {
   left: 0;
-  background: linear-gradient(to right, hsl(var(--primary)), transparent);
+  background: linear-gradient(to right, hsl(var(--brown-mid)), transparent);
 }
 .marquee-fade-right {
   right: 0;
-  background: linear-gradient(to left, hsl(var(--primary)), transparent);
+  background: linear-gradient(to left, hsl(var(--brown-mid)), transparent);
 }
 @media (min-width: 640px) {
   .marquee-fade-left,

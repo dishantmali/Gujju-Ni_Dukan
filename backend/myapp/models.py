@@ -7,6 +7,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.cache import cache
 from django.utils import timezone
+from django.utils.text import slugify
 
 mobile_num_validator = RegexValidator(
     regex=r'^\d{10}$',
@@ -119,7 +120,6 @@ class Category(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            from django.utils.text import slugify
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
 
