@@ -31,6 +31,8 @@ type CartState = {
   setWishlist: (ids: string[]) => void;
   syncWishlist: () => Promise<void>;
   syncCart: () => Promise<void>;
+  mergeCart: () => Promise<void>;
+  mergeWishlist: () => Promise<void>;
   count: () => number;
   subtotal: () => number;
 };
@@ -245,7 +247,35 @@ export const useCart = create<CartState>()(
           console.error("Failed to sync cart:", err);
         }
       },
-      count: () => get().items.reduce((a, i) => a + i.qty, 0),
+  mergeCart: async () => {
+    const items = get().items;
+    if (items.length === 0) return;
+
+    try {
+      await api.post("/cart/merge/", {
+        items: items.map((i) => ({
+          product_id: i.product.id,
+          variant_id: i.variant?.id ?? null,
+          quantity: i.qty,
+        })),
+      });
+    } catch (err) {
+      console.error("Failed to merge cart:", err);
+    }
+  },
+  mergeWishlist: async () => {
+    const wishlist = get().wishlist;
+    if (wishlist.length === 0) return;
+
+    try {
+      await api.post("/wishlist/merge/", {
+        items: wishlist.map((id) => ({ product: id })),
+      });
+    } catch (err) {
+      console.error("Failed to merge wishlist:", err);
+    }
+  },
+  count: () => get().items.reduce((a, i) => a + i.qty, 0),
       subtotal: () =>
         get().items.reduce((a, i) => a + i.qty * cartLineUnitPrice(i), 0),
     }),

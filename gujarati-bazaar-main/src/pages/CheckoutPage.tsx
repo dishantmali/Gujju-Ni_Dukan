@@ -349,7 +349,7 @@ const CheckoutPage = () => {
             </AnimatePresence>
           </div>
         </div>
-        <CartSummary ctaTo="#" ctaLabel="Continue below ↓" />
+        <CartSummary hideCta />
       </div>
     </PageShell>
   );

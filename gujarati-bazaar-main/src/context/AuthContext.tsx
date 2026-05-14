@@ -112,6 +112,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       // Sync wishlist if the user is a buyer
       if (userData.role === 'buyer') {
+        await useCart.getState().mergeWishlist();
+        await useCart.getState().mergeCart();
         useCart.getState().syncWishlist();
         useCart.getState().syncCart();
       }
