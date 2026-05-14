@@ -103,13 +103,13 @@ class HomePageView(APIView):
 
     def get(self, request):
         categories = Category.objects.all()
-        products = Product.objects.filter(status='approved').prefetch_related(
+        products = Product.objects.filter(status='approved', is_active=True).prefetch_related(
             'variants'
         ).annotate(
             review_count=models.Count('reviews')
         ).distinct().order_by('-review_count', '-created_at')[:10]
         new_products = Product.objects.filter(
-            status='approved'
+            status='approved', is_active=True
         ).prefetch_related('variants').distinct().order_by('-created_at')[:10]
 
         today = date.today()
@@ -339,8 +339,18 @@ class VendorProductUpdateView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         if self.request.user.role != 'vendor':
             return Product.objects.none()
-        # Ensure vendors can only edit active products
+        # Ensure vendors can edit both active and archived products (so they can restore them)
         return Product.objects.filter(vendor__user=self.request.user)
+
+    def perform_update(self, serializer):
+        # Manually handle is_active since it's read_only in ProductSerializer to prevent coercion
+        if 'is_active' in self.request.data:
+            is_active_val = self.request.data.get('is_active')
+            if str(is_active_val).lower() == 'true':
+                serializer.instance.is_active = True
+            elif str(is_active_val).lower() == 'false':
+                serializer.instance.is_active = False
+        serializer.save()
 
     # --- FIX 2: SOFT DELETE (ARCHIVE) ---
     def perform_destroy(self, instance):
@@ -639,8 +649,17 @@ class VendorOfferRequestView(generics.ListCreateAPIView):
         vendor = getattr(self.request.user, 'vendor_profile', None)
         if not vendor:
             raise ValidationError("Vendor profile not found.")
-        serializer.save(requested_by=vendor, status='pending')
+        serializer.save(requested_by=vendor, status='approved')
 
+class VendorOfferDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = OfferSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        if self.request.user.role != 'vendor':
+            return Offer.objects.none()
+        return Offer.objects.filter(requested_by__user=self.request.user)
 
 # ---------- Admin Category Request Management ---------- #
 

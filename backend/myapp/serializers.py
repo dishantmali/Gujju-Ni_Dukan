@@ -263,6 +263,30 @@ class ProductSerializer(SanitizedSerializer):
             print(f"[SERIALIZER] variants_input count in internal={len(internal['variants_input']) if isinstance(internal['variants_input'], list) else 'NOT_LIST'}")
         return internal
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        
+        # Calculate discount dynamically
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        discount_percent = 0
+        if hasattr(instance, 'offers'):
+            active_offers = instance.offers.filter(status='approved', start_date__lte=today, end_date__gte=today)
+            if active_offers.exists():
+                discount_percent = max([offer.discount_percent for offer in active_offers])
+        
+        ret['originalPrice'] = ret['price']
+        ret['discount'] = discount_percent
+        
+        if discount_percent > 0:
+            import decimal
+            original = decimal.Decimal(str(ret['price']))
+            discount_amount = (original * decimal.Decimal(discount_percent)) / decimal.Decimal(100)
+            ret['price'] = str(round(original - discount_amount, 2))
+            
+        return ret
+
     def get_vendor_shop(self, obj):
         return obj.vendor.shop_name
 
@@ -501,7 +525,8 @@ class OfferSerializer(SanitizedSerializer):
         model = Offer
         fields = [
             'id', 'title', 'image', 'start_date', 'end_date',
-            'requested_by', 'vendor_shop', 'status', 'created_at'
+            'requested_by', 'vendor_shop', 'status', 'created_at',
+            'discount_percent', 'products'
         ]
         read_only_fields = ['requested_by', 'status', 'created_at']
 
@@ -509,6 +534,15 @@ class OfferSerializer(SanitizedSerializer):
         if obj.requested_by:
             return obj.requested_by.shop_name
         return 'Admin'
+
+    def validate_products(self, value):
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'vendor_profile'):
+            vendor = request.user.vendor_profile
+            for product in value:
+                if getattr(product, 'vendor', None) != vendor:
+                    raise serializers.ValidationError(f"Product {product.id} does not belong to you.")
+        return value
 
 class WishlistSerializer(SanitizedSerializer):
     product = ProductSerializer(read_only=True)

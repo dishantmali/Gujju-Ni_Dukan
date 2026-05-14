@@ -67,9 +67,9 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
     id: String(p.id),
     name: String(p.name ?? ""),
     description: String(p.description ?? ""),
-    price: listingPrice,
-    originalPrice: listingPrice * 1.2,
-    discount: 20,
+    price: (p as any).discount ? listingPrice - (listingPrice * Number((p as any).discount) / 100) : listingPrice,
+    originalPrice: listingPrice,
+    discount: (p as any).discount ? Number((p as any).discount) : 0,
     rating: Number((p as { average_rating?: number }).average_rating ?? (p as { rating?: number }).rating ?? 0),
     reviewCount: Number((p as { review_count?: number }).review_count ?? 0),
     vendorId:

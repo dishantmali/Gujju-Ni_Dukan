@@ -398,6 +398,8 @@ class Offer(models.Model):
     end_date = models.DateField(db_index=True)
     requested_by = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name='offer_requests', null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='approved', db_index=True)
+    discount_percent = models.PositiveIntegerField(default=0)
+    products = models.ManyToManyField('Product', related_name='offers', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Banner(models.Model):

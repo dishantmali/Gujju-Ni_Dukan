@@ -69,6 +69,8 @@ const VendorDashboard = () => {
   const [deletedProductImageIds, setDeletedProductImageIds] = useState<number[]>([]);
   const [editVariantNewImages, setEditVariantNewImages] = useState<Record<number, File[]>>({});
   const [editProductNewGalleryImages, setEditProductNewGalleryImages] = useState<File[]>([]);
+  const [isEditOfferModalOpen, setIsEditOfferModalOpen] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
 
   // Form states
   const [newProduct, setNewProduct] = useState({ 
@@ -93,7 +95,7 @@ const VendorDashboard = () => {
   const [variantImageFiles, setVariantImageFiles] = useState<Record<number, File[]>>({});
   const [newCategory, setNewCategory] = useState({ name: "", icon: "FaShoppingBasket" });
 
-  const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "" });
+  const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[] });
 
   // Mock data queries (replace with actual API calls)
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -119,6 +121,11 @@ const VendorDashboard = () => {
   const { data: currentSubscription } = useQuery({
     queryKey: ['current-subscription'],
     queryFn: () => api.get('/vendor/subscription/current/') as any
+  });
+
+  const { data: offersList = [], isLoading: offersLoading } = useQuery({
+    queryKey: ['vendor-offers'],
+    queryFn: () => api.get('/vendor/offer-requests/') as any
   });
 
   useEffect(() => {
@@ -232,13 +239,35 @@ const VendorDashboard = () => {
   const requestOfferMutation = useMutation({
     mutationFn: (data: any) => api.post('/vendor/offer-requests/', data),
     onSuccess: () => {
-      toast.success('Offer request submitted successfully');
-      setNewOffer({ title: "", discount_percent: "", start_date: "", end_date: "" });
+      toast.success('Offer created successfully');
+      setNewOffer({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-offers'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
       setActiveTab("products");
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to request offer');
     }
+  });
+
+  const updateOfferMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number, data: any }) => api.patch(`/vendor/offer-requests/${id}/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-offers'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
+      toast.success('Offer updated successfully');
+    },
+    onError: () => toast.error('Failed to update offer')
+  });
+
+  const deleteOfferMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/vendor/offer-requests/${id}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-offers'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
+      toast.success('Offer deleted successfully');
+    },
+    onError: () => toast.error('Failed to delete offer')
   });
 
   const createSubscriptionOrderMutation = useMutation({
@@ -696,7 +725,7 @@ const VendorDashboard = () => {
     { key: "add_product", label: "Add Product", icon: Plus, badge: null },
     { key: "subscription", label: "Subscription Plan", icon: CreditCard, badge: null },
     { key: "request_category", label: "Request Category", icon: Tag, badge: null },
-    { key: "request_offer", label: "Request Offer", icon: Clock, badge: null },
+    { key: "request_offer", label: "Create Offer", icon: Clock, badge: null },
   ];
 
   if (productsLoading || categoriesLoading || ordersLoading || plansLoading) {
@@ -1833,7 +1862,7 @@ const VendorDashboard = () => {
               </motion.div>
             )}
 
-            {/* Request Offer Tab */}
+            {/* Offer Tab */}
             {activeTab === "request_offer" && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1841,7 +1870,7 @@ const VendorDashboard = () => {
                 className="bg-card rounded-2xl border border-border overflow-hidden"
               >
                 <div className="px-6 py-5 border-b border-border bg-background-warm">
-                  <h2 className="font-display text-xl font-bold text-foreground">Request Promotional Offer</h2>
+                  <h2 className="font-display text-xl font-bold text-foreground">Create Promotional Offer</h2>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); requestOfferMutation.mutate(newOffer); }} className="p-6 space-y-5 max-w-2xl">
                   <div>
@@ -1889,14 +1918,115 @@ const VendorDashboard = () => {
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Apply to Products</label>
+                    <div className="max-h-48 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50 custom-scrollbar">
+                      {products.filter((p: any) => p.is_active).length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-2">No active products available.</p>
+                      ) : (
+                        products.filter((p: any) => p.is_active).map((product: any) => (
+                          <label key={product.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={newOffer.products.includes(product.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNewOffer({ ...newOffer, products: [...newOffer.products, product.id] });
+                                } else {
+                                  setNewOffer({ ...newOffer, products: newOffer.products.filter(id => id !== product.id) });
+                                }
+                              }}
+                              className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                            />
+                            <span className="text-sm font-medium text-foreground line-clamp-1 flex-1">{product.name}</span>
+                            <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
+                              ₹{parseFloat(product.price).toLocaleString()}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
                   <button
                     type="submit"
-                    disabled={requestOfferMutation.isPending}
+                    disabled={requestOfferMutation.isPending || newOffer.products.length === 0}
                     className="w-full bg-primary text-primary-foreground py-3 rounded-full font-bold uppercase tracking-wider hover:bg-primary/90 transition-all disabled:opacity-50"
                   >
-                    {requestOfferMutation.isPending ? 'Submitting...' : 'Submit Offer Request'}
+                    {requestOfferMutation.isPending ? 'Submitting...' : 'Create Offer'}
                   </button>
                 </form>
+                
+                {/* Active Offers Table */}
+                <div className="border-t border-border mt-6">
+                  <div className="px-6 py-5 bg-background-warm border-b border-border">
+                    <h3 className="font-display text-lg font-bold text-foreground">Your Offers</h3>
+                  </div>
+                  <div className="p-6">
+                    {offersLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading offers...</p>
+                    ) : offersList.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No offers created yet.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-border bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
+                              <th className="p-3 font-bold">Offer Title</th>
+                              <th className="p-3 font-bold">Discount</th>
+                              <th className="p-3 font-bold">Products</th>
+                              <th className="p-3 font-bold">Valid Dates</th>
+                              <th className="p-3 font-bold text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {offersList.map((offer: any) => (
+                              <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="p-3 font-medium text-sm">{offer.title}</td>
+                                <td className="p-3 font-bold text-success text-sm">{offer.discount_percent}%</td>
+                                <td className="p-3 text-sm text-muted-foreground">
+                                  {offer.products?.length || 0} product(s)
+                                </td>
+                                <td className="p-3 text-sm text-muted-foreground">
+                                  {new Date(offer.start_date).toLocaleDateString()} - {new Date(offer.end_date).toLocaleDateString()}
+                                </td>
+                                <td className="p-3 text-right space-x-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingOffer({
+                                        id: offer.id,
+                                        title: offer.title,
+                                        discount_percent: offer.discount_percent,
+                                        start_date: offer.start_date,
+                                        end_date: offer.end_date,
+                                        products: offer.products || []
+                                      });
+                                      setIsEditOfferModalOpen(true);
+                                    }}
+                                    className="p-1.5 bg-secondary text-foreground hover:bg-accent hover:text-accent-foreground rounded transition-colors inline-flex"
+                                    title="Edit Offer"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm('Are you sure you want to delete this offer?')) {
+                                        deleteOfferMutation.mutate(offer.id);
+                                      }
+                                    }}
+                                    className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded transition-colors inline-flex"
+                                    title="Delete Offer"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </motion.div>
             )}
           </main>
@@ -2184,6 +2314,126 @@ const VendorDashboard = () => {
                     className="px-8 py-3 bg-primary text-primary-foreground rounded-full font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
                   >
                     {updateProductMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Edit Offer Modal */}
+        {isEditOfferModalOpen && editingOffer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-card rounded-2xl shadow-lift w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="px-6 py-4 border-b border-border bg-muted flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">Edit Offer</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Update promotional details</p>
+                </div>
+                <button
+                  onClick={() => setIsEditOfferModalOpen(false)}
+                  className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-full"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateOfferMutation.mutate({ id: editingOffer.id, data: editingOffer });
+                  setIsEditOfferModalOpen(false);
+                }} 
+                className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar"
+              >
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Offer Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingOffer.title}
+                    onChange={(e) => setEditingOffer({ ...editingOffer, title: e.target.value })}
+                    className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Discount Percentage (%)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="100"
+                    value={editingOffer.discount_percent}
+                    onChange={(e) => setEditingOffer({ ...editingOffer, discount_percent: e.target.value })}
+                    className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={editingOffer.start_date}
+                      onChange={(e) => setEditingOffer({ ...editingOffer, start_date: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={editingOffer.end_date}
+                      onChange={(e) => setEditingOffer({ ...editingOffer, end_date: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Apply to Products</label>
+                  <div className="max-h-48 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50 custom-scrollbar">
+                    {products.filter((p: any) => p.is_active).map((product: any) => (
+                      <label key={product.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={editingOffer.products.includes(product.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditingOffer({ ...editingOffer, products: [...editingOffer.products, product.id] });
+                            } else {
+                              setEditingOffer({ ...editingOffer, products: editingOffer.products.filter((id: number) => id !== product.id) });
+                            }
+                          }}
+                          className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                        />
+                        <span className="text-sm font-medium text-foreground line-clamp-1 flex-1">{product.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-border flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditOfferModalOpen(false)}
+                    className="px-6 py-2.5 border border-border text-muted-foreground rounded-full font-bold uppercase tracking-widest hover:bg-muted transition-colors text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateOfferMutation.isPending || editingOffer.products.length === 0}
+                    className="px-6 py-2.5 bg-primary text-primary-foreground rounded-full font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors text-xs disabled:opacity-50"
+                  >
+                    {updateOfferMutation.isPending ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
