@@ -181,6 +181,13 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         model = ProductVariant
         fields = ['id', 'sku', 'image', 'images', 'price', 'stock_quantity', 'option_values']
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['originalPrice'] = ret['price']
+        ret['price'] = str(instance.discounted_price)
+        ret['discount'] = instance.product.current_discount
+        return ret
+
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -265,26 +272,9 @@ class ProductSerializer(SanitizedSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        
-        # Calculate discount dynamically
-        from django.utils import timezone
-        today = timezone.now().date()
-        
-        discount_percent = 0
-        if hasattr(instance, 'offers'):
-            active_offers = instance.offers.filter(status='approved', start_date__lte=today, end_date__gte=today)
-            if active_offers.exists():
-                discount_percent = max([offer.discount_percent for offer in active_offers])
-        
         ret['originalPrice'] = ret['price']
-        ret['discount'] = discount_percent
-        
-        if discount_percent > 0:
-            import decimal
-            original = decimal.Decimal(str(ret['price']))
-            discount_amount = (original * decimal.Decimal(discount_percent)) / decimal.Decimal(100)
-            ret['price'] = str(round(original - discount_amount, 2))
-            
+        ret['price'] = str(instance.discounted_price)
+        ret['discount'] = instance.current_discount
         return ret
 
     def get_vendor_shop(self, obj):

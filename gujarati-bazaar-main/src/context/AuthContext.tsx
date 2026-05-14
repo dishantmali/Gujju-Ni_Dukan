@@ -5,6 +5,15 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'vendor' | 'buyer';
+  profile?: { phone: string };
+  addresses?: Array<{
+    id: number;
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    is_default: boolean;
+  }>;
 }
 
 interface AuthContextType {

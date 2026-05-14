@@ -590,8 +590,8 @@ const IndexPageBody = () => {
         {createPortal(
           <div
             className={`fixed top-0 left-0 right-0 z-[60] border-b border-border/50 bg-background backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${chrome
-                ? "opacity-100 translate-y-0 pointer-events-auto"
-                : "opacity-0 -translate-y-1 pointer-events-none"
+              ? "opacity-100 translate-y-0 pointer-events-auto"
+              : "opacity-0 -translate-y-1 pointer-events-none"
               }`}
           >
             {categoryPillsInner}

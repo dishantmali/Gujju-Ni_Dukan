@@ -30,6 +30,9 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
       image: normalizeMediaUrl(v.image),
       images: variantImages.length > 0 ? variantImages : undefined,
       price: Number.isFinite(variantPrice) ? variantPrice : 0,
+      originalPrice: Number.isFinite(parseFloat(String((v as any).originalPrice ?? v.price ?? 0))) 
+        ? parseFloat(String((v as any).originalPrice ?? v.price ?? 0)) 
+        : undefined,
       stock_quantity: Number.isFinite(variantStock) ? variantStock : 0,
       option_values: (() => {
         const raw = v.option_values;
@@ -56,19 +59,25 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
       ?.map((img) => normalizeMediaUrl(img.image))
       .filter(Boolean) ?? [];
 
-  const basePriceRaw = parseFloat(String(p.price ?? 0));
-  const basePrice = Number.isFinite(basePriceRaw) ? basePriceRaw : 0;
-  const listingPrice =
-    variants && variants.length > 0
-      ? Math.min(...variants.map((v) => v.price).filter((n) => Number.isFinite(n) && n >= 0))
-      : basePrice;
+  let price = Number.isFinite(parseFloat(String(p.price ?? 0))) ? parseFloat(String(p.price ?? 0)) : 0;
+  let originalPrice = Number.isFinite(parseFloat(String((p as any).originalPrice ?? p.price ?? 0))) 
+    ? parseFloat(String((p as any).originalPrice ?? p.price ?? 0)) 
+    : price;
+
+  if (variants && variants.length > 0) {
+    price = Math.min(...variants.map((v) => v.price).filter((n) => Number.isFinite(n) && n >= 0));
+    // Provide a fallback to v.price if v.originalPrice isn't somehow available
+    originalPrice = Math.min(...(rawVariants || []).map((v: any) => 
+      parseFloat(String(v.originalPrice ?? v.price ?? 0))
+    ).filter((n) => Number.isFinite(n) && n > 0));
+  }
 
   return {
     id: String(p.id),
     name: String(p.name ?? ""),
     description: String(p.description ?? ""),
-    price: (p as any).discount ? listingPrice - (listingPrice * Number((p as any).discount) / 100) : listingPrice,
-    originalPrice: listingPrice,
+    price,
+    originalPrice,
     discount: (p as any).discount ? Number((p as any).discount) : 0,
     rating: Number((p as { average_rating?: number }).average_rating ?? (p as { rating?: number }).rating ?? 0),
     reviewCount: Number((p as { review_count?: number }).review_count ?? 0),

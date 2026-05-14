@@ -228,6 +228,7 @@ export const useCart = create<CartState>()(
                 image: vd.image ?? undefined,
                 images: vd.images?.map((img: any) => img.image).filter(Boolean) ?? undefined,
                 price: parseFloat(String(vd.price ?? 0)),
+                originalPrice: Number.isFinite(parseFloat(String(vd.originalPrice ?? vd.price ?? 0))) ? parseFloat(String(vd.originalPrice ?? vd.price ?? 0)) : undefined,
                 stock_quantity: Number(vd.stock_quantity ?? 0),
                 option_values: vd.option_values ?? {},
               } : undefined;

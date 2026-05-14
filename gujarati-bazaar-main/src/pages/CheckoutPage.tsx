@@ -45,7 +45,7 @@ const CheckoutPage = () => {
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [address, setAddress] = useState({
     fullName: "",
@@ -57,6 +57,40 @@ const CheckoutPage = () => {
     email: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (user) {
+      setAddress((prev) => {
+        if (prev.addressLine) {
+          return {
+            ...prev,
+            fullName: user.name || prev.fullName,
+            email: user.email || prev.email,
+            phone: user.profile?.phone || prev.phone,
+          };
+        }
+        const defaultAddr = user.addresses?.find(a => a.is_default) || user.addresses?.[0];
+        if (defaultAddr) {
+          return {
+            ...prev,
+            fullName: user.name || prev.fullName,
+            email: user.email || prev.email,
+            phone: user.profile?.phone || prev.phone,
+            addressLine: defaultAddr.street || "",
+            city: defaultAddr.city || "",
+            state: defaultAddr.state || "",
+            pincode: defaultAddr.pincode || ""
+          };
+        }
+        return {
+          ...prev,
+          fullName: user.name || prev.fullName,
+          email: user.email || prev.email,
+          phone: user.profile?.phone || prev.phone,
+        };
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -107,8 +141,6 @@ const CheckoutPage = () => {
 
     setProcessing(true);
     try {
-      await mergeCart();
-
       const checkoutRes: any = await api.post("/checkout/");
       const { razorpay_order_id, razorpay_key_id, amount } = checkoutRes;
 
@@ -180,6 +212,31 @@ const CheckoutPage = () => {
                   className="rounded-2xl bg-card border border-border/60 p-6 shadow-sm"
                 >
                   <h3 className="font-display text-lg font-semibold mb-5">Delivery Address</h3>
+                  {user?.addresses && user.addresses.length > 0 && (
+                    <div className="mb-6 space-y-3">
+                      <h4 className="font-medium text-sm text-muted-foreground">Select a saved address</h4>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {user.addresses.map((addr) => (
+                          <button
+                            key={addr.id}
+                            type="button"
+                            onClick={() => setAddress(prev => ({
+                              ...prev,
+                              addressLine: addr.street,
+                              city: addr.city,
+                              state: addr.state,
+                              pincode: addr.pincode
+                            }))}
+                            className="text-left p-4 rounded-xl border border-border hover:border-primary transition-colors bg-card shadow-sm"
+                          >
+                            <p className="text-sm font-semibold mb-1 line-clamp-1">{addr.street}</p>
+                            <p className="text-xs text-muted-foreground">{addr.city}, {addr.state}</p>
+                            <p className="text-xs text-muted-foreground font-medium mt-1">PIN: {addr.pincode}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="grid sm:grid-cols-2 gap-4">
                     <FloatInput label="Full name" value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} error={errors.fullName} />
                     <FloatInput label="Phone number" inputMode="tel" value={address.phone} onChange={(e) => setAddress({ ...address, phone: e.target.value })} error={errors.phone} />
@@ -258,6 +315,23 @@ const CheckoutPage = () => {
                       </div>
                     ))}
                   </div>
+                  {(() => {
+                    const sub = items.reduce((a, l) => a + cartLineUnitPrice(l) * l.qty, 0);
+                    const pf = Math.round(sub * 0.05 * 100) / 100;
+                    const gst = Math.round(pf * 0.18 * 100) / 100;
+                    const tot = Math.round((sub + pf + gst) * 100) / 100;
+                    return (
+                      <dl className="mt-4 space-y-1.5 text-sm">
+                        <div className="flex justify-between"><dt className="text-muted-foreground">Subtotal</dt><dd className="font-medium">₹{sub.toLocaleString("en-IN")}</dd></div>
+                        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee (5%)</dt><dd className="font-medium">₹{pf.toLocaleString("en-IN")}</dd></div>
+                        <div className="flex justify-between"><dt className="text-muted-foreground">GST (18%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
+                        <div className="border-t border-border pt-2 mt-2 flex justify-between text-base">
+                          <dt className="font-semibold">You Pay</dt>
+                          <dd className="font-display font-bold text-lg">₹{tot.toLocaleString("en-IN")}</dd>
+                        </div>
+                      </dl>
+                    );
+                  })()}
                   <p className="mt-4 text-xs text-muted-foreground">Payment: {payment === "cod" ? "Cash on Delivery" : payment.toUpperCase()}</p>
                   <div className="mt-6 flex justify-between">
                     <button onClick={() => go(2)} className="h-11 px-5 rounded-full bg-secondary text-foreground font-medium hover:bg-muted">Back</button>

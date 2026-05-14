@@ -90,7 +90,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 class MeView(generics.RetrieveAPIView):
-    serializer_class = CustomUserSerializer
+    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -897,7 +897,7 @@ class CreateRazorpayOrderView(APIView):
         if not pv:
             return Response({"error": "Product has no variants."}, status=status.HTTP_400_BAD_REQUEST)
 
-        base_amount = float(pv.price) * quantity
+        base_amount = float(pv.discounted_price) * quantity
         platform_fee = base_amount * 0.05
         gst = platform_fee * 0.18
         total_amount = base_amount + platform_fee + gst
@@ -1000,7 +1000,7 @@ class VerifyPaymentView(APIView):
             pv.stock_quantity -= quantity
             pv.save()
 
-            total_amount = float(pv.price) * quantity
+            total_amount = float(pv.discounted_price) * quantity
 
             # Create Order
             order = Order.objects.create(
@@ -1021,7 +1021,7 @@ class VerifyPaymentView(APIView):
                 product_variant=pv,
                 vendor=product.vendor,
                 quantity=quantity,
-                price=pv.price
+                price=pv.discounted_price
             )
 
         serializer = OrderSerializer(order)
@@ -1172,7 +1172,7 @@ class CheckoutView(APIView):
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Calculate total amount (per variant SKU price)
-        base_amount = sum(float(item.product_variant.price) * item.quantity for item in items)
+        base_amount = sum(float(item.product_variant.discounted_price) * item.quantity for item in items)
         platform_fee = base_amount * 0.05
         gst = platform_fee * 0.18
         total_amount = base_amount + platform_fee + gst
@@ -1238,7 +1238,7 @@ class VerifyCartPaymentView(APIView):
                             {"error": f"Insufficient stock for {v.product.name}. Only {v.stock_quantity} left."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
-                    total_amount += float(v.price) * item.quantity
+                    total_amount += float(v.discounted_price) * item.quantity
                     
                 # Add fees
                 platform_fee = total_amount * 0.05
@@ -1264,7 +1264,7 @@ class VerifyCartPaymentView(APIView):
                     
                     OrderItem.objects.create(
                         order=order, product=v.product, product_variant=v, vendor=v.product.vendor,
-                        quantity=item.quantity, price=v.price
+                        quantity=item.quantity, price=v.discounted_price
                     )
 
                 # Clear Cart NOW (after successful payment and order creation)

@@ -198,7 +198,7 @@ const ProductPage = () => {
   const isWish = wishlist.includes(product.id.toString());
   const related = relatedProducts.length > 0 ? relatedProducts : getRelatedProducts(product, 8);
   const displayPrice = selectedVariant ? selectedVariant.price : product.price;
-  const displayOriginal = displayPrice * 1.2;
+  const displayOriginal = selectedVariant ? (selectedVariant.originalPrice ?? displayPrice) : (product.originalPrice ?? displayPrice);
   const selectedStock =
     variants.length > 0
       ? (selectedVariant?.stock_quantity ?? 0)

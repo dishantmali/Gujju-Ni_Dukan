@@ -198,6 +198,23 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def current_discount(self):
+        from django.utils import timezone
+        today = timezone.now().date()
+        active_offers = self.offers.filter(status='approved', start_date__lte=today, end_date__gte=today)
+        if active_offers.exists():
+            return max([offer.discount_percent for offer in active_offers])
+        return 0
+
+    @property
+    def discounted_price(self):
+        discount = self.current_discount
+        if discount > 0:
+            import decimal
+            return round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
+        return self.price
+
 
 class ProductVariant(models.Model):
     """One sellable SKU per product (e.g. color × size) with its own price and stock."""
@@ -226,6 +243,14 @@ class ProductVariant(models.Model):
 
     def __str__(self):
         return f"{self.product.name} #{self.pk}"
+
+    @property
+    def discounted_price(self):
+        discount = self.product.current_discount
+        if discount > 0:
+            import decimal
+            return round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
+        return self.price
 
 
 class ProductVariantImage(models.Model):

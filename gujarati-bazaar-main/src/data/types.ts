@@ -30,6 +30,7 @@ export type ProductVariant = {
   image?: string;
   images?: string[];
   price: number;
+  originalPrice?: number;
   stock_quantity: number;
   option_values: Record<string, string>;
 };
