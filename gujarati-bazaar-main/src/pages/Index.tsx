@@ -13,6 +13,7 @@ import {
   Store,
   LayoutGrid,
   Search,
+  X,
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
@@ -319,6 +320,9 @@ const IndexPageBody = () => {
 
   /* Category filter state */
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const exploreSectionRef = useRef<HTMLElement | null>(null);
   const exploreChrome = useIndexExploreChrome();
@@ -358,7 +362,31 @@ const IndexPageBody = () => {
 
   useEffect(() => {
     setIsExpanded(false);
+    setSearchQuery(""); // Reset search when category changes
   }, [selectedCategory]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res: any = await api.get(`/products/?search=${encodeURIComponent(searchQuery.trim())}&page_size=20`);
+        const fetched = (res.results || res || []).map(mapProduct);
+        setSearchResults(fetched);
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   /* Vendor auto-scroll one-by-one */
   useEffect(() => {
@@ -414,8 +442,9 @@ const IndexPageBody = () => {
   }, [selectedCategory, allProducts]);
 
   const filteredProducts = useMemo(() => {
-    return isExpanded ? list.slice(0, 24) : list.slice(0, 12);
-  }, [list, isExpanded]);
+    const baseList = searchQuery.trim() ? searchResults : list;
+    return isExpanded ? baseList.slice(0, 24) : baseList.slice(0, 12);
+  }, [list, searchResults, searchQuery, isExpanded]);
 
   const chrome = !!exploreChrome?.exploreChromeActive;
 
@@ -573,10 +602,36 @@ const IndexPageBody = () => {
       {/* ─── 7. All Categories with Filterable Products ─── */}
       <section ref={exploreSectionRef} className="py-10">
         <div className="container">
-          <SectionHeader
-            icon={<LayoutGrid size={22} />}
-            title="Explore Products"
-          />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <SectionHeader
+              icon={<LayoutGrid size={22} />}
+              title="Explore Products"
+            />
+            
+            {/* Search Input for Explore Section */}
+            <div className="relative w-full md:w-80 mb-6 md:mb-0">
+              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search in explore..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-11 pl-11 pr-10 rounded-2xl bg-card border border-border/60 focus:border-accent/40 focus:ring-4 focus:ring-accent/5 outline-none text-sm transition-all shadow-sm"
+              />
+              {searchQuery && (
+                <motion.button 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-full bg-secondary/80 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shadow-sm"
+                >
+                  <X size={14} />
+                </motion.button>
+              )}
+            </div>
+          </div>
         </div>
         {/* ── Sticky in-flow pills (always in DOM for layout; fades out when fixed overlay appears) ── */}
         <div

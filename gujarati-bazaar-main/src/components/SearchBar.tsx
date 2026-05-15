@@ -1,19 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, X, Loader2, TrendingUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, X, Loader2 } from "lucide-react";
 import { searchProducts } from "@/data/products";
 import { Product } from "@/data/types";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
 
-const POPULAR_SEARCHES = [
-  "Thepla",
-  "Kaju Katli",
-  "Pickles",
-  "Patola Saree",
-  "Dry Fruits",
-  "Spices",
-];
+
 
 export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
   const [q, setQ] = useState("");
@@ -41,14 +35,9 @@ export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
       setResults([]);
       return;
     }
-    const local = searchProducts(q).slice(0, 6);
-    setResults(local);
     const t = setTimeout(async () => {
       const backend = await fetchBackend(q.trim());
-      const merged = [...local, ...backend].filter(
-        (p, i, arr) => arr.findIndex((x) => x.id === p.id) === i
-      );
-      setResults(merged.slice(0, 8));
+      setResults(backend.slice(0, 8));
     }, 250);
     return () => clearTimeout(t);
   }, [q, fetchBackend]);
@@ -69,12 +58,9 @@ export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
     }
   };
 
-  const onChip = (term: string) => {
-    navigate(`/search?q=${encodeURIComponent(term)}`);
-    setOpen(false);
-  };
 
-  const showPanel = open && (results.length > 0 || (q.trim() && !loading) || (!q.trim() && open));
+
+  const showPanel = open && (results.length > 0 || (q.trim() && !loading));
 
   return (
     <div ref={ref} className="relative w-full">
@@ -86,17 +72,29 @@ export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder={compact ? "Search…" : "Search for theplas, pickles, sarees…"}
-          className="w-full h-11 pl-11 pr-20 rounded-full bg-secondary/60 border border-transparent focus:bg-card focus:border-brown-light/50 focus:ring-2 focus:ring-accent/20 outline-none text-sm transition-all"
+          className="w-full h-11 pl-11 pr-24 rounded-full bg-secondary/60 border border-transparent focus:bg-card focus:border-brown-light/50 focus:ring-2 focus:ring-accent/20 outline-none text-sm transition-all [&::-webkit-search-cancel-button]:appearance-none"
         />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {q && (
-            <button type="button" onClick={() => setQ("")} className="h-7 w-7 grid place-items-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-              <X size={14} />
-            </button>
-          )}
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <AnimatePresence>
+            {q && (
+              <motion.button
+                key="clear"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                type="button"
+                onClick={() => setQ("")}
+                className="h-8 w-8 grid place-items-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                <X size={14} />
+              </motion.button>
+            )}
+          </AnimatePresence>
           <button
             type="submit"
-            className="h-7 px-3 rounded-full bg-primary text-primary-foreground text-xs font-semibold hover:bg-brown-mid transition-colors"
+            className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-xs font-semibold hover:bg-brown-mid transition-colors shadow-sm"
           >
             {loading && q.trim() ? <Loader2 size={12} className="animate-spin" /> : "Search"}
           </button>
@@ -141,25 +139,7 @@ export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
             </div>
           )}
 
-          {/* Popular searches when empty */}
-          {!q.trim() && (
-            <div className="px-4 py-3">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2 flex items-center gap-1.5">
-                <TrendingUp size={12} /> Popular Searches
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {POPULAR_SEARCHES.map((term) => (
-                  <button
-                    key={term}
-                    onClick={() => onChip(term)}
-                    className="px-3 py-1.5 rounded-full text-xs bg-secondary/60 text-foreground hover:bg-secondary border border-border/50 transition-colors"
-                  >
-                    {term}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* Footer CTA when there are results */}
           {results.length > 0 && (
