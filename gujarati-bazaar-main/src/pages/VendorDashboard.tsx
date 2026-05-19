@@ -27,6 +27,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 import api from '@/lib/api';
+import { getBackendErrorMessage } from "@/lib/errorHelper";
 
 const ImagePreview = ({ file, className }: { file: File; className?: string }) => {
   const [url, setUrl] = useState<string | null>(null);
@@ -232,7 +233,7 @@ const VendorDashboard = () => {
     },
 
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to request category');
+      toast.error(getBackendErrorMessage(error, 'Failed to request category'));
     }
   });
 
@@ -246,7 +247,7 @@ const VendorDashboard = () => {
       setActiveTab("products");
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to request offer');
+      toast.error(getBackendErrorMessage(error, 'Failed to request offer'));
     }
   });
 

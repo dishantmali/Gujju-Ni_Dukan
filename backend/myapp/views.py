@@ -1179,6 +1179,12 @@ class CheckoutView(APIView):
         amount_in_paise = int(total_amount * 100)
 
         # Create Razorpay order (DO NOT delete cart items yet!)
+        if not razorpay_client:
+            return Response(
+                {"error": "Payment gateway not configured. Please contact administrator."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
         razorpay_order = razorpay_client.order.create({
             "amount": amount_in_paise,
             "currency": "INR",
@@ -1202,6 +1208,28 @@ class VerifyCartPaymentView(APIView):
         razorpay_signature = request.data.get('razorpay_signature')
         address = request.data.get('address')
         phone = request.data.get('phone')
+
+        # Validate address presence
+        if not address or not address.strip():
+            return Response({"error": "Delivery address is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate phone presence and structure
+        if not phone:
+            return Response({"error": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        phone_digits = phone.strip()
+        if phone_digits.startswith('+'):
+            phone_digits = phone_digits[1:]
+        if phone_digits.startswith('91'):
+            phone_digits = phone_digits[2:]
+        if not phone_digits.isdigit() or len(phone_digits) != 10:
+            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not razorpay_client:
+            return Response(
+                {"error": "Payment gateway not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
 
         # 1. Verify Signature
         try:
@@ -1534,6 +1562,12 @@ class VerifySubscriptionPaymentView(APIView):
         razorpay_payment_id = request.data.get('razorpay_payment_id')
         razorpay_signature = request.data.get('razorpay_signature')
         plan_id = request.data.get('plan_id')
+
+        if not razorpay_client:
+            return Response(
+                {"error": "Payment gateway not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
 
         try:
             razorpay_client.utility.verify_payment_signature({

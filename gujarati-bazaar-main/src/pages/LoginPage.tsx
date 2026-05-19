@@ -5,6 +5,7 @@ import { Eye, EyeOff, Mail, Lock, ShoppingBag, Truck, Package, Sparkles, ArrowRi
 import { useAuthWithNavigate } from "@/hooks/useAuthWithNavigate";
 import { toast } from "sonner";
 import logo from "@/assets/logo.jpeg";
+import { getBackendErrorMessage } from "@/lib/errorHelper";
 
 const floatVariants = {
   animate: (custom: number) => ({
@@ -67,7 +68,7 @@ const LoginPage = () => {
       await login(email, password);
       toast.success("Login successful!");
     } catch (error: any) {
-      toast.error(error.message || "Login failed. Please try again.");
+      toast.error(getBackendErrorMessage(error, "Login failed. Please try again."));
     } finally {
       setIsLoading(false);
     }

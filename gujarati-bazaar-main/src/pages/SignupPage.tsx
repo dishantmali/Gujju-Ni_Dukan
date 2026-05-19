@@ -9,6 +9,7 @@ import {
 import { useAuthWithNavigate } from "@/hooks/useAuthWithNavigate";
 import { toast } from "sonner";
 import logo from "@/assets/logo.jpeg";
+import { getBackendErrorMessage } from "@/lib/errorHelper";
 
 const floatVariants = {
   animate: (custom: number) => ({
@@ -163,7 +164,7 @@ const SignupPage = () => {
       await register(submitData);
       toast.success("Account created successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Registration failed. Please try again.");
+      toast.error(getBackendErrorMessage(error, "Registration failed. Please try again."));
     } finally {
       setIsLoading(false);
     }

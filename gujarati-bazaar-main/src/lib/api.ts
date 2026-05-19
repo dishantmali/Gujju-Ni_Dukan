@@ -40,9 +40,13 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    const isAuthRequest = originalRequest?.url && (
+      originalRequest.url.includes('/auth/login/') ||
+      originalRequest.url.includes('/auth/register/')
+    );
 
-    // If the error is 401 and not already retrying
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If the error is 401 and not already retrying, and not a login/register request
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
 
       try {
@@ -66,7 +70,9 @@ api.interceptors.response.use(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       }
     }

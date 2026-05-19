@@ -267,21 +267,27 @@ const CheckoutPage = () => {
                     {[
                       { id: "upi", icon: Smartphone, title: "UPI", desc: "Pay with any UPI app" },
                       { id: "card", icon: CreditCard, title: "Credit / Debit Card", desc: "Visa, Mastercard, Rupay" },
-                      { id: "cod", icon: Banknote, title: "Cash on Delivery", desc: "Pay when it arrives" },
+                      { id: "cod", icon: Banknote, title: "Cash on Delivery", desc: "Pay when it arrives", disabled: true },
                     ].map((p) => {
                       const active = payment === p.id;
                       const Icon = p.icon;
                       return (
                         <button
                           key={p.id}
-                          onClick={() => setPayment(p.id as any)}
-                          className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${active ? "border-accent bg-accent/5" : "border-border hover:border-brown-light"}`}
+                          disabled={p.disabled}
+                          onClick={() => !p.disabled && setPayment(p.id as any)}
+                          className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${p.disabled ? "opacity-50 cursor-not-allowed border-border" : active ? "border-accent bg-accent/5" : "border-border hover:border-brown-light"}`}
                         >
                           <div className={`h-11 w-11 grid place-items-center rounded-xl ${active ? "bg-accent text-accent-foreground" : "bg-secondary text-brown-mid"}`}>
                             <Icon size={18} />
                           </div>
                           <div className="flex-1">
-                            <div className="font-semibold text-sm">{p.title}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{p.title}</span>
+                              {p.disabled && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-muted text-muted-foreground uppercase tracking-wide">Offline</span>
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground">{p.desc}</div>
                           </div>
                           {active && <div className="h-6 w-6 rounded-full bg-accent grid place-items-center text-accent-foreground"><Check size={14} /></div>}
