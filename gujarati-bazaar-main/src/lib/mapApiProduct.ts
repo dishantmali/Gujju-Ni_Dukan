@@ -107,7 +107,7 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
             const rawStock = Number((p as { stock_quantity?: number }).stock_quantity ?? 0);
             return Number.isFinite(rawStock) ? rawStock > 0 : false;
           })(),
-    isNew: true,
+    isNew: p.is_new !== undefined ? Boolean(p.is_new) : true,
     isTrending: true,
     specs: ((p as { specs?: Record<string, string> }).specs as Record<string, string>) || {},
     reviews: ((p as { reviews?: Product["reviews"] }).reviews as Product["reviews"]) || [],

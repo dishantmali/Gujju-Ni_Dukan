@@ -26,6 +26,12 @@ from .views import (
     AdminBannerView, AdminHeroBannerView, AdminSubscriptionPlanListCreateView, AdminSubscriptionPlanDetailView,
     AdminVendorSubscriptionsView,
     IconAssetUploadView, IconAssetListView,
+    AdminManualReviewListCreateView, AdminManualReviewDetailView,
+    AdminPlatformReviewListView, AdminPlatformReviewDetailView,
+    AdminCouponListCreateView, AdminCouponDetailView,
+    VendorCouponListCreateView, VendorCouponDetailView,
+    ValidateCouponView, ActiveCouponListView,
+    AdminNewsListCreateView, AdminNewsDetailView,
 
     # Category
     CategoryListView,WishlistToggleView,WishlistListView,MergeWishlistView,
@@ -129,12 +135,11 @@ urlpatterns = [
     path('admin/category-requests/<int:pk>/action/',
          AdminCategoryRequestActionView.as_view(),
          name='admin_category_request_action'),
-    path('admin/offers/',
-         AdminOfferListCreateView.as_view(),
-         name='admin_offers'),
-    path('admin/offers/<int:pk>/action/',
-         AdminOfferActionView.as_view(),
-         name='admin_offer_action'),
+    # path('admin/offers/', AdminOfferListCreateView.as_view(), name='admin_offers'),
+    # path('admin/offers/<int:pk>/action/', AdminOfferActionView.as_view(), name='admin_offer_action'),
+    
+    path('admin/news/', AdminNewsListCreateView.as_view(), name='admin_news'),
+    path('admin/news/<int:pk>/', AdminNewsDetailView.as_view(), name='admin_news_detail'),
     path('admin/subscription-plans/',
          AdminSubscriptionPlanListCreateView.as_view(),
          name='admin_subscription_plans'),
@@ -148,6 +153,22 @@ urlpatterns = [
     # Icon Assets
     path('admin/icon-assets/', IconAssetListView.as_view(), name='icon_asset_list'),
     path('admin/icon-assets/upload/', IconAssetUploadView.as_view(), name='icon_asset_upload'),
+
+    # Manual Reviews
+    path('admin/manual-reviews/', AdminManualReviewListCreateView.as_view(), name='admin_manual_reviews'),
+    path('admin/manual-reviews/<int:pk>/', AdminManualReviewDetailView.as_view(), name='admin_manual_review_detail'),
+
+    # Platform Reviews Admin
+    path('admin/platform-reviews/', AdminPlatformReviewListView.as_view(), name='admin_platform_reviews'),
+    path('admin/platform-reviews/<int:pk>/', AdminPlatformReviewDetailView.as_view(), name='admin_platform_review_detail'),
+
+    # Coupon Section
+    path('admin/coupons/', AdminCouponListCreateView.as_view(), name='admin_coupons'),
+    path('admin/coupons/<int:pk>/', AdminCouponDetailView.as_view(), name='admin_coupon_detail'),
+    path('vendor/coupons/', VendorCouponListCreateView.as_view(), name='vendor_coupons'),
+    path('vendor/coupons/<int:pk>/', VendorCouponDetailView.as_view(), name='vendor_coupon_detail'),
+    path('cart/validate-coupon/', ValidateCouponView.as_view(), name='validate_coupon'),
+    path('coupons/active/', ActiveCouponListView.as_view(), name='active_coupons'),
 
     # ---------------- CATEGORY ---------------- #
     path('categories/', CategoryListView.as_view(), name='category_list'),

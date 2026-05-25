@@ -176,6 +176,7 @@ class Product(models.Model):
         db_index=True # Added for performance
     )
     is_active = models.BooleanField(default=True)
+    is_new = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -295,6 +296,37 @@ class ProductImage(models.Model):
         return f"{self.product.name} image #{self.pk}"
 
 
+class Coupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = (
+        ('rupee', 'Flat Rupee (₹)'),
+        ('percentage', 'Percentage (%)'),
+    )
+
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES, default='rupee')
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2)
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+    limit_per_user = models.PositiveIntegerField(default=1)
+    max_usages = models.PositiveIntegerField(null=True, blank=True)
+    min_purchase_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    max_discount_cap = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    products = models.ManyToManyField('Product', related_name='coupons', blank=True)
+    vendor = models.ForeignKey('VendorProfile', on_delete=models.CASCADE, related_name='coupons', null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.upper().strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} ({self.discount_type})"
+
+
 class Order(models.Model):
     PAYMENT_STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -304,6 +336,8 @@ class Order(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders')
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    coupon = models.ForeignKey(Coupon, on_delete=models.SET_NULL, blank=True, null=True, related_name='orders')
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending', db_index=True)
     address = models.TextField()
     phone = models.CharField(max_length=10, validators=[mobile_num_validator])
@@ -318,6 +352,20 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order {self.id} - {self.user.email}"
+
+
+class CouponUsage(models.Model):
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name='usages')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='coupon_usages')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='coupon_usages', null=True, blank=True)
+    used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-used_at']
+
+    def __str__(self):
+        return f"{self.user.email} used {self.coupon.code}"
+
 
 class OrderItem(models.Model):
     STATUS_CHOICES = (
@@ -554,3 +602,33 @@ class VendorSubscription(models.Model):
 
     def __str__(self):
         return f"{self.vendor.shop_name} - {self.plan.name if self.plan else 'No Plan'}"
+
+
+class ManualReview(models.Model):
+    """Admin-created manual reviews for the homepage"""
+    name = models.CharField(max_length=255)
+    city = models.CharField(max_length=100)
+    stars = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
+    description = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} - {self.stars} stars"
+
+class News(models.Model):
+    title = models.CharField(max_length=255)
+    start_date = models.DateField()
+    end_date = models.DateField(db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title

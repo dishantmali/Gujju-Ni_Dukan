@@ -20,16 +20,17 @@ from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
     Category ,Cart, CartItem, CategoryRequest, Offer , Wishlist,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
-    IconAsset
+    IconAsset, ManualReview, Coupon, CouponUsage, News
 )
 # pyrefly: ignore [missing-import]
 from .serializers import (
     RegisterSerializer, CustomUserSerializer, ProductSerializer,
     OrderSerializer,OrderItemSerializer, VendorOrderUpdateSerializer, CategorySerializer,
     CartSerializer, CategoryRequestSerializer, OfferSerializer, WishlistSerializer ,
-    ProductReviewSerializer, PlatformReviewSerializer , BannerSerializer , HeroBannerSerializer, UserSerializer ,
+    ProductReviewSerializer, PlatformReviewSerializer , AdminPlatformReviewSerializer, BannerSerializer , HeroBannerSerializer, UserSerializer ,
     SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
-    IconAssetSerializer, VendorProfileSerializer
+    IconAssetSerializer, VendorProfileSerializer, ManualReviewSerializer,
+    CouponSerializer, CouponUsageSerializer, NewsSerializer
 )
 import random
 # Initialize Razorpay client gracefully
@@ -113,17 +114,46 @@ class HomePageView(APIView):
         ).prefetch_related('variants').distinct().order_by('-created_at')[:10]
 
         today = date.today()
+        now = timezone.now()
         active_offers = Offer.objects.filter(
             status='approved',
             end_date__gte=today
         )
+        
+        active_news = News.objects.filter(
+            is_active=True,
+            start_date__lte=today,
+            end_date__gte=today
+        )
+        
+        active_coupons = Coupon.objects.filter(
+            is_active=True,
+            start_datetime__lte=now,
+            end_datetime__gte=now
+        )
+        
+        # Build marquee strings
+        marquee_items = []
+        for o in active_offers:
+            marquee_items.append(o.title)
+        
+        for c in active_coupons:
+            discount_str = f"₹{c.discount_value}" if c.discount_type == 'rupee' else f"{c.discount_value}%"
+            marquee_items.append(f"Use code {c.code} for Flat {discount_str} Off!")
+            
+        for n in active_news:
+            marquee_items.append(n.title)
         
         top_vendors = VendorProfile.objects.filter(is_approved=True)[:10]
         active_banners = Banner.objects.filter(is_active=True)
         left_banners = active_banners.filter(position='left').order_by('display_order', 'id')
         right_banners = active_banners.filter(position='right').order_by('display_order', 'id')
 
-        hero = HeroBanner.objects.filter(is_active=True).order_by('-updated_at').first()
+        hero_banners = HeroBanner.objects.filter(is_active=True).order_by('-updated_at')
+        
+        # Get active manual reviews
+        manual_reviews = ManualReview.objects.filter(is_active=True).order_by('-created_at')
+        platform_reviews = PlatformReview.objects.filter(is_featured=True).order_by('-created_at')
 
         def banner_dict(b):
             return {
@@ -150,16 +180,25 @@ class HomePageView(APIView):
                 active_offers, many=True,
                 context={'request': request}
             ).data,
-            "offers_marquee": [o.title for o in active_offers if o.status == 'approved'],
+            "offers_marquee": marquee_items,
             "vendors": VendorProfileSerializer(
                 top_vendors, many=True,
                 context={'request': request}
             ).data,
-            "hero_banner": request.build_absolute_uri(hero.image.url) if hero else None,
+            "hero_banner": request.build_absolute_uri(hero_banners.first().image.url) if hero_banners.exists() else None,
+            "hero_banners": [request.build_absolute_uri(h.image.url) for h in hero_banners],
             "banners": {
                 "left": [banner_dict(b) for b in left_banners],
                 "right": [banner_dict(b) for b in right_banners],
             },
+            "manual_reviews": ManualReviewSerializer(
+                manual_reviews, many=True,
+                context={'request': request}
+            ).data,
+            "platform_reviews": PlatformReviewSerializer(
+                platform_reviews, many=True,
+                context={'request': request}
+            ).data,
         })
 
 
@@ -288,7 +327,13 @@ class VendorProductListCreateView(generics.ListCreateAPIView):
         print(f"[VIEW] variants_input in request.data: {self.request.data.get('variants_input', 'NOT FOUND')!r}")
         print(f"[VIEW] request.FILES keys: {list(self.request.FILES.keys())}")
 
-        serializer.save(vendor=vendor_profile, status='pending')
+        is_new = True
+        if 'is_new' in self.request.data:
+            is_new_val = self.request.data.get('is_new')
+            if str(is_new_val).lower() == 'false':
+                is_new = False
+
+        serializer.save(vendor=vendor_profile, status='pending', is_new=is_new)
         product = serializer.instance
         print(f"[VIEW] after save: product.id={product.id}, variant count={product.variants.count()}")
 
@@ -350,6 +395,13 @@ class VendorProductUpdateView(generics.RetrieveUpdateDestroyAPIView):
                 serializer.instance.is_active = True
             elif str(is_active_val).lower() == 'false':
                 serializer.instance.is_active = False
+
+        if 'is_new' in self.request.data:
+            is_new_val = self.request.data.get('is_new')
+            if str(is_new_val).lower() == 'true':
+                serializer.instance.is_new = True
+            elif str(is_new_val).lower() == 'false':
+                serializer.instance.is_new = False
         serializer.save()
 
     # --- FIX 2: SOFT DELETE (ARCHIVE) ---
@@ -1161,6 +1213,7 @@ class CheckoutView(APIView):
 
     def post(self, request):
         user = request.user
+        coupon_code = request.data.get('coupon_code')
         
         try:
             cart = Cart.objects.get(user=user)
@@ -1171,11 +1224,20 @@ class CheckoutView(APIView):
         if not items:
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Calculate total amount (per variant SKU price)
+        # Calculate base subtotal
         base_amount = sum(float(item.product_variant.discounted_price) * item.quantity for item in items)
-        platform_fee = base_amount * 0.05
+        discount_amount = 0.0
+
+        if coupon_code:
+            discount_details, error_msg = validate_and_calculate_coupon(coupon_code, user, items)
+            if error_msg:
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+            discount_amount = discount_details['discount_amount']
+
+        subtotal_after_discount = max(0.0, base_amount - discount_amount)
+        platform_fee = subtotal_after_discount * 0.05
         gst = platform_fee * 0.18
-        total_amount = base_amount + platform_fee + gst
+        total_amount = subtotal_after_discount + platform_fee + gst
         amount_in_paise = int(total_amount * 100)
 
         # Create Razorpay order (DO NOT delete cart items yet!)
@@ -1196,6 +1258,7 @@ class CheckoutView(APIView):
             "razorpay_key_id": settings.RAZORPAY_KEY_ID,
             "amount": amount_in_paise,
             "currency": "INR",
+            "discount_amount": discount_amount
         })
 
 class VerifyCartPaymentView(APIView):
@@ -1208,6 +1271,7 @@ class VerifyCartPaymentView(APIView):
         razorpay_signature = request.data.get('razorpay_signature')
         address = request.data.get('address')
         phone = request.data.get('phone')
+        coupon_code = request.data.get('coupon_code')
 
         # Validate address presence
         if not address or not address.strip():
@@ -1267,22 +1331,40 @@ class VerifyCartPaymentView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     total_amount += float(v.discounted_price) * item.quantity
-                    
-                # Add fees
-                platform_fee = total_amount * 0.05
+                
+                # Apply coupon if valid
+                coupon_obj = None
+                discount_amount = 0.0
+                if coupon_code:
+                    discount_details, error_msg = validate_and_calculate_coupon(coupon_code, user, items)
+                    if not error_msg:
+                        coupon_obj = discount_details['coupon']
+                        discount_amount = discount_details['discount_amount']
+
+                subtotal_after_discount = max(0.0, total_amount - discount_amount)
+                platform_fee = subtotal_after_discount * 0.05
                 gst = platform_fee * 0.18
-                final_total = total_amount + platform_fee + gst
+                final_total = subtotal_after_discount + platform_fee + gst
 
                 # Create Order
                 order = Order.objects.create(
                     user=user, address=address, phone=phone,
-                    # status='pending', 
                     payment_status='paid',
+                    coupon=coupon_obj,
+                    discount_amount=discount_amount,
                     razorpay_order_id=razorpay_order_id,
                     razorpay_payment_id=razorpay_payment_id,
                     razorpay_signature=razorpay_signature,
                     total_price=final_total
                 )
+
+                # Record Coupon Usage
+                if coupon_obj:
+                    CouponUsage.objects.create(
+                        coupon=coupon_obj,
+                        user=user,
+                        order=order
+                    )
 
                 # Create OrderItems & Decrement Stock
                 for item in items:
@@ -1760,3 +1842,312 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
             print("Did you forget to run 'python manage.py makemigrations' and 'migrate'?")
             
         return user
+
+
+# ---------------- MANUAL REVIEW APIs ---------------- #
+class AdminManualReviewListCreateView(generics.ListCreateAPIView):
+    """Admin can view all manual reviews and create new ones"""
+    serializer_class = ManualReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = ManualReview.objects.all().order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can create manual reviews.")
+        serializer.save()
+
+class AdminManualReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin can edit or delete a manual review"""
+    serializer_class = ManualReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = ManualReview.objects.all()
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can update manual reviews.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can delete manual reviews.")
+        instance.delete()
+
+
+# ---------------- PLATFORM REVIEW ADMIN APIs ---------------- #
+class AdminPlatformReviewListView(generics.ListAPIView):
+    """Admin can view all platform reviews"""
+    serializer_class = AdminPlatformReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admins can view platform reviews.")
+        return PlatformReview.objects.all().order_by('-created_at')
+
+class AdminPlatformReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin can approve, edit or delete a platform review"""
+    serializer_class = AdminPlatformReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = PlatformReview.objects.all()
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can update platform reviews.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can delete platform reviews.")
+        instance.delete()
+
+
+# ---------------- HELPERS & APIS FOR COUPONS ----------------
+
+def validate_and_calculate_coupon(coupon_code, user, cart_items):
+    """
+    Validates a coupon code and returns (discount_details, error_message).
+    If valid, discount_details is a dictionary:
+      {
+        'coupon': coupon_obj,
+        'discount_amount': discount_value,
+        'discount_type': 'rupee' / 'percentage',
+        'eligible_subtotal': subtotal_of_eligible_items,
+      }
+    """
+    import pytz
+    if not coupon_code:
+        return None, "No coupon code provided."
+
+    coupon_code = coupon_code.upper().strip()
+    try:
+        coupon = Coupon.objects.get(code=coupon_code, is_active=True)
+    except Coupon.DoesNotExist:
+        return None, "Invalid or inactive coupon code."
+
+    now = timezone.now()
+
+    if now < coupon.start_datetime:
+        return None, "This coupon is not active yet."
+    if now > coupon.end_datetime:
+        return None, "This coupon has expired."
+
+    # User limit check
+    user_usage_count = CouponUsage.objects.filter(coupon=coupon, user=user).count()
+    if user_usage_count >= coupon.limit_per_user:
+        return None, f"You have already used this coupon the maximum allowed {coupon.limit_per_user} times."
+
+    # Global limit check
+    if coupon.max_usages is not None:
+        total_usage_count = CouponUsage.objects.filter(coupon=coupon).count()
+        if total_usage_count >= coupon.max_usages:
+            return None, "This coupon has reached its maximum global usage limit."
+
+    # Product and Vendor Scoping
+    eligible_items = []
+    coupon_products = coupon.products.all()
+    has_product_restrictions = coupon_products.exists()
+
+    for item in cart_items:
+        product = item.product_variant.product
+        # 1. Vendor check
+        if coupon.vendor and product.vendor != coupon.vendor:
+            continue
+        # 2. Product check
+        if has_product_restrictions and product not in coupon_products:
+            continue
+        eligible_items.append(item)
+
+    if not eligible_items:
+        if coupon.vendor:
+            return None, f"This coupon is only valid for products from {coupon.vendor.shop_name}."
+        return None, "This coupon is not applicable to the items in your cart."
+
+    # Calculate subtotal of eligible items
+    eligible_subtotal = sum(float(item.product_variant.discounted_price) * item.quantity for item in eligible_items)
+
+    # Minimum purchase check
+    if eligible_subtotal < float(coupon.min_purchase_amount):
+        return None, f"Minimum purchase amount of ₹{coupon.min_purchase_amount} not met for eligible products."
+
+    # Calculate discount
+    discount_amount = 0.0
+    if coupon.discount_type == 'rupee':
+        discount_amount = float(coupon.discount_value)
+    elif coupon.discount_type == 'percentage':
+        discount_amount = (float(coupon.discount_value) / 100.0) * eligible_subtotal
+        if coupon.max_discount_cap is not None:
+            discount_amount = min(discount_amount, float(coupon.max_discount_cap))
+
+    # Discount cannot exceed eligible subtotal
+    discount_amount = min(discount_amount, eligible_subtotal)
+    discount_amount = round(discount_amount, 2)
+
+    return {
+        'coupon': coupon,
+        'discount_amount': discount_amount,
+        'discount_type': coupon.discount_type,
+        'eligible_subtotal': eligible_subtotal,
+    }, None
+
+
+class ValidateCouponView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        coupon_code = request.data.get('code')
+        if not coupon_code:
+            return Response({"error": "Coupon code is required."}, status=400)
+
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart_items = cart.items.all()
+        except Cart.DoesNotExist:
+            return Response({"error": "Your cart is empty."}, status=400)
+
+        if not cart_items.exists():
+            return Response({"error": "Your cart is empty."}, status=400)
+
+        discount_details, error_msg = validate_and_calculate_coupon(coupon_code, request.user, cart_items)
+        if error_msg:
+            return Response({"error": error_msg}, status=400)
+
+        return Response({
+            "code": discount_details['coupon'].code,
+            "discount_type": discount_details['discount_type'],
+            "discount_value": float(discount_details['coupon'].discount_value),
+            "discount_amount": discount_details['discount_amount'],
+            "eligible_subtotal": discount_details['eligible_subtotal']
+        })
+
+
+# ---------------- ADMIN COUPON VIEWS ----------------
+
+class AdminCouponListCreateView(generics.ListCreateAPIView):
+    serializer_class = CouponSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Coupon.objects.filter(vendor__isnull=True).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can create global coupons.")
+        serializer.save()
+
+
+class AdminCouponDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CouponSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Coupon.objects.filter(vendor__isnull=True)
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can edit coupons.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can delete coupons.")
+        instance.delete()
+
+
+# ---------------- VENDOR COUPON VIEWS ----------------
+
+class VendorCouponListCreateView(generics.ListCreateAPIView):
+    serializer_class = CouponSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != 'vendor':
+            raise PermissionDenied("Only vendors can view their coupons.")
+        vendor = self.request.user.vendor_profile
+        return Coupon.objects.filter(vendor=vendor).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'vendor':
+            raise PermissionDenied("Only vendors can create coupons.")
+        vendor = self.request.user.vendor_profile
+        serializer.save(vendor=vendor)
+
+
+class VendorCouponDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CouponSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != 'vendor':
+            raise PermissionDenied("Only vendors can access their coupons.")
+        vendor = self.request.user.vendor_profile
+        return Coupon.objects.filter(vendor=vendor)
+
+    def perform_update(self, serializer):
+        coupon = self.get_object()
+        if self.request.user.role != 'vendor' or coupon.vendor != self.request.user.vendor_profile:
+            raise PermissionDenied("You do not own this coupon.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'vendor' or instance.vendor != self.request.user.vendor_profile:
+            raise PermissionDenied("You do not own this coupon.")
+        instance.delete()
+class ActiveCouponListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        from django.db.models import Q
+        now = timezone.now()
+        
+        # Base filter: Active, started, and unexpired coupons
+        queryset = Coupon.objects.filter(
+            is_active=True,
+            start_datetime__lte=now,
+            end_datetime__gte=now
+        )
+
+        # If user is authenticated, filter vendor coupons based on their active cart items
+        if request.user.is_authenticated:
+            try:
+                cart = Cart.objects.get(user=request.user)
+                cart_vendors = list(cart.items.values_list('product_variant__product__vendor_id', flat=True).distinct())
+                
+                # Keep platform-wide coupons OR coupons restricted to vendors in the user's cart
+                queryset = queryset.filter(Q(vendor__isnull=True) | Q(vendor_id__in=cart_vendors))
+            except Cart.DoesNotExist:
+                # If no cart exists, show global admin coupons
+                queryset = queryset.filter(vendor__isnull=True)
+        else:
+            # For anonymous users, show global admin coupons
+            queryset = queryset.filter(vendor__isnull=True)
+
+        active_coupons = queryset.order_by('-created_at')
+        serializer = CouponSerializer(active_coupons, many=True)
+        return Response(serializer.data)
+
+
+# ---------------- NEWS APIs ----------------
+
+
+class AdminNewsListCreateView(generics.ListCreateAPIView):
+    serializer_class = NewsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = News.objects.all().order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can create news.")
+        serializer.save()
+
+class AdminNewsDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = NewsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = News.objects.all()
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can edit news.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can delete news.")
+        instance.delete()
+

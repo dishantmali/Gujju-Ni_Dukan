@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   TrendingUp,
@@ -215,6 +215,92 @@ const ReviewCard = ({
 
 /* ── Category + Products Section (no CategoryProductRow needed) ── */
 
+/* ── Hero Banner Carousel ── */
+const HeroBannerCarousel = ({ images, interval = 5000 }: { images: string[]; interval?: number }) => {
+  const [idx, setIdx] = useState(0);
+  const [hovered, setHovered] = useState(false);
+
+  const next = useCallback(
+    () => setIdx((i) => (images.length ? (i + 1) % images.length : 0)),
+    [images.length]
+  );
+  const prev = useCallback(
+    () => setIdx((i) => (images.length ? (i - 1 + images.length) % images.length : 0)),
+    [images.length]
+  );
+
+  useEffect(() => {
+    if (!images.length || hovered) return;
+    const id = setInterval(next, interval);
+    return () => clearInterval(id);
+  }, [images.length, hovered, interval, next]);
+
+  if (!images.length) return null;
+
+  return (
+    <section
+      className="relative w-full overflow-hidden group"
+      style={{ maxHeight: "180px" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <AnimatePresence mode="wait">
+        <motion.img
+          key={idx}
+          src={images[idx]}
+          alt={`Gujju ni Dukan — Banner ${idx + 1}`}
+          initial={{ opacity: 0, scale: 1.03 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full h-[140px] sm:h-[160px] lg:h-[180px] object-cover"
+        />
+      </AnimatePresence>
+
+      {/* Subtle gradient overlay at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+
+      {/* Left / Right arrows */}
+      {images.length > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-white/30 shadow-md grid place-items-center text-brown-mid hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+            aria-label="Previous banner"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-white/30 shadow-md grid place-items-center text-brown-mid hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+            aria-label="Next banner"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </>
+      )}
+
+      {/* Dot indicators */}
+      {images.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === idx
+                  ? "w-5 bg-white shadow-sm"
+                  : "w-1.5 bg-white/50 hover:bg-white/80"
+              }`}
+              aria-label={`Go to banner ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 /* ════════════════════════════════════════════════════════ */
 /*                     INDEX PAGE                          */
 /* ════════════════════════════════════════════════════════ */
@@ -225,8 +311,9 @@ const IndexPageBody = () => {
   const [vendors, setVendors] = useState<any[]>([]);
   const [offersMarquee, setOffersMarquee] = useState<string[]>([]);
   const [banners, setBanners] = useState<{ left: BannerItem[]; right: BannerItem[] }>({ left: [], right: [] });
+  const [manualReviews, setManualReviews] = useState<any[]>([]);
 
-  const [heroBannerUrl, setHeroBannerUrl] = useState<string | null>(null);
+  const [heroBanners, setHeroBanners] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
@@ -292,14 +379,48 @@ const IndexPageBody = () => {
           right: [{ id: 1002, title: 'Promo 2', image: banner2, link_url: '/category/clothing' }],
         });
       }
-      setHeroBannerUrl(homeRes.hero_banner || null);
+
+      // Hero banners: prefer API array, then single, then fallback to local assets
+      if (homeRes.hero_banners && homeRes.hero_banners.length > 0) {
+        setHeroBanners(homeRes.hero_banners);
+      } else if (homeRes.hero_banner) {
+        setHeroBanners([homeRes.hero_banner, banner1, banner2]);
+      } else {
+        setHeroBanners([heroBanner, banner1, banner2]);
+      }
+
+      let mappedManual: any[] = [];
+      if (homeRes.manual_reviews && homeRes.manual_reviews.length > 0) {
+        mappedManual = homeRes.manual_reviews.map((r: any) => ({
+          id: `manual-${r.id}`,
+          name: r.name,
+          city: r.city,
+          rating: r.stars,
+          comment: r.description,
+          avatar: r.name ? r.name.charAt(0).toUpperCase() : 'U',
+        }));
+      }
+
+      let mappedPlatform: any[] = [];
+      if (homeRes.platform_reviews && homeRes.platform_reviews.length > 0) {
+        mappedPlatform = homeRes.platform_reviews.map((r: any) => ({
+          id: `platform-${r.id}`,
+          name: r.reviewer_name || "Verified Buyer",
+          city: "Verified Buyer",
+          rating: r.rating,
+          comment: r.feedback_text,
+          avatar: r.reviewer_name ? r.reviewer_name.charAt(0).toUpperCase() : 'V',
+        }));
+      }
+
+      setManualReviews([...mappedManual, ...mappedPlatform]);
 
     } catch (err) {
       console.error("Failed to fetch home data:", err);
       setProducts(mockProducts.filter(p => p.isTrending || p.isNew));
       setAllProducts(mockProducts);
       setBanners({ left: [], right: [] });
-      setHeroBannerUrl(null);
+      setHeroBanners([heroBanner, banner1, banner2]);
     } finally {
       setLoading(false);
     }
@@ -315,6 +436,14 @@ const IndexPageBody = () => {
   const newArrivalsScroll = useHScroll();
   const reviewScroll = useHScroll();
   const vendorScroll = useHScroll();
+
+  const displayReviews = useMemo(() => {
+    return manualReviews.length > 0 ? manualReviews : customerReviews;
+  }, [manualReviews]);
+
+  const tripledReviews = useMemo(() => {
+    return [...displayReviews, ...displayReviews, ...displayReviews];
+  }, [displayReviews]);
 
   /* Category filter state */
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -455,35 +584,34 @@ const IndexPageBody = () => {
         <div className="relative h-9 flex items-center overflow-hidden">
           <div className="marquee-fade-left" />
           <div className="marquee-fade-right" />
-          <div className="offers-marquee-track">
-            {/* Each set repeats items enough times to always overflow the viewport */}
-            {[0, 1].map((copy) => {
-              // Ensure each set has at least ~20 items so it's always wider than any screen
-              const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
-              const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
-              return (
-                <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
-                  {filledOffers.map((o, i) => (
-                    <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
-                      {o}
-                      <span className="text-primary">•</span>
-                    </span>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
+          {(() => {
+            // Ensure each set has at least ~20 items so it's always wider than any screen
+            const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
+            const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
+            // Calculate a duration so speed is constant regardless of text length (~0.45s per char matches category marquee speed)
+            const totalChars = filledOffers.reduce((sum, text) => sum + text.length, 0);
+            const duration = totalChars > 0 ? totalChars * 0.45 : 60;
+            return (
+              <div className="offers-marquee-track" style={{ animationDuration: `${duration}s` }}>
+                {/* Each set repeats items enough times to always overflow the viewport */}
+                {[0, 1].map((copy) => (
+                  <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
+                    {filledOffers.map((o, i) => (
+                      <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
+                        {o}
+                        <span className="text-primary">•</span>
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      {/* ─── 2. Hero Banner ─── */}
-      <section className="relative w-full overflow-hidden" style={{ maxHeight: "180px" }}>
-        <img
-          src={heroBannerUrl || heroBanner}
-          alt="Gujju ni Dukan — Authentic Gujarati Products"
-          className="w-full h-[140px] sm:h-[160px] lg:h-[180px] object-cover"
-        />
-      </section>
+      {/* ─── 2. Hero Banner Slider ─── */}
+      <HeroBannerCarousel images={heroBanners} />
 
       {/* ─── 3. Category Slider ─── */}
       <section className="container py-8">
@@ -687,7 +815,7 @@ const IndexPageBody = () => {
             className="pill-scroll overflow-x-auto"
           >
             <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-              {[...customerReviews, ...customerReviews, ...customerReviews].map((r, i) => (
+              {tripledReviews.map((r, i) => (
                 <ReviewCard key={`${r.id}-${i}`} review={r} index={i} />
               ))}
             </div>

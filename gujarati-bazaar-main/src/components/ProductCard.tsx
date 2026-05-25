@@ -43,11 +43,11 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
         ref={ref}
         onMouseMove={onMove}
         onMouseLeave={onLeave}
-        className="card-tilt relative rounded-[var(--radius)] bg-card border border-border/60 overflow-hidden hover:shadow-lift hover:border-brown-light/40"
+        className="card-tilt relative rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl hover:shadow-accent/40 overflow-hidden hover:border-primary/30 transition-all duration-300"
         style={{ transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
       >
         <Link to={`/product/${product.id}`} className="block p-1">
-          <div className="relative overflow-hidden bg-background rounded-[calc(var(--radius)-4px)] border border-border/60">
+          <div className="relative overflow-hidden bg-background rounded-[calc(1rem-4px)] border border-border/40">
             <img
               src={product.image}
               alt={product.name}

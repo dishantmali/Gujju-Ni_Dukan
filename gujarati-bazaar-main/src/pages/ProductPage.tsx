@@ -258,12 +258,12 @@ const ProductPage = () => {
                     }
                   }}
                 >
-                  <div className="w-full shrink-0 aspect-[4/5] relative">
+                  <div className="w-full shrink-0 relative flex justify-center bg-card">
                     {selectedImage && (
                       <img
                         src={selectedImage}
                         alt={product.name}
-                        className="h-full w-full object-cover"
+                        className="w-full h-auto max-h-[50vh] object-contain"
                       />
                     )}
                   </div>
@@ -353,12 +353,12 @@ const ProductPage = () => {
                   </button>
                 ))}
               </div>
-              <div className="relative aspect-[4/5] rounded-2xl overflow-hidden border border-border bg-card">
+              <div className="relative rounded-2xl overflow-hidden border border-border bg-card flex justify-center items-center">
                 {selectedImage && (
                   <img
                     src={selectedImage}
                     alt={product.name}
-                    className="h-full w-full object-cover"
+                    className="w-full h-auto max-h-[600px] object-contain"
                   />
                 )}
                 <button

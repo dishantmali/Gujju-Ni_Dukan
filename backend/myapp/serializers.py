@@ -8,7 +8,7 @@ from .models import (
     CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
     Category, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
-    IconAsset
+    IconAsset, ManualReview, Coupon, CouponUsage, News
 )
 User = get_user_model()
 # ---------------- BASE SANITIZER (The Armor) ----------------
@@ -227,13 +227,14 @@ class ProductSerializer(SanitizedSerializer):
             'average_rating',
             'review_count',
             'is_active',
+            'is_new',
             'variants',
             'product_images',
             'variants_input',
             'extra_images',
         ]
         # Keep workflow-managed flags server-controlled; multipart/form-data can coerce missing booleans to False.
-        read_only_fields = ['vendor', 'status', 'is_active']
+        read_only_fields = ['vendor', 'status', 'is_active', 'is_new']
 
     def to_internal_value(self, data):
         mutable_data = dict(data) if not isinstance(data, dict) else data.copy()
@@ -404,6 +405,15 @@ class PlatformReviewSerializer(SanitizedSerializer):
         fields = ['id', 'user', 'reviewer_name', 'rating', 'feedback_text', 'is_featured', 'created_at']
         read_only_fields = ['user', 'is_featured', 'created_at']
 
+class AdminPlatformReviewSerializer(SanitizedSerializer):
+    reviewer_name = serializers.CharField(source='user.name', read_only=True)
+
+    class Meta:
+        model = PlatformReview
+        fields = ['id', 'user', 'reviewer_name', 'rating', 'feedback_text', 'is_featured', 'created_at']
+        read_only_fields = ['user', 'created_at']
+
+
 # ---------------- ORDER ----------------
 class OrderItemSerializer(SanitizedSerializer):
     product_details = ProductSerializer(source='product', read_only=True)
@@ -431,14 +441,19 @@ class OrderSerializer(SanitizedSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     buyer_name = serializers.CharField(source='user.name', read_only=True)
     buyer_email = serializers.CharField(source='user.email', read_only=True)
+    coupon_code = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             'id', 'user', 'buyer_name', 'buyer_email', 'items',
-            'total_price', 'address', 'phone', 'payment_status',
+            'total_price', 'coupon', 'coupon_code', 'discount_amount',
+            'address', 'phone', 'payment_status',
             'razorpay_order_id', 'razorpay_payment_id', 'created_at',
         ]
+
+    def get_coupon_code(self, obj):
+        return obj.coupon.code if obj.coupon else None
 
 
 # ---------------- VENDOR ORDER UPDATE ----------------
@@ -541,6 +556,7 @@ class WishlistSerializer(SanitizedSerializer):
         model = Wishlist
         fields = ['id', 'product', 'created_at']
 
+
 # ---------------- BANNER ----------------
 class BannerSerializer(SanitizedSerializer):
     class Meta:
@@ -551,6 +567,7 @@ class HeroBannerSerializer(SanitizedSerializer):
     class Meta:
         model = HeroBanner
         fields = ['id', 'title', 'image', 'is_active', 'updated_at']
+
 
 # ---------------- SUBSCRIPTIONS ----------------
 class SubscriptionPlanSerializer(SanitizedSerializer):
@@ -564,3 +581,69 @@ class VendorSubscriptionSerializer(SanitizedSerializer):
     class Meta:
         model = VendorSubscription
         fields = ['id', 'plan', 'plan_details', 'start_date', 'end_date', 'is_active']
+
+
+# ---------------- MANUAL REVIEW ----------------
+class ManualReviewSerializer(SanitizedSerializer):
+    class Meta:
+        model = ManualReview
+        fields = ['id', 'name', 'city', 'stars', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+
+# ---------------- COUPON SECTION ----------------
+class CouponSerializer(SanitizedSerializer):
+    vendor_shop = serializers.SerializerMethodField(read_only=True)
+    usages_count = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Coupon
+        fields = [
+            'id', 'code', 'discount_type', 'discount_value', 'start_datetime', 'end_datetime',
+            'limit_per_user', 'max_usages', 'min_purchase_amount', 'max_discount_cap',
+            'products', 'vendor', 'vendor_shop', 'usages_count', 'is_active', 'created_at'
+        ]
+        read_only_fields = ['vendor', 'created_at']
+
+    def get_vendor_shop(self, obj):
+        return obj.vendor.shop_name if obj.vendor else 'Admin'
+
+    def get_usages_count(self, obj):
+        return obj.usages.count()
+
+    def validate_products(self, value):
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'vendor_profile') and request.user.role == 'vendor':
+            vendor = request.user.vendor_profile
+            for product in value:
+                if getattr(product, 'vendor', None) != vendor:
+                    raise serializers.ValidationError(f"Product {product.name} does not belong to your store.")
+        return value
+
+    def validate(self, data):
+        if data.get('end_datetime') <= data.get('start_datetime'):
+            raise serializers.ValidationError("End date & time must be strictly after the start date & time.")
+        if data.get('discount_type') == 'percentage' and (data.get('discount_value') <= 0 or data.get('discount_value') > 100):
+            raise serializers.ValidationError("Percentage discount value must be between 1 and 100.")
+        if data.get('discount_value') <= 0:
+            raise serializers.ValidationError("Discount value must be greater than zero.")
+        return data
+
+
+class CouponUsageSerializer(serializers.ModelSerializer):
+    buyer_email = serializers.CharField(source='user.email', read_only=True)
+    buyer_name = serializers.CharField(source='user.name', read_only=True)
+    coupon_code = serializers.CharField(source='coupon.code', read_only=True)
+
+    class Meta:
+        model = CouponUsage
+        fields = ['id', 'coupon', 'coupon_code', 'user', 'buyer_name', 'buyer_email', 'order', 'used_at']
+
+
+# ---------------- NEWS SECTION ----------------
+class NewsSerializer(SanitizedSerializer):
+    class Meta:
+        model = News
+        fields = ['id', 'title', 'start_date', 'end_date', 'is_active', 'created_at']
+        read_only_fields = ['created_at']
+

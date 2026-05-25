@@ -9,6 +9,7 @@ import api from '@/lib/api';
 import { IconPickerModal } from '@/components/IconPickerModal';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Pencil, X } from 'lucide-react';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 
 const Icons = {
@@ -20,7 +21,9 @@ const Icons = {
   Orders: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
   Offers: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Banners: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-  Subscriptions: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+  Subscriptions: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>,
+  Reviews: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.908c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.908a1 1 0 00.95-.69l1.519-4.674z" /></svg>,
+  Coupons: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>,
 };
 
 // ─── Dummy Overview Data ──────────────────────────────────────────────────────
@@ -76,8 +79,8 @@ const ALERTS = [
 
 const QUICK_ACTIONS = [
   { icon: '🏷️', label: 'Add Category', tab: 'categories' },
-  { icon: '🎫', label: 'Create Offer', tab: 'offers' },
-  { icon: '🖼️', label: 'Add Banner', tab: 'banners' },
+  { icon: '📰', label: 'Create News', tab: 'news' },
+  { icon: '🖼️', label: 'Add Banner', tab: 'marketingBanners' },
   { icon: '📦', label: 'Manage Products', tab: 'products' },
   { icon: '👥', label: 'Manage Vendors', tab: 'vendors' },
   { icon: '🛒', label: 'View Orders', tab: 'orders' },
@@ -196,13 +199,35 @@ const AdminDashboard = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [categoryRequests, setCategoryRequests] = useState<any[]>([]);
-  const [offers, setOffers] = useState<any[]>([]);
+  const [news, setNews] = useState<any[]>([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [vendorSubscriptions, setVendorSubscriptions] = useState<any[]>([]);
   const [newPlan, setNewPlan] = useState({ name: '', price: '', product_limit: '', duration_days: 30, features: '' });
   const [editingPlan, setEditingPlan] = useState(null);
   const [banners, setBanners] = useState<any[]>([]);
+  const [manualReviews, setManualReviews] = useState<any[]>([]);
+  const [newReview, setNewReview] = useState({ name: '', city: '', stars: 5, description: '', is_active: true });
+  const [editingReview, setEditingReview] = useState<any | null>(null);
+  const [platformReviews, setPlatformReviews] = useState<any[]>([]);
+  const [activeReviewSubTab, setActiveReviewSubTab] = useState<'manual' | 'platform'>('manual');
   const [loading, setLoading] = useState(true);
+
+  // Coupon States
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [newCoupon, setNewCoupon] = useState({
+    code: '',
+    discount_type: 'rupee',
+    discount_value: '',
+    min_purchase_amount: '0',
+    max_discount_cap: '',
+    limit_per_user: 1,
+    max_usages: '',
+    start_datetime: '',
+    end_datetime: '',
+    products: [] as number[],
+    is_active: true
+  });
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
 
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('mdi:shopping');
@@ -210,11 +235,12 @@ const AdminDashboard = () => {
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
-  const [newOffer, setNewOffer] = useState({ title: '', start_date: '', end_date: '' });
-  const [offerImageFile, setOfferImageFile] = useState(null);
+  const [newNews, setNewNews] = useState({ title: '', start_date: '', end_date: '' });
   const [bannerImageFile, setBannerImageFile] = useState(null);
   const [newBannerPosition, setNewBannerPosition] = useState<'left' | 'right'>('left');
   const [newBannerOrder, setNewBannerOrder] = useState(0);
+  const [newBannerStartDatetime, setNewBannerStartDatetime] = useState('');
+  const [newBannerEndDatetime, setNewBannerEndDatetime] = useState('');
   const [heroBanners, setHeroBanners] = useState<any[]>([]);
   const [heroBannerImageFile, setHeroBannerImageFile] = useState(null);
   const [salesRange, setSalesRange] = useState('Last 7 Days');
@@ -232,7 +258,7 @@ const AdminDashboard = () => {
           api.get('/admin/categories/'),
           api.get('/admin/orders/'),
           api.get('/admin/category-requests/'),
-          api.get('/admin/offers/')
+          api.get('/admin/news/')
         ]);
         setAllProducts(prodRes || []);
         setAllVendors(vendRes || []);
@@ -240,7 +266,7 @@ const AdminDashboard = () => {
         setCategories(catRes || []);
         setOrders(orderRes || []);
         setCategoryRequests(catReqRes || []);
-        setOffers(offerRes || []);
+        setNews(offerRes || []);
 
         try {
           const bannerRes: any = await api.get('/admin/banners/');
@@ -258,6 +284,23 @@ const AdminDashboard = () => {
           setSubscriptionPlans(subRes || []);
           setVendorSubscriptions(vendSubRes || []);
         } catch (e) { console.warn("Subscription endpoints not ready yet", e); }
+
+        try {
+          const reviewsRes: any = await api.get('/admin/manual-reviews/');
+          setManualReviews(reviewsRes || []);
+        } catch (e) { console.warn("Manual reviews endpoint error", e); }
+
+        try {
+          const platformRes: any = await api.get('/admin/platform-reviews/');
+          setPlatformReviews(platformRes || []);
+        } catch (e) { console.warn("Platform reviews endpoint error", e); }
+
+        try {
+          const coupRes: any = await api.get('/admin/coupons/');
+          // Guarantee that only platform coupons are set
+          const adminCoupons = (coupRes || []).filter((c: any) => !c.vendor);
+          setCoupons(adminCoupons);
+        } catch (e) { console.warn("Coupons endpoint error", e); }
 
       } catch (error) {
         console.error(error);
@@ -315,24 +358,23 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleOfferAction = async (id, action) => {
+  const handleToggleNews = async (id, isActive) => {
     try {
-      await api.post(`/admin/offers/${id}/action/`, { action });
-      const res: any = await api.get('/admin/offers/');
-      setOffers(res || []);
-      toast.success(`Offer ${action}d`);
+      const res = await api.patch(`/admin/news/${id}/`, { is_active: isActive });
+      setNews(news.map(n => n.id === id ? res : n));
+      toast.success(`News ${isActive ? 'activated' : 'deactivated'}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed offer action");
+      toast.error(err?.response?.data?.error || "Failed to update news");
     }
   };
 
-  const handleDeleteOffer = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this offer?")) return;
+  const handleDeleteNews = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this news?")) return;
     try {
-      await api.delete(`/admin/offers/${id}/action/`);
-      setOffers(offers.filter(o => o.id !== id));
-      toast.success("Offer deleted");
-    } catch { toast.error("Failed to delete offer"); }
+      await api.delete(`/admin/news/${id}/`);
+      setNews(news.filter(n => n.id !== id));
+      toast.success("News deleted");
+    } catch { toast.error("Failed to delete news"); }
   };
 
   const handleCreateCategory = async (e) => {
@@ -388,37 +430,43 @@ const AdminDashboard = () => {
     } catch { toast.error("Failed to delete category"); }
   };
 
-  const handleCreateOffer = async (e) => {
+  const handleCreateNews = async (e) => {
     e.preventDefault();
-    const formData = new FormData();
-    formData.append('title', newOffer.title);
-    formData.append('start_date', newOffer.start_date);
-    formData.append('end_date', newOffer.end_date);
     try {
-      const res = await api.post('/admin/offers/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setOffers([res, ...offers]);
-      setNewOffer({ title: '', start_date: '', end_date: '' }); setOfferImageFile(null);
-      const fi = document.getElementById('offerImageInput') as HTMLInputElement; if (fi) fi.value = '';
-      toast.success("Offer created!");
-    } catch { toast.error("Failed to create offer"); }
+      const payload = {
+        title: newNews.title,
+        start_date: newNews.start_date,
+        end_date: newNews.end_date,
+        is_active: true
+      };
+      const res = await api.post('/admin/news/', payload);
+      setNews([res, ...news]);
+      setNewNews({ title: '', start_date: '', end_date: '' });
+      toast.success("News created!");
+    } catch { toast.error("Failed to create news"); }
   };
 
   const handleCreateBanner = async (e) => {
     e.preventDefault();
     if (!bannerImageFile) return toast.error("Please provide an image for the banner");
+    if (!newBannerStartDatetime || !newBannerEndDatetime) return toast.error("Please provide start and end date/time for the banner");
     const formData = new FormData();
     formData.append('image', bannerImageFile);
     formData.append('is_active', 'true');
     formData.append('position', newBannerPosition);
     formData.append('display_order', String(newBannerOrder));
-    formData.append('title', `Promo Banner ${newBannerPosition === 'left' ? 'Left' : 'Right'}`);
+    const startFormatted = new Date(newBannerStartDatetime).toLocaleString();
+    const endFormatted = new Date(newBannerEndDatetime).toLocaleString();
+    formData.append('title', `Marketing Banner | ${newBannerPosition === 'left' ? 'Left' : 'Right'} | ${startFormatted} → ${endFormatted}`);
     try {
       const res = await api.post('/admin/banners/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setBanners([res, ...banners]);
       setBannerImageFile(null);
       setNewBannerOrder(0);
+      setNewBannerStartDatetime('');
+      setNewBannerEndDatetime('');
       const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = '';
-      toast.success("Banner uploaded!");
+      toast.success("Marketing banner uploaded!");
     } catch { toast.error("Failed to upload banner"); }
   };
 
@@ -497,6 +545,170 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleSaveReview = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingReview) {
+        const res = await api.put(`/admin/manual-reviews/${editingReview.id}/`, newReview);
+        setManualReviews(manualReviews.map(r => r.id === editingReview.id ? res : r));
+        toast.success("Manual review updated!");
+      } else {
+        const res = await api.post('/admin/manual-reviews/', newReview);
+        setManualReviews([res, ...manualReviews]);
+        toast.success("Manual review created!");
+      }
+      setNewReview({ name: '', city: '', stars: 5, description: '', is_active: true });
+      setEditingReview(null);
+    } catch (err) {
+      toast.error("Failed to save manual review");
+    }
+  };
+
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+    setNewReview({
+      name: review.name,
+      city: review.city,
+      stars: review.stars,
+      description: review.description,
+      is_active: review.is_active
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteReview = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this manual review?")) return;
+    try {
+      await api.delete(`/admin/manual-reviews/${id}/`);
+      setManualReviews(manualReviews.filter(r => r.id !== id));
+      toast.success("Manual review deleted");
+    } catch {
+      toast.error("Failed to delete manual review");
+    }
+  };
+
+  const handleCancelEditReview = () => {
+    setEditingReview(null);
+    setNewReview({ name: '', city: '', stars: 5, description: '', is_active: true });
+  };
+
+  const handleTogglePlatformReviewFeatured = async (id, currentFeatured) => {
+    try {
+      const res = await api.patch(`/admin/platform-reviews/${id}/`, { is_featured: !currentFeatured });
+      setPlatformReviews(platformReviews.map(r => r.id === id ? res : r));
+      toast.success(currentFeatured ? "Platform review unfeatured" : "Platform review approved and featured!");
+    } catch {
+      toast.error("Failed to update platform review status.");
+    }
+  };
+
+  const handleDeletePlatformReview = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this platform review?")) return;
+    try {
+      await api.delete(`/admin/platform-reviews/${id}/`);
+      setPlatformReviews(platformReviews.filter(r => r.id !== id));
+      toast.success("Platform review deleted");
+    } catch {
+      toast.error("Failed to delete platform review");
+    }
+  };
+
+  const handleSaveCoupon = async (e) => {
+    e.preventDefault();
+    const payload = {
+      ...newCoupon,
+      code: newCoupon.code.toUpperCase().trim(),
+      discount_value: parseFloat(newCoupon.discount_value),
+      min_purchase_amount: parseFloat(newCoupon.min_purchase_amount || '0'),
+      max_discount_cap: newCoupon.max_discount_cap ? parseFloat(newCoupon.max_discount_cap) : null,
+      max_usages: newCoupon.max_usages ? parseInt(newCoupon.max_usages) : null,
+      limit_per_user: parseInt(String(newCoupon.limit_per_user)),
+    };
+    try {
+      if (editingCoupon) {
+        const res = await api.put(`/admin/coupons/${editingCoupon.id}/`, payload);
+        setCoupons(coupons.map(c => c.id === editingCoupon.id ? res : c));
+        toast.success("Coupon updated successfully!");
+      } else {
+        const res = await api.post('/admin/coupons/', payload);
+        setCoupons([res, ...coupons]);
+        toast.success("Coupon created successfully!");
+      }
+      setNewCoupon({
+        code: '',
+        discount_type: 'rupee',
+        discount_value: '',
+        min_purchase_amount: '0',
+        max_discount_cap: '',
+        limit_per_user: 1,
+        max_usages: '',
+        start_datetime: '',
+        end_datetime: '',
+        products: [],
+        is_active: true
+      });
+      setEditingCoupon(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save coupon.");
+    }
+  };
+
+  const handleEditCoupon = (coupon) => {
+    setEditingCoupon(coupon);
+    setNewCoupon({
+      code: coupon.code,
+      discount_type: coupon.discount_type,
+      discount_value: String(coupon.discount_value),
+      min_purchase_amount: String(coupon.min_purchase_amount),
+      max_discount_cap: coupon.max_discount_cap ? String(coupon.max_discount_cap) : '',
+      limit_per_user: coupon.limit_per_user,
+      max_usages: coupon.max_usages ? String(coupon.max_usages) : '',
+      start_datetime: coupon.start_datetime ? coupon.start_datetime.substring(0, 16) : '',
+      end_datetime: coupon.end_datetime ? coupon.end_datetime.substring(0, 16) : '',
+      products: coupon.products || [],
+      is_active: coupon.is_active
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteCoupon = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this coupon?")) return;
+    try {
+      await api.delete(`/admin/coupons/${id}/`);
+      setCoupons(coupons.filter(c => c.id !== id));
+      toast.success("Coupon deleted!");
+    } catch {
+      toast.error("Failed to delete coupon.");
+    }
+  };
+
+  const handleCancelEditCoupon = () => {
+    setEditingCoupon(null);
+    setNewCoupon({
+      code: '',
+      discount_type: 'rupee',
+      discount_value: '',
+      min_purchase_amount: '0',
+      max_discount_cap: '',
+      limit_per_user: 1,
+      max_usages: '',
+      start_datetime: '',
+      end_datetime: '',
+      products: [],
+      is_active: true
+    });
+  };
+
+  const handleToggleCouponActive = async (coupon) => {
+    try {
+      const res = await api.patch(`/admin/coupons/${coupon.id}/`, { is_active: !coupon.is_active });
+      setCoupons(coupons.map(c => c.id === coupon.id ? res : c));
+      toast.success(`Coupon ${!coupon.is_active ? 'activated' : 'deactivated'}!`);
+    } catch {
+      toast.error("Failed to toggle coupon status.");
+    }
+  };
+
   if (loading) return (
     <div className="fixed inset-0 z-[60] bg-[var(--bg-main)] flex items-center justify-center text-[var(--coffee-light)] font-sans">
       <div className="flex flex-col items-center gap-4">
@@ -516,7 +728,7 @@ const AdminDashboard = () => {
   const pendingProductsList = allProducts.filter(p => p.status === 'pending');
   const directoryProductsList = allProducts.filter(p => p.status !== 'pending');
   const pendingCatReqs = categoryRequests.filter(r => r.status === 'pending');
-  const pendingOfferReqs = offers.filter(o => o.status === 'pending');
+  const pendingPlatformReviewsCount = platformReviews.filter(r => !r.is_featured).length;
 
   const navItems = [
     { key: 'overview', label: 'Overview', Icon: Icons.Overview, badge: null },
@@ -525,9 +737,12 @@ const AdminDashboard = () => {
     { key: 'users', label: 'Users Directory', Icon: Icons.Users, badge: null },
     { key: 'subscriptions', label: 'Manage Subs', Icon: Icons.Subscriptions, badge: null },
     { key: 'categories', label: 'Categories', Icon: Icons.Categories, badge: pendingCatReqs.length },
-    { key: 'offers', label: 'Offers', Icon: Icons.Offers, badge: pendingOfferReqs.length },
-    { key: 'banners', label: 'Promo Banners', Icon: Icons.Banners, badge: null },
+    { key: 'news', label: 'News', Icon: Icons.Offers, badge: null },
+    { key: 'headerBanners', label: 'Header Banner', Icon: Icons.Banners, badge: null },
+    { key: 'marketingBanners', label: 'Marketing Banner', Icon: Icons.Banners, badge: null },
+    { key: 'reviews', label: 'Reviews', Icon: Icons.Reviews, badge: pendingPlatformReviewsCount > 0 ? pendingPlatformReviewsCount : null },
     { key: 'orders', label: 'Global Orders', Icon: Icons.Orders, badge: null },
+    { key: 'coupons', label: 'Coupons', Icon: Icons.Coupons, badge: null },
   ];
 
   const RangeSelect = ({ value, onChange, options }) => (
@@ -1097,7 +1312,7 @@ const AdminDashboard = () => {
                         {pendingCatReqs.map(req => (
                           <div key={req.id} className="bg-white border border-[#E8D5BC] rounded-2xl p-5 hover:border-[#E8D5BC]/40 transition-colors">
                             <div className="w-full h-36 bg-gray-50 flex items-center justify-center rounded-xl mb-5 shadow-inner text-indigo-600">
-                               <CategoryIcon name={req.icon} iconType={req.icon_type} size={64} />
+                              <CategoryIcon name={req.icon} iconType={req.icon_type} size={64} />
                             </div>
                             <p className="text-[10px] font-black text-[#8C7B6E] uppercase tracking-widest mb-1 truncate">Req by: {req.vendor_shop}</p>
                             <h3 className="font-bold text-[#5A3825] text-xl truncate mb-5">{req.name}</h3>
@@ -1189,65 +1404,52 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* ── OFFERS TAB ── */}
-              {activeTab === 'offers' && (
+              {/* ── NEWS TAB ── */}
+              {activeTab === 'news' && (
                 <div className="animate-fade-in flex flex-col gap-8">
-                  {pendingOfferReqs.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
-                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white"><h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Pending Offer Requests</h2></div>
-                      <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-[var(--bg-main)]/30">
-                        {pendingOfferReqs.map(offer => (
-                          <div key={offer.id} className="bg-white border border-[#E8D5BC] rounded-2xl p-5 hover:border-[#E8D5BC]/40 transition-colors">
-                            <p className="text-[10px] font-black text-[#8C7B6E] uppercase tracking-widest mb-1 truncate">Req by: {offer.vendor_shop}</p>
-                            <h3 className="font-bold text-[#5A3825] text-lg truncate">{offer.title}</h3>
-                            <p className="text-xs font-medium text-[var(--text-muted)] mb-5 bg-[var(--bg-secondary)] inline-block px-2 py-1 rounded mt-2">{offer.start_date} → {offer.end_date}</p>
-                            <div className="grid grid-cols-2 gap-3">
-                              <button onClick={() => handleOfferAction(offer.id, 'reject')} className="w-full py-2.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Reject</button>
-                              <button onClick={() => handleOfferAction(offer.id, 'approve')} className="w-full py-2.5 text-xs font-bold text-white bg-[var(--coffee-light)] hover:bg-[var(--coffee-brown)] rounded-lg transition-colors shadow-md">Approve</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <div className="xl:col-span-1">
                       <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Create Promo Offer</h2>
-                        <form onSubmit={handleCreateOffer} className="space-y-4">
+                        <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Create News</h2>
+                        <form onSubmit={handleCreateNews} className="space-y-4">
                           <div>
-                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Offer Title</label>
-                            <input type="text" required value={newOffer.title} onChange={e => setNewOffer({ ...newOffer, title: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors" />
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">News Title</label>
+                            <input type="text" required value={newNews.title} onChange={e => setNewNews({ ...newNews, title: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors" />
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date</label>
-                              <input type="date" required value={newOffer.start_date} onChange={e => setNewOffer({ ...newOffer, start_date: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm" />
+                              <DateTimePicker type="date" value={newNews.start_date} onChange={(val) => setNewNews({ ...newNews, start_date: val })} />
                             </div>
                             <div>
                               <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date</label>
-                              <input type="date" required value={newOffer.end_date} onChange={e => setNewOffer({ ...newOffer, end_date: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm" />
+                              <DateTimePicker type="date" value={newNews.end_date} onChange={(val) => setNewNews({ ...newNews, end_date: val })} />
                             </div>
                           </div>
-                          <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4">Broadcast Offer</button>
+                          <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4">Broadcast News</button>
                         </form>
                       </div>
                     </div>
                     <div className="xl:col-span-2">
                       <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
-                        <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0"><h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Live Offers</h2></div>
+                        <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0"><h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Live News</h2></div>
                         <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
-                          {offers.filter(o => o.status === 'approved').length === 0
-                            ? <p className="p-10 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30">No live offers broadcasted.</p>
-                            : offers.filter(o => o.status === 'approved').map(offer => (
-                              <div key={offer.id} className="p-4 px-6 flex justify-between items-center hover:bg-[var(--bg-main)] transition-colors">
+                          {news.length === 0
+                            ? <p className="p-10 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30">No news added.</p>
+                            : news.map(n => (
+                              <div key={n.id} className="p-4 px-6 flex justify-between items-center hover:bg-[var(--bg-main)] transition-colors">
                                 <div className="flex items-center gap-5">
                                   <div>
-                                    <span className="font-bold text-[var(--text-dark)] text-base block">{offer.title}</span>
-                                    <span className="text-xs font-medium text-[var(--brown-mid)] bg-[var(--brown-mid)]/10 px-2 py-0.5 rounded mt-1 inline-block">{offer.start_date} → {offer.end_date}</span>
+                                    <span className="font-bold text-[var(--text-dark)] text-base block">{n.title}</span>
+                                    <span className="text-xs font-medium text-[var(--brown-mid)] bg-[var(--brown-mid)]/10 px-2 py-0.5 rounded mt-1 inline-block">{n.start_date} → {n.end_date}</span>
                                   </div>
                                 </div>
-                                <button onClick={() => handleDeleteOffer(offer.id)} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-red-100 transition-all duration-200 active:scale-95">Terminate</button>
+                                <div className="flex gap-2">
+                                  <button onClick={() => handleToggleNews(n.id, !n.is_active)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-200 active:scale-95 ${n.is_active ? 'text-orange-500 border-orange-200 hover:bg-orange-50' : 'text-green-500 border-green-200 hover:bg-green-50'}`}>
+                                    {n.is_active ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                  <button onClick={() => handleDeleteNews(n.id)} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-red-100 transition-all duration-200 active:scale-95">Delete</button>
+                                </div>
                               </div>
                             ))
                           }
@@ -1258,13 +1460,13 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* ── BANNERS TAB ── */}
-              {activeTab === 'banners' && (
+              {/* ── HEADER BANNER TAB ── */}
+              {activeTab === 'headerBanners' && (
                 <div className="animate-fade-in flex flex-col gap-8">
-                  {/* HERO BANNER */}
                   <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
                     <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Hero Banner (Header Image)</h2>
+                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Header Banner</h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Manage the main hero banner displayed at the top of the homepage.</p>
                     </div>
                     <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30">
                       {/* + Upload area */}
@@ -1274,7 +1476,7 @@ const AdminDashboard = () => {
                           className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
                         >
                           <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                          <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Hero Banner</span>
+                          <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Header Banner</span>
                           <span className="text-[10px] text-[var(--text-light)]">Click to choose image (wide banner recommended)</span>
                         </label>
                         <input id="heroBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
@@ -1298,14 +1500,14 @@ const AdminDashboard = () => {
                       <div className="flex flex-col gap-4">
                         {heroBanners.length === 0 ? (
                           <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                            <p className="text-[var(--coffee-light)] font-light text-sm">No custom hero banner uploaded. Default design is live.</p>
+                            <p className="text-[var(--coffee-light)] font-light text-sm">No custom header banner uploaded. Default design is live.</p>
                           </div>
                         ) : (
                           heroBanners.map(hero => (
                             <div key={hero.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
-                              <img src={hero.image} alt="Hero banner" className="w-full h-48 object-cover" />
+                              <img src={hero.image} alt="Header banner" className="w-full h-48 object-cover" />
                               <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
-                                <button onClick={() => handleDeleteHeroBanner(hero.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete Hero Banner</button>
+                                <button onClick={() => handleDeleteHeroBanner(hero.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete Header Banner</button>
                               </div>
                               <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
                             </div>
@@ -1314,68 +1516,141 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* LEFT BANNERS */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
-                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Left Live Banners</h2>
-                      </div>
-                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
-                        {/* + Upload area */}
-                        <form
-                          onSubmit={(e) => { setNewBannerPosition('left'); handleCreateBanner(e); }}
-                          className="flex flex-col gap-3"
-                        >
+              {/* ── MARKETING BANNER TAB ── */}
+              {activeTab === 'marketingBanners' && (
+                <div className="animate-fade-in flex flex-col gap-8">
+                  {/* Upload Form */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
+                    <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Add Marketing Banner</h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Upload a promotional banner with a scheduled time period and placement side.</p>
+                    </div>
+                    <div className="p-6 bg-[var(--bg-main)]/30">
+                      <form onSubmit={handleCreateBanner} className="space-y-5">
+                        {/* Image Upload */}
+                        <div>
+                          <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Banner Image</label>
                           <label
-                            htmlFor="leftBannerInput"
+                            htmlFor="bannerImageInput"
                             className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
                           >
                             <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Banner</span>
-                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9)</span>
+                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">{bannerImageFile ? '✓ Image Selected' : 'Choose Banner Image'}</span>
+                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9 recommended)</span>
                           </label>
-                          <input id="leftBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
+                          <input id="bannerImageInput" type="file" accept="image/*" className="hidden" onChange={e => {
                             const file = e.target.files?.[0] || null;
                             if (file && !isValidImageFile(file)) {
                               toast.error("Only image files are allowed.");
                               return;
                             }
-                            setNewBannerPosition('left');
                             setBannerImageFile(file);
                           }} />
+                        </div>
 
-                          {bannerImageFile && newBannerPosition === 'left' && (
-                            <div className="flex items-center gap-3 animate-fade-in">
-                              <input
-                                type="number"
-                                min={0}
-                                placeholder="Order"
-                                value={newBannerOrder}
-                                onChange={e => setNewBannerOrder(Number(e.target.value))}
-                                className="w-20 rounded-lg border border-[var(--border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A87C51] bg-white"
-                              />
-                              <button type="submit" className="bg-[#5A3825] text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-[#432A1C] transition-colors shadow-sm">Upload</button>
-                              <button type="button" onClick={() => setBannerImageFile(null)} className="text-[var(--text-muted)] hover:text-red-500 text-xs font-bold uppercase tracking-wider">Cancel</button>
+                        {/* Time Period */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date & Time</label>
+                            <DateTimePicker
+                              type="datetime-local"
+                              value={newBannerStartDatetime}
+                              onChange={(val) => setNewBannerStartDatetime(val)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date & Time</label>
+                            <DateTimePicker
+                              type="datetime-local"
+                              value={newBannerEndDatetime}
+                              onChange={(val) => setNewBannerEndDatetime(val)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Position + Order */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Banner Position</label>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setNewBannerPosition('left')}
+                                className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] border-2 transition-all duration-200 ${newBannerPosition === 'left'
+                                    ? 'bg-[#5A3825] text-white border-[#5A3825] shadow-lg'
+                                    : 'bg-white text-[#8C7B6E] border-[#E8D5BC] hover:border-[#A87C51] hover:text-[#5A3825]'
+                                  }`}
+                              >
+                                ← Left Side
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewBannerPosition('right')}
+                                className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] border-2 transition-all duration-200 ${newBannerPosition === 'right'
+                                    ? 'bg-[#5A3825] text-white border-[#5A3825] shadow-lg'
+                                    : 'bg-white text-[#8C7B6E] border-[#E8D5BC] hover:border-[#A87C51] hover:text-[#5A3825]'
+                                  }`}
+                              >
+                                Right Side →
+                              </button>
                             </div>
-                          )}
-                        </form>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Display Order</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={newBannerOrder}
+                              onChange={e => setNewBannerOrder(Number(e.target.value))}
+                              className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
 
+                        {/* Submit */}
+                        <div className="flex gap-3 pt-2">
+                          <button type="submit" className="flex-1 bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98]">
+                            Upload Marketing Banner
+                          </button>
+                          {bannerImageFile && (
+                            <button type="button" onClick={() => { setBannerImageFile(null); setNewBannerStartDatetime(''); setNewBannerEndDatetime(''); const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = ''; }} className="px-8 py-4 border border-[#E8D5BC] text-[#8C7B6E] rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#FAF7F2] transition-all duration-300 active:scale-[0.98]">
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* LEFT BANNERS */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Left Side Banners</h2>
+                      </div>
+                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
                         {/* Left banner previews */}
                         <div className="flex flex-col gap-4">
                           {banners.filter(b => b.position === 'left' || !b.position).length === 0 ? (
                             <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                              <p className="text-[var(--coffee-light)] font-light text-sm">No left banners yet.</p>
+                              <p className="text-[var(--coffee-light)] font-light text-sm">No left side banners yet.</p>
                             </div>
                           ) : (
                             banners.filter(b => b.position === 'left' || !b.position).map(banner => (
                               <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
-                                <img src={banner.image} alt="Promo banner" className="w-full h-40 object-cover" />
+                                <img src={banner.image} alt="Marketing banner" className="w-full h-40 object-cover" />
                                 <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
                                   <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
                                 </div>
                                 <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
                                 <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
+                                {banner.title && banner.title.includes('→') && (
+                                  <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider text-[#5A3825] shadow-sm max-w-[70%] truncate">🕐 {banner.title.split('|').pop()?.trim()}</div>
+                                )}
                               </div>
                             ))
                           )}
@@ -1386,63 +1661,27 @@ const AdminDashboard = () => {
                     {/* RIGHT BANNERS */}
                     <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
                       <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Right Live Banners</h2>
+                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Right Side Banners</h2>
                       </div>
                       <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
-                        {/* + Upload area */}
-                        <form
-                          onSubmit={(e) => { setNewBannerPosition('right'); handleCreateBanner(e); }}
-                          className="flex flex-col gap-3"
-                        >
-                          <label
-                            htmlFor="rightBannerInput"
-                            className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
-                          >
-                            <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">Add Banner</span>
-                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9)</span>
-                          </label>
-                          <input id="rightBannerInput" type="file" accept="image/*" className="hidden" onChange={e => {
-                            const file = e.target.files?.[0] || null;
-                            if (file && !isValidImageFile(file)) {
-                              toast.error("Only image files are allowed.");
-                              return;
-                            }
-                            setNewBannerPosition('right');
-                            setBannerImageFile(file);
-                          }} />
-
-                          {bannerImageFile && newBannerPosition === 'right' && (
-                            <div className="flex items-center gap-3 animate-fade-in">
-                              <input
-                                type="number"
-                                min={0}
-                                placeholder="Order"
-                                value={newBannerOrder}
-                                onChange={e => setNewBannerOrder(Number(e.target.value))}
-                                className="w-20 rounded-lg border border-[var(--border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A87C51] bg-white"
-                              />
-                              <button type="submit" className="bg-[#5A3825] text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-[#432A1C] transition-colors shadow-sm">Upload</button>
-                              <button type="button" onClick={() => setBannerImageFile(null)} className="text-[var(--text-muted)] hover:text-red-500 text-xs font-bold uppercase tracking-wider">Cancel</button>
-                            </div>
-                          )}
-                        </form>
-
                         {/* Right banner previews */}
                         <div className="flex flex-col gap-4">
                           {banners.filter(b => b.position === 'right').length === 0 ? (
                             <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                              <p className="text-[var(--coffee-light)] font-light text-sm">No right banners yet.</p>
+                              <p className="text-[var(--coffee-light)] font-light text-sm">No right side banners yet.</p>
                             </div>
                           ) : (
                             banners.filter(b => b.position === 'right').map(banner => (
                               <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
-                                <img src={banner.image} alt="Promo banner" className="w-full h-40 object-cover" />
+                                <img src={banner.image} alt="Marketing banner" className="w-full h-40 object-cover" />
                                 <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
                                   <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
                                 </div>
                                 <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
                                 <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
+                                {banner.title && banner.title.includes('→') && (
+                                  <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider text-[#5A3825] shadow-sm max-w-[70%] truncate">🕐 {banner.title.split('|').pop()?.trim()}</div>
+                                )}
                               </div>
                             ))
                           )}
@@ -1492,6 +1731,532 @@ const AdminDashboard = () => {
                         </table>
                       </div>
                     )}
+                </div>
+              )}
+
+              {/* ── REVIEWS TAB ── */}
+              {activeTab === 'reviews' && (
+                <div className="animate-fade-in flex flex-col gap-8">
+                  {/* Premium Sub-tabs navigation */}
+                  <div className="flex gap-4 border-b border-[#E8D5BC] pb-4 shrink-0">
+                    <button
+                      onClick={() => setActiveReviewSubTab('manual')}
+                      className={`px-6 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs transition-all duration-300 ${activeReviewSubTab === 'manual'
+                          ? 'bg-[#5A3825] text-white shadow-md'
+                          : 'border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                        }`}
+                    >
+                      Manual Reviews
+                    </button>
+                    <button
+                      onClick={() => setActiveReviewSubTab('platform')}
+                      className={`relative px-6 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs transition-all duration-300 ${activeReviewSubTab === 'platform'
+                          ? 'bg-[#5A3825] text-white shadow-md'
+                          : 'border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                        }`}
+                    >
+                      Buyer Platform Reviews
+                      {pendingPlatformReviewsCount > 0 && (
+                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse">
+                          {pendingPlatformReviewsCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {activeReviewSubTab === 'manual' ? (
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                      {/* Creation/Edit Form */}
+                      <div className="xl:col-span-1">
+                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
+                          <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">
+                            {editingReview ? 'Edit Manual Review' : 'Create Manual Review'}
+                          </h2>
+                          <form onSubmit={handleSaveReview} className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Reviewer Name</label>
+                              <input
+                                type="text"
+                                required
+                                value={newReview.name}
+                                onChange={e => setNewReview({ ...newReview, name: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                                placeholder="e.g. Dishant Mali"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">City / Location</label>
+                              <input
+                                type="text"
+                                required
+                                value={newReview.city}
+                                onChange={e => setNewReview({ ...newReview, city: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                                placeholder="e.g. Ahmedabad, Gujarat"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Star Rating</label>
+                              <select
+                                value={newReview.stars}
+                                onChange={e => setNewReview({ ...newReview, stars: parseInt(e.target.value) })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)] cursor-pointer"
+                              >
+                                <option value="5">⭐⭐⭐⭐⭐ (5 Stars)</option>
+                                <option value="4">⭐⭐⭐⭐ (4 Stars)</option>
+                                <option value="3">⭐⭐⭐ (3 Stars)</option>
+                                <option value="2">⭐⭐ (2 Stars)</option>
+                                <option value="1">⭐ (1 Star)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Review Content</label>
+                              <textarea
+                                required
+                                rows={4}
+                                value={newReview.description}
+                                onChange={e => setNewReview({ ...newReview, description: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)] resize-none"
+                                placeholder="Describe customer's shopping experience..."
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-3 py-2">
+                              <input
+                                type="checkbox"
+                                id="is_active"
+                                checked={newReview.is_active}
+                                onChange={e => setNewReview({ ...newReview, is_active: e.target.checked })}
+                                className="w-4 h-4 rounded text-[#5A3825] focus:ring-[#5A3825] border-gray-300 cursor-pointer"
+                              />
+                              <label htmlFor="is_active" className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer select-none">
+                                Show live on homepage
+                              </label>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                              <button
+                                type="submit"
+                                className="flex-1 bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98]"
+                              >
+                                {editingReview ? 'Update Review' : 'Publish Review'}
+                              </button>
+                              {editingReview && (
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditReview}
+                                  className="px-5 py-4 border border-[#E8D5BC] text-[#8C7B6E] rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#FAF7F2] transition-all duration-300 active:scale-[0.98]"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+
+                      {/* Manual Reviews List */}
+                      <div className="xl:col-span-2">
+                        <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                          <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                            <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Live Testimonials</h2>
+                          </div>
+                          <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
+                            {manualReviews.length === 0 ? (
+                              <p className="p-10 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30 font-medium">
+                                No manual reviews created yet. Falling back to default homepage testimonials.
+                              </p>
+                            ) : (
+                              manualReviews.map(review => (
+                                <div key={review.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-[var(--bg-main)] transition-colors">
+                                  <div className="space-y-2 flex-1">
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-bold text-[var(--text-dark)] text-lg">{review.name}</span>
+                                      <span className="text-[10px] font-bold text-[#A87C51] bg-[#FAF7F2] border border-[#E8D5BC] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                        {review.city}
+                                      </span>
+                                      <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-md ${review.is_active
+                                          ? 'bg-green-50 text-green-600 border border-green-200'
+                                          : 'bg-gray-50 text-gray-500 border border-gray-200'
+                                        }`}>
+                                        {review.is_active ? 'Live' : 'Hidden'}
+                                      </span>
+                                    </div>
+                                    <div className="flex text-yellow-400">
+                                      {Array.from({ length: 5 }).map((_, i) => (
+                                        <svg
+                                          key={i}
+                                          className={`w-4 h-4 ${i < review.stars ? 'fill-current' : 'text-gray-300'}`}
+                                          viewBox="0 0 20 20"
+                                          fill="currentColor"
+                                        >
+                                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                        </svg>
+                                      ))}
+                                    </div>
+                                    <p className="text-sm text-[var(--text-muted)] italic font-medium leading-relaxed max-w-2xl">
+                                      "{review.description}"
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2 self-end md:self-auto">
+                                    <button
+                                      onClick={() => handleEditReview(review)}
+                                      className="px-3.5 py-2 border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E] rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteReview(review.id)}
+                                      className="px-3.5 py-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden flex flex-col w-full">
+                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0 flex justify-between items-center">
+                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Buyer Submitted Platform Reviews</h2>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg-main)] px-3 py-1 rounded-full border border-[var(--border)]">
+                          Total: {platformReviews.length}
+                        </span>
+                      </div>
+                      <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
+                        {platformReviews.length === 0 ? (
+                          <p className="p-12 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30 font-medium">
+                            No buyer platform reviews submitted yet.
+                          </p>
+                        ) : (
+                          platformReviews.map(review => (
+                            <div key={review.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-[var(--bg-main)] transition-colors">
+                              <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="font-bold text-[var(--text-dark)] text-lg">
+                                    {review.reviewer_name || "Verified Buyer"}
+                                  </span>
+                                  {review.created_at && (
+                                    <span className="text-[10px] font-bold text-[#A87C51] bg-[#FAF7F2] border border-[#E8D5BC] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                      {new Date(review.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                    </span>
+                                  )}
+                                  <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-md ${review.is_featured
+                                      ? 'bg-green-50 text-green-600 border border-green-200'
+                                      : 'bg-yellow-50 text-yellow-600 border border-yellow-200'
+                                    }`}>
+                                    {review.is_featured ? 'Approved & Featured' : 'Pending Approval'}
+                                  </span>
+                                </div>
+                                <div className="flex text-yellow-400">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <svg
+                                      key={i}
+                                      className={`w-4 h-4 ${i < review.rating ? 'fill-current' : 'text-gray-300'}`}
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  ))}
+                                </div>
+                                <p className="text-sm text-[var(--text-muted)] italic font-medium leading-relaxed max-w-3xl">
+                                  "{review.feedback_text}"
+                                </p>
+                              </div>
+                              <div className="flex gap-2 self-end md:self-auto shrink-0">
+                                <button
+                                  onClick={() => handleTogglePlatformReviewFeatured(review.id, review.is_featured)}
+                                  className={`px-3.5 py-2 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 ${review.is_featured
+                                      ? 'border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                                      : 'border-green-200 bg-green-50 hover:bg-green-100 text-green-700'
+                                    }`}
+                                >
+                                  {review.is_featured ? 'Unapprove' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePlatformReview(review.id)}
+                                  className="px-3.5 py-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── COUPONS TAB ── */}
+              {activeTab === 'coupons' && (
+                <div className="animate-fade-in flex flex-col gap-8">
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    {/* Creation / Edit Form */}
+                    <div className="xl:col-span-1">
+                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
+                        <div className="flex items-center justify-between mb-8">
+                          <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">
+                            {editingCoupon ? 'Edit Platform Coupon' : 'Create Platform Coupon'}
+                          </h2>
+                          {editingCoupon && (
+                            <button
+                              type="button"
+                              onClick={handleCancelEditCoupon}
+                              className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-1 transition-colors"
+                            >
+                              <X size={12} /> Cancel
+                            </button>
+                          )}
+                        </div>
+                        <form onSubmit={handleSaveCoupon} className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Promo Code</label>
+                            <input
+                              type="text"
+                              required
+                              value={newCoupon.code}
+                              onChange={e => setNewCoupon({ ...newCoupon, code: e.target.value })}
+                              className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)] uppercase"
+                              placeholder="e.g. WELCOME100"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Discount Type</label>
+                              <select
+                                value={newCoupon.discount_type}
+                                onChange={e => setNewCoupon({ ...newCoupon, discount_type: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)] cursor-pointer"
+                              >
+                                <option value="rupee">Rupee (₹)</option>
+                                <option value="percentage">Percentage (%)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Discount Value</label>
+                              <input
+                                type="number"
+                                required
+                                min={0}
+                                value={newCoupon.discount_value}
+                                onChange={e => setNewCoupon({ ...newCoupon, discount_value: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                placeholder={newCoupon.discount_type === 'percentage' ? 'e.g. 10' : 'e.g. 150'}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Min Order Val (₹)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={newCoupon.min_purchase_amount}
+                                onChange={e => setNewCoupon({ ...newCoupon, min_purchase_amount: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                placeholder="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Max Cap (₹)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={newCoupon.max_discount_cap}
+                                onChange={e => setNewCoupon({ ...newCoupon, max_discount_cap: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                placeholder="Optional cap"
+                                disabled={newCoupon.discount_type !== 'percentage'}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date & Time</label>
+                              <DateTimePicker
+                                type="datetime-local"
+                                value={newCoupon.start_datetime}
+                                onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date & Time</label>
+                              <DateTimePicker
+                                type="datetime-local"
+                                value={newCoupon.end_datetime}
+                                onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Limit Per Customer</label>
+                              <input
+                                type="number"
+                                required
+                                min={1}
+                                value={newCoupon.limit_per_user}
+                                onChange={e => setNewCoupon({ ...newCoupon, limit_per_user: parseInt(e.target.value) || 1 })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                placeholder="1"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Total Max Usages</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={newCoupon.max_usages}
+                                onChange={e => setNewCoupon({ ...newCoupon, max_usages: e.target.value })}
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                placeholder="Optional limit"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Restrict to Products (Optional)</label>
+                            <div className="max-h-36 overflow-y-auto border border-[var(--border)] rounded-xl p-3 bg-[var(--bg-main)] space-y-2 custom-scrollbar">
+                              {directoryProductsList.length === 0 ? (
+                                <p className="text-xs text-[var(--text-light)]">No products listed in directory.</p>
+                              ) : (
+                                directoryProductsList.map(prod => {
+                                  const isChecked = newCoupon.products.includes(prod.id);
+                                  return (
+                                    <label key={prod.id} className="flex items-center gap-2 text-xs font-semibold text-[var(--text-dark)] cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {
+                                          if (isChecked) {
+                                            setNewCoupon({ ...newCoupon, products: newCoupon.products.filter(id => id !== prod.id) });
+                                          } else {
+                                            setNewCoupon({ ...newCoupon, products: [...newCoupon.products, prod.id] });
+                                          }
+                                        }}
+                                        className="w-3.5 h-3.5 text-[#5A3825] focus:ring-[#5A3825] border-gray-300 rounded cursor-pointer"
+                                      />
+                                      {prod.name} (₹{parseFloat(prod.price)})
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 py-1">
+                            <input
+                              type="checkbox"
+                              id="coupon_is_active"
+                              checked={newCoupon.is_active}
+                              onChange={e => setNewCoupon({ ...newCoupon, is_active: e.target.checked })}
+                              className="w-4 h-4 rounded text-[#5A3825] focus:ring-[#5A3825] border-gray-300 cursor-pointer"
+                            />
+                            <label htmlFor="coupon_is_active" className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer select-none">
+                              Activate Coupon
+                            </label>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-2"
+                          >
+                            {editingCoupon ? 'Update Coupon' : 'Publish Coupon'}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+
+                    {/* Coupons Ledger / List */}
+                    <div className="xl:col-span-2">
+                      <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                        <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0 flex justify-between items-center">
+                          <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Active & Expired Promo Coupons</h2>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg-main)] px-3 py-1 rounded-full border border-[var(--border)]">
+                            Total: {coupons.length}
+                          </span>
+                        </div>
+                        <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
+                          {coupons.length === 0 ? (
+                            <div className="p-16 text-center bg-[var(--bg-main)]/20 flex-1 flex flex-col justify-center items-center">
+                              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm text-2xl">🎫</div>
+                              <p className="text-[var(--text-muted)] font-bold text-sm tracking-wide">No platform coupons created yet</p>
+                              <p className="text-[var(--text-light)] text-xs mt-1">Use the coupon editor to publish a new promo code.</p>
+                            </div>
+                          ) : (
+                            coupons.map(coupon => {
+                              const isPercentage = coupon.discount_type === 'percentage';
+                              return (
+                                <div key={coupon.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-[var(--bg-main)] transition-colors">
+                                  <div className="space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <span className="font-black text-[var(--text-dark)] text-xl tracking-wide bg-[#FAF7F2] border border-[#E8D5BC] px-3 py-1 rounded-xl">
+                                        {coupon.code}
+                                      </span>
+                                      <span className="text-[10px] font-bold text-[#A87C51] bg-white border border-[#E8D5BC] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                        {isPercentage ? `${parseFloat(coupon.discount_value)}% Off` : `₹${parseFloat(coupon.discount_value)} Off`}
+                                      </span>
+                                      <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-md ${coupon.is_active
+                                          ? 'bg-green-50 text-green-600 border border-green-200'
+                                          : 'bg-gray-50 text-gray-500 border border-gray-200'
+                                        }`}>
+                                        {coupon.is_active ? 'Active' : 'Disabled'}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-[var(--text-muted)] font-medium space-y-1 mt-1.5">
+                                      <p>📅 <strong>Timeline:</strong> {new Date(coupon.start_datetime).toLocaleDateString()} → {new Date(coupon.end_datetime).toLocaleDateString()}</p>
+                                      <p>🛍️ <strong>Usage:</strong> {coupon.usages_count} redeemed {coupon.max_usages ? `/ ${coupon.max_usages} max` : '(unlimited)'}</p>
+                                      <p>💳 <strong>Rule:</strong> Min spend ₹{parseFloat(coupon.min_purchase_amount)} {coupon.max_discount_cap ? `| Max Cap ₹${parseFloat(coupon.max_discount_cap)}` : ''}</p>
+                                      {coupon.products && coupon.products.length > 0 && (
+                                        <p>📦 <strong>Scoped to:</strong> {coupon.products.length} specific product(s)</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 self-end md:self-auto shrink-0">
+                                    <button
+                                      onClick={() => handleToggleCouponActive(coupon)}
+                                      className={`px-3 py-2 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 ${coupon.is_active
+                                          ? 'border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                                          : 'border-green-200 bg-green-50 hover:bg-green-100 text-green-700'
+                                        }`}
+                                    >
+                                      {coupon.is_active ? 'Deactivate' : 'Activate'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleEditCoupon(coupon)}
+                                      className="px-3.5 py-2 border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E] rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteCoupon(coupon.id)}
+                                      className="px-3.5 py-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

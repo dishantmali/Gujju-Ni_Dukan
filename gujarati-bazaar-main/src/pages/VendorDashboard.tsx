@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  Package, 
-  Archive, 
-  Plus, 
-  Tag, 
-  Clock, 
-  ShoppingBag, 
+import {
+  Package,
+  Archive,
+  Plus,
+  Tag,
+  Clock,
+  ShoppingBag,
   CreditCard,
   LogOut,
   Edit,
@@ -17,10 +17,12 @@ import {
   X,
   Upload,
   Image as ImageIcon,
-  CheckCircle2
+  CheckCircle2,
+  Ticket
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { IconPicker } from "@/components/IconPicker";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
@@ -61,7 +63,7 @@ const VendorDashboard = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("products");
   const [viewType, setViewType] = useState("grid");
-  const [updatedFields, setUpdatedFields] = useState<{[key: string]: any}>({});
+  const [updatedFields, setUpdatedFields] = useState<{ [key: string]: any }>({});
   const [editingStockId, setEditingStockId] = useState<number | null>(null);
   const [newStockValue, setNewStockValue] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -74,17 +76,33 @@ const VendorDashboard = () => {
   const [editingOffer, setEditingOffer] = useState<any>(null);
 
   // Form states
-  const [newProduct, setNewProduct] = useState({ 
-    name: "", 
-    price: "", 
-    description: "", 
-    category: "", 
-    stock_quantity: "" 
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    price: "",
+    description: "",
+    category: "",
+    stock_quantity: "",
+    is_new: true
   });
   const [newProductVariants, setNewProductVariants] = useState<NewVariantForm[]>([
     { option_values: {}, sku: "", price: "", stock_quantity: "" },
   ]);
   const [addProductStep, setAddProductStep] = useState(1);
+  const [newCoupon, setNewCoupon] = useState({
+    code: "",
+    discount_type: "rupee",
+    discount_value: "",
+    start_datetime: "",
+    end_datetime: "",
+    limit_per_user: "1",
+    max_usages: "",
+    min_purchase_amount: "0",
+    max_discount_cap: "",
+    products: [] as number[]
+  });
+  const [isCreateCouponModalOpen, setIsCreateCouponModalOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
+  const [couponViewMode, setCouponViewMode] = useState<"grid" | "table">("grid");
   const [variantAttributes, setVariantAttributes] = useState<VariantAttribute[]>([
     { name: "Color", valuesText: "" },
     { name: "Size", valuesText: "" },
@@ -129,6 +147,11 @@ const VendorDashboard = () => {
     queryFn: () => api.get('/vendor/offer-requests/') as any
   });
 
+  const { data: coupons = [], isLoading: couponsLoading } = useQuery({
+    queryKey: ['vendor-coupons'],
+    queryFn: () => api.get('/vendor/coupons/') as any
+  });
+
   useEffect(() => {
     if (!isAuthenticated) {
       toast.error("Please log in as a vendor.");
@@ -154,7 +177,7 @@ const VendorDashboard = () => {
 
   // Mutations
   const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number, data: any }) => 
+    mutationFn: ({ id, data }: { id: number, data: any }) =>
       api.patch(`/vendor/products/${id}/`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
@@ -184,7 +207,7 @@ const VendorDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
       toast.success('Product added! Waiting for admin approval.');
-      setNewProduct({ name: "", price: "", description: "", category: "", stock_quantity: "" });
+      setNewProduct({ name: "", price: "", description: "", category: "", stock_quantity: "", is_new: true });
       setNewProductVariants([{ option_values: {}, sku: "", price: "", stock_quantity: "" }]);
       setVariantAttributes([
         { name: "Color", valuesText: "" },
@@ -213,7 +236,7 @@ const VendorDashboard = () => {
   });
 
   const updateOrderStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number, status: string }) => 
+    mutationFn: ({ id, status }: { id: number, status: string }) =>
       api.patch(`/vendor/order-items/${id}/status/`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-orders'] });
@@ -249,6 +272,48 @@ const VendorDashboard = () => {
     onError: (error: any) => {
       toast.error(getBackendErrorMessage(error, 'Failed to request offer'));
     }
+  });
+
+  const createCouponMutation = useMutation({
+    mutationFn: (data: any) => api.post('/vendor/coupons/', data),
+    onSuccess: () => {
+      toast.success('Coupon created successfully');
+      setNewCoupon({
+        code: "",
+        discount_type: "rupee",
+        discount_value: "",
+        start_datetime: "",
+        end_datetime: "",
+        limit_per_user: "1",
+        max_usages: "",
+        min_purchase_amount: "0",
+        max_discount_cap: "",
+        products: [] as number[]
+      });
+      queryClient.invalidateQueries({ queryKey: ['vendor-coupons'] });
+      setIsCreateCouponModalOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(getBackendErrorMessage(error, 'Failed to create coupon'));
+    }
+  });
+
+  const updateCouponMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number, data: any }) => api.patch(`/vendor/coupons/${id}/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-coupons'] });
+      toast.success('Coupon updated successfully');
+    },
+    onError: () => toast.error('Failed to update coupon')
+  });
+
+  const deleteCouponMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/vendor/coupons/${id}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-coupons'] });
+      toast.success('Coupon deleted successfully');
+    },
+    onError: () => toast.error('Failed to delete coupon')
   });
 
   const updateOfferMutation = useMutation({
@@ -327,16 +392,16 @@ const VendorDashboard = () => {
   });
 
   const handleFieldChange = (productId: string, field: string, value: string) => {
-    setUpdatedFields(prev => ({ 
-      ...prev, 
-      [productId]: { ...(prev[productId] || {}), [field]: value } 
+    setUpdatedFields(prev => ({
+      ...prev,
+      [productId]: { ...(prev[productId] || {}), [field]: value }
     }));
   };
 
   const handleQuickSave = async (productId: number) => {
     const changes = updatedFields[productId];
     if (!changes) return;
-    
+
     updateProductMutation.mutate({ id: productId, data: changes });
     const newFields = { ...updatedFields };
     delete newFields[productId];
@@ -345,9 +410,10 @@ const VendorDashboard = () => {
 
   const openEditModal = (product: any) => {
     // Ensure variants are present or empty array
-    setEditingProduct({ 
-      ...product, 
-      variants: product.variants || [] 
+    setEditingProduct({
+      ...product,
+      variants: product.variants || [],
+      is_new: product.is_new !== undefined ? product.is_new : true
     });
     setDeletedVariantImageIds([]);
     setDeletedProductImageIds([]);
@@ -384,7 +450,7 @@ const VendorDashboard = () => {
     }
     const updatedVariants = (editingProduct.variants || []).filter((_: any, i: number) => i !== index);
     setEditingProduct({ ...editingProduct, variants: updatedVariants });
-    
+
     // Also clean up new images state for this index
     const newImages = { ...editVariantNewImages };
     delete newImages[index];
@@ -397,8 +463,8 @@ const VendorDashboard = () => {
     setDeletedVariantImageIds(prev => [...prev, imageId]);
     setEditingProduct((prev: any) => ({
       ...prev,
-      variants: prev.variants.map((v: any) => 
-        v.id === variantId 
+      variants: prev.variants.map((v: any) =>
+        v.id === variantId
           ? { ...v, images: v.images.filter((img: any) => img.id !== imageId) }
           : v
       )
@@ -408,9 +474,9 @@ const VendorDashboard = () => {
   const handleFullUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
-    
+
     const variants = editingProduct.variants || [];
-    
+
     // Calculate total stock and min price from variants if they exist
     let finalPrice = editingProduct.price;
     let finalStock = editingProduct.stock_quantity;
@@ -426,7 +492,8 @@ const VendorDashboard = () => {
     formData.append("description", editingProduct.description);
     formData.append("category", editingProduct.category);
     formData.append("stock_quantity", String(finalStock));
-    
+    formData.append("is_new", String(editingProduct.is_new));
+
     if (variants.length > 0) {
       formData.append("variants_input", JSON.stringify(variants));
     }
@@ -456,13 +523,30 @@ const VendorDashboard = () => {
     if (imageInput && imageInput.files?.[0]) {
       formData.append("image", imageInput.files[0]);
     }
-    
-    updateProductMutation.mutate({ 
-      id: editingProduct.id, 
+
+    updateProductMutation.mutate({
+      id: editingProduct.id,
       data: formData
     });
     setIsEditModalOpen(false);
     setEditingProduct(null);
+  };
+
+  const openEditCouponModal = (coupon: any) => {
+    setEditingCoupon(coupon);
+    setNewCoupon({
+      code: coupon.code,
+      discount_type: coupon.discount_type,
+      discount_value: String(coupon.discount_value),
+      min_purchase_amount: String(coupon.min_purchase_amount),
+      max_discount_cap: coupon.max_discount_cap ? String(coupon.max_discount_cap) : '',
+      limit_per_user: String(coupon.limit_per_user || 1),
+      max_usages: coupon.max_usages ? String(coupon.max_usages) : '',
+      start_datetime: coupon.start_datetime ? coupon.start_datetime.substring(0, 16) : '',
+      end_datetime: coupon.end_datetime ? coupon.end_datetime.substring(0, 16) : '',
+      products: coupon.products || []
+    });
+    setIsCreateCouponModalOpen(true);
   };
 
   const handleRestock = async (productId: number) => {
@@ -470,10 +554,10 @@ const VendorDashboard = () => {
       toast.error('Valid quantity required');
       return;
     }
-    
-    updateProductMutation.mutate({ 
-      id: productId, 
-      data: { stock_quantity: newStockValue } 
+
+    updateProductMutation.mutate({
+      id: productId,
+      data: { stock_quantity: newStockValue }
     });
     setEditingStockId(null);
     setNewStockValue("");
@@ -485,9 +569,9 @@ const VendorDashboard = () => {
   };
 
   const handleRestoreProduct = async (productId: number) => {
-    updateProductMutation.mutate({ 
-      id: productId, 
-      data: { is_active: true } 
+    updateProductMutation.mutate({
+      id: productId,
+      data: { is_active: true }
     });
   };
 
@@ -548,6 +632,7 @@ const VendorDashboard = () => {
     formData.append("price", String(minPrice));
     formData.append("stock_quantity", String(totalStock));
     formData.append("image", newProductImage);
+    formData.append("is_new", String(newProduct.is_new));
     const variantsJson = JSON.stringify(payloadVariants);
     console.log("[VENDOR] payloadVariants:", payloadVariants);
     console.log("[VENDOR] variants_input JSON:", variantsJson);
@@ -727,6 +812,7 @@ const VendorDashboard = () => {
     { key: "subscription", label: "Subscription Plan", icon: CreditCard, badge: null },
     { key: "request_category", label: "Request Category", icon: Tag, badge: null },
     { key: "request_offer", label: "Create Offer", icon: Clock, badge: null },
+    { key: "coupons", label: "My Coupons", icon: Ticket, badge: null },
   ];
 
   if (productsLoading || categoriesLoading || ordersLoading || plansLoading) {
@@ -776,11 +862,10 @@ const VendorDashboard = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 + index * 0.05 }}
                     onClick={() => setActiveTab(key)}
-                    className={`flex items-center justify-between px-5 py-3.5 text-sm font-medium border-b border-border transition-all duration-200 ${
-                      activeTab === key
+                    className={`flex items-center justify-between px-5 py-3.5 text-sm font-medium border-b border-border transition-all duration-200 ${activeTab === key
                         ? "bg-primary text-primary-foreground border-l-4 border-l-accent"
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <Icon size={18} />
@@ -794,7 +879,7 @@ const VendorDashboard = () => {
                   </motion.button>
                 ))}
               </nav>
-              
+
               <div className="px-4 py-4 border-t border-border">
                 <button
                   onClick={handleLogout}
@@ -821,21 +906,19 @@ const VendorDashboard = () => {
                   <div className="flex bg-muted p-1 rounded-lg">
                     <button
                       onClick={() => setViewType("grid")}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                        viewType === "grid"
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewType === "grid"
                           ? "bg-card shadow-sm text-foreground"
                           : "text-muted-foreground hover:text-foreground"
-                      }`}
+                        }`}
                     >
                       Grid
                     </button>
                     <button
                       onClick={() => setViewType("list")}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                        viewType === "list"
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewType === "list"
                           ? "bg-card shadow-sm text-foreground"
                           : "text-muted-foreground hover:text-foreground"
-                      }`}
+                        }`}
                     >
                       List Edit
                     </button>
@@ -857,10 +940,10 @@ const VendorDashboard = () => {
                         >
                           <div className="h-48 bg-muted rounded-lg flex items-center justify-center mb-4 overflow-hidden">
                             {product.image ? (
-                              <img 
-                                src={product.image} 
-                                className="max-h-full object-contain" 
-                                alt={product.name} 
+                              <img
+                                src={product.image}
+                                className="max-h-full object-contain"
+                                alt={product.name}
                               />
                             ) : (
                               <ImageIcon size={48} className="text-muted-foreground" />
@@ -925,13 +1008,12 @@ const VendorDashboard = () => {
                             )}
                           </div>
                           <div className="pt-2 border-t border-border">
-                            <span className={`text-xs px-2 py-1 uppercase font-bold rounded-md ${
-                              product.status === "approved" 
-                                ? "bg-success text-success-foreground" 
-                                : product.status === "rejected" 
-                                ? "bg-destructive text-destructive-foreground"
-                                : "bg-muted text-muted-foreground"
-                            }`}>
+                            <span className={`text-xs px-2 py-1 uppercase font-bold rounded-md ${product.status === "approved"
+                                ? "bg-success text-success-foreground"
+                                : product.status === "rejected"
+                                  ? "bg-destructive text-destructive-foreground"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
                               {product.status}
                             </span>
                           </div>
@@ -964,10 +1046,9 @@ const VendorDashboard = () => {
                                   )}
                                   <div>
                                     <span className="font-bold text-foreground block truncate max-w-xs">{product.name}</span>
-                                    <span className={`text-xs uppercase font-bold ${
-                                      product.status === "approved" ? "text-success" : 
-                                      product.status === "rejected" ? "text-destructive" : "text-muted-foreground"
-                                    }`}>
+                                    <span className={`text-xs uppercase font-bold ${product.status === "approved" ? "text-success" :
+                                        product.status === "rejected" ? "text-destructive" : "text-muted-foreground"
+                                      }`}>
                                       {product.status}
                                     </span>
                                   </div>
@@ -1028,7 +1109,7 @@ const VendorDashboard = () => {
             )}
 
             {/* Other tabs would follow similar patterns... */}
-            
+
             {/* Orders Tab */}
             {activeTab === "orders" && (
               <motion.div
@@ -1078,12 +1159,11 @@ const VendorDashboard = () => {
                           <div className="flex flex-col gap-2 min-w-[150px]">
                             <label className="text-xs font-bold text-muted-foreground uppercase">Update Status</label>
                             <select
-                              className={`p-2 border rounded-lg text-sm font-bold outline-none transition-colors ${
-                                order.status === "pending" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                                order.status === "confirmed" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                order.status === "shipped" ? "bg-purple-50 text-purple-700 border-purple-200" :
-                                "bg-green-50 text-green-700 border-green-200"
-                              }`}
+                              className={`p-2 border rounded-lg text-sm font-bold outline-none transition-colors ${order.status === "pending" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                                  order.status === "confirmed" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                    order.status === "shipped" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                      "bg-green-50 text-green-700 border-green-200"
+                                }`}
                               value={order.status}
                               onChange={(e) => handleOrderStatusUpdate(order.id, e.target.value)}
                             >
@@ -1172,6 +1252,18 @@ const VendorDashboard = () => {
                           rows={4}
                           className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all resize-none"
                         />
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="checkbox"
+                          id="new-product-is-new"
+                          checked={newProduct.is_new}
+                          onChange={(e) => setNewProduct({ ...newProduct, is_new: e.target.checked })}
+                          className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                        />
+                        <label htmlFor="new-product-is-new" className="text-sm font-bold text-muted-foreground cursor-pointer">
+                          Mark as New Arrival (Show "NEW" Tag)
+                        </label>
                       </div>
                     </>
                   )}
@@ -1288,7 +1380,7 @@ const VendorDashboard = () => {
                                     placeholder="Variant label"
                                     className="col-span-4 p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
                                     value=""
-                                    onChange={() => {}}
+                                    onChange={() => { }}
                                   />
                                 )}
                                 <input
@@ -1595,13 +1687,13 @@ const VendorDashboard = () => {
                           <span className="font-medium text-foreground text-right">
                             {newProductVariants.some((v) => v.price)
                               ? (() => {
-                                  const prices = newProductVariants
-                                    .filter((v) => v.price)
-                                    .map((v) => Number(v.price));
-                                  const min = Math.min(...prices);
-                                  const max = Math.max(...prices);
-                                  return min === max ? `₹${min.toLocaleString()}` : `₹${min.toLocaleString()} – ₹${max.toLocaleString()}`;
-                                })()
+                                const prices = newProductVariants
+                                  .filter((v) => v.price)
+                                  .map((v) => Number(v.price));
+                                const min = Math.min(...prices);
+                                const max = Math.max(...prices);
+                                return min === max ? `₹${min.toLocaleString()}` : `₹${min.toLocaleString()} – ₹${max.toLocaleString()}`;
+                              })()
                               : "Not set"}
                           </span>
 
@@ -1746,10 +1838,10 @@ const VendorDashboard = () => {
                               {isCurrent
                                 ? "Current Plan"
                                 : createSubscriptionOrderMutation.isPending
-                                ? "Processing..."
-                                : Number(plan.price) === 0
-                                ? "Activate Plan"
-                                : "Purchase Plan"}
+                                  ? "Processing..."
+                                  : Number(plan.price) === 0
+                                    ? "Activate Plan"
+                                    : "Purchase Plan"}
                             </button>
                           </div>
                         );
@@ -1846,9 +1938,9 @@ const VendorDashboard = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground mb-3">Category Icon</label>
-                    <IconPicker 
-                      value={newCategory.icon} 
-                      onChange={(icon) => setNewCategory({ ...newCategory, icon })} 
+                    <IconPicker
+                      value={newCategory.icon}
+                      onChange={(icon) => setNewCategory({ ...newCategory, icon })}
                     />
                   </div>
 
@@ -1900,22 +1992,18 @@ const VendorDashboard = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
-                      <input
+                      <DateTimePicker
                         type="date"
-                        required
                         value={newOffer.start_date}
-                        onChange={(e) => setNewOffer({ ...newOffer, start_date: e.target.value })}
-                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                        onChange={(val) => setNewOffer({ ...newOffer, start_date: val })}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
-                      <input
+                      <DateTimePicker
                         type="date"
-                        required
                         value={newOffer.end_date}
-                        onChange={(e) => setNewOffer({ ...newOffer, end_date: e.target.value })}
-                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                        onChange={(val) => setNewOffer({ ...newOffer, end_date: val })}
                       />
                     </div>
                   </div>
@@ -1956,7 +2044,7 @@ const VendorDashboard = () => {
                     {requestOfferMutation.isPending ? 'Submitting...' : 'Create Offer'}
                   </button>
                 </form>
-                
+
                 {/* Active Offers Table */}
                 <div className="border-t border-border mt-6">
                   <div className="px-6 py-5 bg-background-warm border-b border-border">
@@ -2030,6 +2118,317 @@ const VendorDashboard = () => {
                 </div>
               </motion.div>
             )}
+
+            {/* Coupons Tab */}
+            {activeTab === "coupons" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                {/* Glassmorphic Stats Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="p-5 bg-gradient-to-br from-amber-500/5 to-orange-500/10 rounded-2xl border border-amber-500/15 backdrop-blur-sm flex items-center justify-between shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase text-amber-800/80 tracking-wider">Total Coupons</p>
+                      <h4 className="text-3xl font-black text-brown-mid mt-1">{coupons.length}</h4>
+                    </div>
+                    <div className="h-12 w-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-700">
+                      <Ticket size={22} />
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-gradient-to-br from-emerald-500/5 to-teal-500/10 rounded-2xl border border-emerald-500/15 backdrop-blur-sm flex items-center justify-between shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase text-emerald-800/80 tracking-wider">Active & Live</p>
+                      <h4 className="text-3xl font-black text-emerald-800 mt-1">
+                        {coupons.filter((c: any) => c.is_active && new Date(c.end_datetime) > new Date() && new Date() >= new Date(c.start_datetime)).length}
+                      </h4>
+                    </div>
+                    <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-700">
+                      <CheckCircle2 size={22} />
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-gradient-to-br from-indigo-500/5 to-purple-500/10 rounded-2xl border border-indigo-500/15 backdrop-blur-sm flex items-center justify-between shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-extrabold uppercase text-indigo-800/80 tracking-wider">Redemptions</p>
+                      <h4 className="text-3xl font-black text-indigo-900 mt-1">
+                        {coupons.reduce((sum: number, c: any) => sum + (c.usages_count ?? c.usages?.length ?? 0), 0)}
+                      </h4>
+                    </div>
+                    <div className="h-12 w-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-700">
+                      <ShoppingBag size={22} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Coupons Container */}
+                <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                  <div className="px-6 py-5 border-b border-border bg-background-warm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div>
+                      <h2 className="font-display text-xl font-bold text-foreground">My Coupons</h2>
+                      <p className="text-sm text-muted-foreground mt-1">Manage vendor-restricted discount coupons</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {/* View Toggle */}
+                      {coupons.length > 0 && (
+                        <div className="flex bg-muted p-1 rounded-lg">
+                          <button
+                            onClick={() => setCouponViewMode("grid")}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${couponViewMode === "grid"
+                                ? "bg-card shadow-sm text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                              }`}
+                          >
+                            Ticket Grid
+                          </button>
+                          <button
+                            onClick={() => setCouponViewMode("table")}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${couponViewMode === "table"
+                                ? "bg-card shadow-sm text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                              }`}
+                          >
+                            Table List
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setEditingCoupon(null);
+                          setNewCoupon({ code: '', discount_type: 'rupee', discount_value: '', min_purchase_amount: '0', max_discount_cap: '', limit_per_user: '1', max_usages: '', start_datetime: '', end_datetime: '', products: [] });
+                          setIsCreateCouponModalOpen(true);
+                        }}
+                        className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Plus size={14} /> Create Coupon
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    {couponsLoading ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Loading coupons...</p>
+                    ) : coupons.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">No coupons created yet. Click "Create Coupon" to start.</p>
+                    ) : couponViewMode === "grid" ? (
+                      /* Visual Ticket Stub Grid */
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {coupons.map((coupon: any, idx: number) => {
+                          const now = new Date();
+                          const start = new Date(coupon.start_datetime);
+                          const end = new Date(coupon.end_datetime);
+                          const isExpired = now > end;
+                          const isUpcoming = now < start;
+                          const usages = coupon.usages_count ?? coupon.usages?.length ?? 0;
+
+                          let timelineStatus = "Active";
+                          let timelineClass = "bg-success/10 text-success border-success/20";
+                          if (isExpired) {
+                            timelineStatus = "Expired";
+                            timelineClass = "bg-destructive/10 text-destructive border-destructive/20";
+                          } else if (isUpcoming) {
+                            timelineStatus = "Upcoming";
+                            timelineClass = "bg-accent/10 text-accent border-accent/20";
+                          }
+
+                          return (
+                            <motion.div
+                              key={coupon.id}
+                              initial={{ opacity: 0, y: 15 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.05 }}
+                              whileHover={{ y: -4 }}
+                              className="relative bg-card border border-border/80 rounded-2xl overflow-hidden shadow-sm hover:shadow-card transition-all flex flex-col min-h-[240px]"
+                            >
+                              {/* Ticket Notch cutouts */}
+                              <div className="absolute -left-2 top-[140px] w-4 h-8 bg-background border border-border rounded-full z-10"></div>
+                              <div className="absolute -right-2 top-[140px] w-4 h-8 bg-background border border-border rounded-full z-10"></div>
+
+                              {/* Top Part */}
+                              <div className="p-5 flex-1 flex flex-col justify-between">
+                                <div className="flex justify-between items-start">
+                                  <span className={`px-2 py-0.5 rounded border text-[9px] uppercase font-extrabold tracking-wider ${timelineClass}`}>
+                                    {timelineStatus}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground font-semibold bg-muted/60 px-2 py-0.5 rounded-full border">
+                                    Min Pay: ₹{parseFloat(coupon.min_purchase_amount).toLocaleString()}
+                                  </span>
+                                </div>
+
+                                <div className="text-center my-4">
+                                  <h3 className="font-display font-black text-3xl text-brown-mid tracking-tight">
+                                    {coupon.discount_type === 'rupee'
+                                      ? `₹${parseFloat(coupon.discount_value).toLocaleString()}`
+                                      : `${parseFloat(coupon.discount_value)}%`} OFF
+                                  </h3>
+                                  {coupon.discount_type === 'percentage' && coupon.max_discount_cap && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">Cap: ₹{parseFloat(coupon.max_discount_cap)}</p>
+                                  )}
+                                  <div className="mt-3.5 inline-block px-4 py-1.5 bg-muted/60 rounded-xl border border-dashed border-border/80">
+                                    <span className="font-mono text-sm font-black text-foreground tracking-widest uppercase">{coupon.code}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Dashed Separator Line */}
+                              <div className="border-t border-dashed border-border/80 mx-5"></div>
+
+                              {/* Bottom Part */}
+                              <div className="p-4 bg-muted/20 px-6 flex justify-between items-center text-xs text-muted-foreground mt-auto">
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    Redeemed: <span className="font-bold text-foreground">{usages}</span>{coupon.max_usages && ` / ${coupon.max_usages}`}
+                                  </p>
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">
+                                    Ends: {end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => openEditCouponModal(coupon)}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all border bg-secondary text-secondary-foreground border-secondary hover:bg-secondary/80"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => updateCouponMutation.mutate({ id: coupon.id, data: { is_active: !coupon.is_active } })}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${coupon.is_active
+                                        ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80"
+                                        : "bg-success/10 text-success border-success/20 hover:bg-success/20"
+                                      }`}
+                                  >
+                                    {coupon.is_active ? 'Pause' : 'Resume'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm('Are you sure you want to delete this coupon?')) {
+                                        deleteCouponMutation.mutate(coupon.id);
+                                      }
+                                    }}
+                                    className="p-2 bg-destructive/10 hover:bg-destructive hover:text-destructive-foreground text-destructive rounded-xl transition-colors flex items-center justify-center border border-destructive/20"
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Classic Dense Table List */
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-border bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                              <th className="p-3">Code</th>
+                              <th className="p-3">Discount</th>
+                              <th className="p-3">Min Purchase</th>
+                              <th className="p-3">Valid Dates (IST)</th>
+                              <th className="p-3">Status</th>
+                              <th className="p-3 text-center">Redemptions</th>
+                              <th className="p-3 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {coupons.map((coupon: any) => {
+                              const now = new Date();
+                              const start = new Date(coupon.start_datetime);
+                              const end = new Date(coupon.end_datetime);
+                              const isExpired = now > end;
+                              const isUpcoming = now < start;
+
+                              let timelineStatus = "Active";
+                              let timelineColor = "text-success bg-success/10 border-success/20";
+                              if (isExpired) {
+                                timelineStatus = "Expired";
+                                timelineColor = "text-destructive bg-destructive/10 border-destructive/20";
+                              } else if (isUpcoming) {
+                                timelineStatus = "Upcoming";
+                                timelineColor = "text-accent bg-accent/10 border-accent/20";
+                              }
+
+                              return (
+                                <tr key={coupon.id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="p-3 font-black text-sm text-foreground tracking-wider">{coupon.code}</td>
+                                  <td className="p-3 text-sm font-semibold">
+                                    {coupon.discount_type === 'rupee'
+                                      ? `₹${parseFloat(coupon.discount_value).toLocaleString()}`
+                                      : `${parseFloat(coupon.discount_value)}%`}
+                                    {coupon.discount_type === 'percentage' && coupon.max_discount_cap && (
+                                      <span className="text-xs text-muted-foreground block font-normal">Max Cap: ₹{coupon.max_discount_cap}</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-sm text-muted-foreground">₹{parseFloat(coupon.min_purchase_amount).toLocaleString()}</td>
+                                  <td className="p-3 text-xs text-muted-foreground leading-normal">
+                                    {start.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })} <br />
+                                    to <br />
+                                    {end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
+                                  </td>
+                                  <td className="p-3 text-xs">
+                                    <div className="flex flex-col gap-1 items-start">
+                                      <span className={`px-2.5 py-0.5 rounded border text-[10px] uppercase font-bold tracking-wider ${timelineColor}`}>
+                                        {timelineStatus}
+                                      </span>
+                                      {!coupon.is_active && (
+                                        <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] uppercase font-semibold">
+                                          Deactivated
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-sm font-semibold text-center text-brown-mid">
+                                    {coupon.usages_count ?? coupon.usages?.length ?? 0}
+                                    {coupon.max_usages && (
+                                      <span className="text-xs text-muted-foreground font-normal"> / {coupon.max_usages}</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => openEditCouponModal(coupon)}
+                                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                                        title="Edit Coupon"
+                                      >
+                                        <Edit size={16} />
+                                      </button>
+                                      <button
+                                        onClick={() => updateCouponMutation.mutate({ id: coupon.id, data: { is_active: !coupon.is_active } })}
+                                        className={`px-3 py-1 rounded text-xs font-bold transition-all ${coupon.is_active
+                                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                            : "bg-success/15 text-success hover:bg-success/25"
+                                          }`}
+                                      >
+                                        {coupon.is_active ? 'Deactivate' : 'Activate'}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm('Are you sure you want to delete this coupon?')) {
+                                            deleteCouponMutation.mutate(coupon.id);
+                                          }
+                                        }}
+                                        className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded transition-colors inline-flex align-middle"
+                                        title="Delete Coupon"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </main>
         </div>
 
@@ -2095,6 +2494,18 @@ const VendorDashboard = () => {
                         onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
                         className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors resize-none"
                       />
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="edit-product-is-new"
+                        checked={editingProduct.is_new}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, is_new: e.target.checked })}
+                        className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                      />
+                      <label htmlFor="edit-product-is-new" className="text-sm font-bold text-muted-foreground cursor-pointer">
+                        Mark as New Arrival (Show "NEW" Tag)
+                      </label>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Update Main Image (Optional)</label>
@@ -2174,11 +2585,11 @@ const VendorDashboard = () => {
                       + Add Variant
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                     {(editingProduct.variants || []).length === 0 ? (
                       <p className="text-xs text-muted-foreground italic text-center py-4 bg-muted/30 rounded-lg">
-                        No variants defined for this product. 
+                        No variants defined for this product.
                         {editingProduct.variants?.length === 0 && " Basic price and stock will be used."}
                       </p>
                     ) : (
@@ -2347,12 +2758,12 @@ const VendorDashboard = () => {
                 </button>
               </div>
 
-              <form 
+              <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   updateOfferMutation.mutate({ id: editingOffer.id, data: editingOffer });
                   setIsEditOfferModalOpen(false);
-                }} 
+                }}
                 className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar"
               >
                 <div>
@@ -2380,22 +2791,18 @@ const VendorDashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
-                    <input
+                    <DateTimePicker
                       type="date"
-                      required
                       value={editingOffer.start_date}
-                      onChange={(e) => setEditingOffer({ ...editingOffer, start_date: e.target.value })}
-                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                      onChange={(val) => setEditingOffer({ ...editingOffer, start_date: val })}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
-                    <input
+                    <DateTimePicker
                       type="date"
-                      required
                       value={editingOffer.end_date}
-                      onChange={(e) => setEditingOffer({ ...editingOffer, end_date: e.target.value })}
-                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                      onChange={(val) => setEditingOffer({ ...editingOffer, end_date: val })}
                     />
                   </div>
                 </div>
@@ -2435,6 +2842,221 @@ const VendorDashboard = () => {
                     className="px-6 py-2.5 bg-primary text-primary-foreground rounded-full font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors text-xs disabled:opacity-50"
                   >
                     {updateOfferMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Create Coupon Modal */}
+        {isCreateCouponModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-card rounded-2xl shadow-lift w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/30">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">{editingCoupon ? 'Edit Coupon' : 'Create Coupon'}</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Design a discount restricted to your products</p>
+                </div>
+                <button
+                  onClick={() => setIsCreateCouponModalOpen(false)}
+                  className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-full"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (new Date(newCoupon.start_datetime) >= new Date(newCoupon.end_datetime)) {
+                    toast.error('End date/time must be strictly after start date/time.');
+                    return;
+                  }
+                  if (newCoupon.discount_type === 'percentage' && (Number(newCoupon.discount_value) <= 0 || Number(newCoupon.discount_value) > 100)) {
+                    toast.error('Percentage discount must be between 1 and 100.');
+                    return;
+                  }
+                  const payload = {
+                    ...newCoupon,
+                    discount_value: Number(newCoupon.discount_value),
+                    limit_per_user: Number(newCoupon.limit_per_user),
+                    min_purchase_amount: Number(newCoupon.min_purchase_amount),
+                    max_usages: newCoupon.max_usages ? Number(newCoupon.max_usages) : null,
+                    max_discount_cap: newCoupon.max_discount_cap ? Number(newCoupon.max_discount_cap) : null,
+                  };
+                  if (editingCoupon) {
+                    updateCouponMutation.mutate({ id: editingCoupon.id, data: payload });
+                  } else {
+                    createCouponMutation.mutate(payload);
+                  }
+                  setIsCreateCouponModalOpen(false);
+                  setEditingCoupon(null);
+                }}
+                className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar"
+              >
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Coupon Code</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. FESTIVE20"
+                    value={newCoupon.code}
+                    onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase().replace(/\s+/g, '') })}
+                    className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all font-mono uppercase tracking-wider"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Discount Type</label>
+                    <select
+                      value={newCoupon.discount_type}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, discount_type: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                    >
+                      <option value="rupee">Flat Rupee (₹)</option>
+                      <option value="percentage">Percentage (%)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Discount Value</label>
+                    <input
+                      type="number"
+                      required
+                      min="0.01"
+                      step="0.01"
+                      placeholder={newCoupon.discount_type === 'percentage' ? "e.g. 15" : "e.g. 150"}
+                      value={newCoupon.discount_value}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, discount_value: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {newCoupon.discount_type === 'percentage' && (
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Maximum Discount Cap (₹, Optional)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 500"
+                      value={newCoupon.max_discount_cap}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, max_discount_cap: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date & Time</label>
+                    <DateTimePicker
+                      type="datetime-local"
+                      value={newCoupon.start_datetime}
+                      onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">End Date & Time</label>
+                    <DateTimePicker
+                      type="datetime-local"
+                      value={newCoupon.end_datetime}
+                      onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground mb-1">Limit Per User</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={newCoupon.limit_per_user}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, limit_per_user: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground mb-1">Total Max Uses</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Optional"
+                      value={newCoupon.max_usages}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, max_usages: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground mb-1">Min Subtotal (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCoupon.min_purchase_amount}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, min_purchase_amount: e.target.value })}
+                      className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Apply to Specific Products</label>
+                  <div className="max-h-40 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50 custom-scrollbar">
+                    {products.filter((p: any) => p.is_active).length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-2">No active products available.</p>
+                    ) : (
+                      products.filter((p: any) => p.is_active).map((product: any) => (
+                        <label key={product.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={newCoupon.products.includes(product.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewCoupon({ ...newCoupon, products: [...newCoupon.products, product.id] });
+                              } else {
+                                setNewCoupon({ ...newCoupon, products: newCoupon.products.filter(id => id !== product.id) });
+                              }
+                            }}
+                            className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                          />
+                          <span className="text-sm font-medium text-foreground line-clamp-1 flex-1">{product.name}</span>
+                          <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
+                            ₹{parseFloat(product.price).toLocaleString()}
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    * Leave unchecked to apply to all your active products in the cart.
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-border flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setIsCreateCouponModalOpen(false); setEditingCoupon(null); }}
+                    className="px-4 py-2 border border-border rounded-lg text-sm font-bold text-foreground hover:bg-muted transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createCouponMutation.isPending || updateCouponMutation.isPending}
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {createCouponMutation.isPending || updateCouponMutation.isPending ? 'Saving...' : editingCoupon ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>

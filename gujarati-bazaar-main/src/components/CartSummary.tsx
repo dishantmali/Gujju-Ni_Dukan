@@ -1,18 +1,36 @@
 import { Link } from "react-router-dom";
 import { useCart } from "@/store/cart";
 
-export const CartSummary = ({ ctaTo = "/checkout", ctaLabel = "Proceed to Checkout", hideCta = false }: { ctaTo?: string; ctaLabel?: string; hideCta?: boolean }) => {
+export const CartSummary = ({ 
+  ctaTo = "/checkout", 
+  ctaLabel = "Proceed to Checkout", 
+  hideCta = false,
+  appliedCoupon = null
+}: { 
+  ctaTo?: string; 
+  ctaLabel?: string; 
+  hideCta?: boolean;
+  appliedCoupon?: any;
+}) => {
   const subtotal = useCart((s) => s.subtotal());
   const items = useCart((s) => s.items);
-  const platformFee = Math.round(subtotal * 0.05 * 100) / 100;
+  const discount = appliedCoupon ? parseFloat(appliedCoupon.discount_amount) : 0;
+  const subAfterDiscount = Math.max(0, subtotal - discount);
+  const platformFee = Math.round(subAfterDiscount * 0.05 * 100) / 100;
   const gst = Math.round(platformFee * 0.18 * 100) / 100;
-  const total = Math.round((subtotal + platformFee + gst) * 100) / 100;
+  const total = Math.round((subAfterDiscount + platformFee + gst) * 100) / 100;
 
   return (
     <aside className={`rounded-2xl bg-card border border-border/60 shadow-card p-5 sticky top-24${hideCta ? " max-w-xs" : ""}`}>
       <h3 className="font-display font-semibold text-lg mb-4">Order Summary</h3>
       <dl className="space-y-2.5 text-sm">
         <div className="flex justify-between"><dt className="text-muted-foreground">Subtotal ({items.length} items)</dt><dd className="font-medium">₹{subtotal.toLocaleString("en-IN")}</dd></div>
+        {discount > 0 && appliedCoupon && (
+          <div className="flex justify-between text-success font-semibold">
+            <dt>Coupon Discount ({appliedCoupon.code})</dt>
+            <dd>-₹{discount.toLocaleString("en-IN")}</dd>
+          </div>
+        )}
         <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee (5%)</dt><dd className="font-medium">₹{platformFee.toLocaleString("en-IN")}</dd></div>
         <div className="flex justify-between"><dt className="text-muted-foreground">GST (18%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
         <div className="border-t border-border pt-3 mt-3 flex justify-between text-base">
@@ -32,3 +50,4 @@ export const CartSummary = ({ ctaTo = "/checkout", ctaLabel = "Proceed to Checko
     </aside>
   );
 };
+

@@ -15,7 +15,8 @@ from .models import (
     ProductReview,
     PlatformReview,
     SubscriptionPlan,
-    VendorSubscription
+    VendorSubscription,
+    ManualReview
 )
 
 
@@ -171,3 +172,19 @@ class VendorSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('vendor', 'plan', 'is_active', 'end_date')
     list_filter = ('is_active', 'plan')
     search_fields = ('vendor__shop_name',)
+
+
+@admin.register(ManualReview)
+class ManualReviewAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'city', 'stars', 'is_active', 'created_at')
+    list_filter = ('stars', 'is_active', 'created_at')
+    search_fields = ('name', 'city', 'description')
+    actions = ['activate_reviews', 'deactivate_reviews']
+
+    def activate_reviews(self, request, queryset):
+        queryset.update(is_active=True)
+    activate_reviews.short_description = "Activate selected reviews"
+
+    def deactivate_reviews(self, request, queryset):
+        queryset.update(is_active=False)
+    deactivate_reviews.short_description = "Deactivate selected reviews"
