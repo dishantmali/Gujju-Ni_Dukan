@@ -45,10 +45,9 @@ export const Footer = () => (
       </div>
     </div>
     <div className="border-t border-border/60">
-      <div className="container py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} Gujju ni Dukan. All rights reserved.</p>
-        <p className="inline-flex items-center gap-1">
-          Made with <Heart size={12} className="fill-destructive text-destructive" /> in Gujarat
+      <div className="container py-5 flex flex-col items-center justify-center text-xs text-muted-foreground text-center">
+        <p>
+          © COPYRIGHT 2014-26 | Gujju Ni Dukan | ALL RIGHTS RESERVED | DEVELOPED BY <a href="https://technoadviser.com/" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-primary transition-colors">TECHNOADVISER</a>
         </p>
       </div>
     </div>
