@@ -61,12 +61,15 @@ class VendorProfile(models.Model):
         on_delete=models.CASCADE,
         related_name='vendor_profile'
     )
-    shop_name = models.CharField(max_length=255)
+    shop_name = models.CharField(max_length=255, unique=True)
     contact_details = models.TextField()
     logo = models.ImageField(upload_to='vendor_logos/', null=True, blank=True)
     tagline = models.CharField(max_length=255, null=True, blank=True)
     city = models.CharField(max_length=100, null=True, blank=True)
-    address = models.TextField(null=True, blank=True)
+    state = models.CharField(max_length=100, null=True, blank=True)
+    pincode = models.CharField(max_length=10, null=True, blank=True)
+    address_line_1 = models.CharField(max_length=255, null=True, blank=True)
+    address_line_2 = models.CharField(max_length=255, null=True, blank=True)
     phone = models.CharField(
         max_length=10, 
         validators=[mobile_num_validator], 
@@ -477,7 +480,8 @@ class Offer(models.Model):
 
 class Banner(models.Model):
     title = models.CharField(max_length=255)
-    image = models.ImageField(upload_to='banners/')
+    image = models.ImageField(upload_to='banners/', null=True, blank=True)
+    youtube_url = models.CharField(max_length=500, blank=True, null=True, help_text="YouTube Video URL (For Right Banner)")
     is_active = models.BooleanField(default=True)
     position = models.CharField(
         max_length=10,

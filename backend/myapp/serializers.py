@@ -79,7 +79,11 @@ class RegisterSerializer(SanitizedSerializer):
     shop_name = serializers.CharField(write_only=True, required=False)
     contact_details = serializers.CharField(write_only=True, required=False)
     logo = serializers.ImageField(required=False)
-    address = serializers.CharField(required=False)
+    address_line_1 = serializers.CharField(required=False)
+    address_line_2 = serializers.CharField(required=False, allow_blank=True)
+    city = serializers.CharField(required=False)
+    state = serializers.CharField(required=False)
+    pincode = serializers.CharField(required=False)
     phone = serializers.CharField(required=False)
 
     class Meta:
@@ -92,7 +96,11 @@ class RegisterSerializer(SanitizedSerializer):
             'shop_name',
             'contact_details',
             'logo',
-            'address',
+            'address_line_1',
+            'address_line_2',
+            'city',
+            'state',
+            'pincode',
             'phone',
         ]
 
@@ -101,6 +109,13 @@ class RegisterSerializer(SanitizedSerializer):
             if not data.get('shop_name') or not data.get('contact_details'):
                 raise serializers.ValidationError(
                     "Vendor must provide shop_name and contact_details."
+                )
+            
+            # Check for existing shop name (case-insensitive)
+            shop_name = data.get('shop_name').strip()
+            if VendorProfile.objects.filter(shop_name__iexact=shop_name).exists():
+                raise serializers.ValidationError(
+                    {"shop_name": "This shop name is already taken. Please choose another one."}
                 )
         return data
     
@@ -134,7 +149,11 @@ class RegisterSerializer(SanitizedSerializer):
                 shop_name=validated_data.get('shop_name'),
                 contact_details=validated_data.get('contact_details'),
                 logo=validated_data.get('logo'),
-                address=validated_data.get('address'),
+                address_line_1=validated_data.get('address_line_1'),
+                address_line_2=validated_data.get('address_line_2'),
+                city=validated_data.get('city'),
+                state=validated_data.get('state'),
+                pincode=validated_data.get('pincode'),
                 phone=validated_data.get('phone'),
                 is_approved=False
             )
@@ -150,7 +169,7 @@ class VendorProfileSerializer(SanitizedSerializer):
 
     class Meta:
         model = VendorProfile
-        fields = ['id', 'name', 'tagline', 'city', 'logo', 'initials', 'average_rating']
+        fields = ['id', 'name', 'tagline', 'city', 'logo', 'initials', 'average_rating', 'is_approved']
 
     def get_initials(self, obj):
         if not obj.shop_name: return "VN"
@@ -162,6 +181,21 @@ class VendorProfileSerializer(SanitizedSerializer):
     def get_average_rating(self, obj):
         avg = obj.vendor_reviews.aggregate(models.Avg('rating'))['rating__avg']
         return round(avg, 1) if avg else 0.0
+
+class VendorProfileUpdateSerializer(SanitizedSerializer):
+    class Meta:
+        model = VendorProfile
+        fields = ['shop_name', 'logo', 'city', 'state', 'pincode', 'address_line_1', 'address_line_2', 'phone', 'is_approved', 'is_active']
+        read_only_fields = ['is_approved', 'is_active']
+        
+    def validate_shop_name(self, value):
+        # Check if another vendor already uses this shop_name
+        shop_name = value.strip()
+        vendor_id = self.instance.id if self.instance else None
+        
+        if VendorProfile.objects.filter(shop_name__iexact=shop_name).exclude(id=vendor_id).exists():
+            raise serializers.ValidationError("This shop name is already taken. Please choose another one.")
+        return value
 
 
 # ---------------- PRODUCT ----------------
@@ -561,7 +595,7 @@ class WishlistSerializer(SanitizedSerializer):
 class BannerSerializer(SanitizedSerializer):
     class Meta:
         model = Banner
-        fields = ['id', 'title', 'image', 'is_active']
+        fields = '__all__'
 
 class HeroBannerSerializer(SanitizedSerializer):
     class Meta:

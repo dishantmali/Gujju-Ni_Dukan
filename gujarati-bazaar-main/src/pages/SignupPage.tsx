@@ -74,7 +74,11 @@ const SignupPage = () => {
     confirmPassword: "",
     role: "buyer" as "buyer" | "vendor",
     shop_name: "",
-    address: "",
+    address_line_1: "",
+    address_line_2: "",
+    city: "",
+    state: "",
+    pincode: "",
     phone: "",
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -113,8 +117,8 @@ const SignupPage = () => {
     }
 
     if (formData.role === "vendor") {
-      if (!formData.shop_name || !formData.phone || !formData.address) {
-        toast.error("Please fill in all vendor details");
+      if (!formData.shop_name || !formData.phone || !formData.address_line_1 || !formData.city || !formData.state || !formData.pincode) {
+        toast.error("Please fill in all required vendor details");
         return;
       }
       const phoneDigits = formData.phone.trim();
@@ -148,7 +152,11 @@ const SignupPage = () => {
         submitData.append("shop_name", formData.shop_name);
         submitData.append("contact_details", formData.phone);
         submitData.append("phone", formData.phone);
-        submitData.append("address", formData.address);
+        submitData.append("address_line_1", formData.address_line_1);
+        submitData.append("address_line_2", formData.address_line_2);
+        submitData.append("city", formData.city);
+        submitData.append("state", formData.state);
+        submitData.append("pincode", formData.pincode);
         if (logoFile) {
           submitData.append("logo", logoFile);
         }
@@ -531,31 +539,122 @@ const SignupPage = () => {
                       </div>
                     </motion.div>
 
-                    <motion.div variants={itemVariants} className="space-y-2">
-                      <label className="text-sm font-bold text-foreground ml-1">Shop Address</label>
-                      <motion.div
-                        className="relative"
-                        animate={{ scale: focusedField === "address" ? 1.01 : 1 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                      >
+                    <motion.div variants={itemVariants} className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-foreground ml-1">Address Line 1</label>
                         <motion.div
-                          animate={{ color: focusedField === "address" ? "hsl(var(--accent))" : "hsl(var(--muted-foreground))" }}
-                          className="absolute top-4 left-4 pointer-events-none"
+                          className="relative"
+                          animate={{ scale: focusedField === "address_line_1" ? 1.01 : 1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 25 }}
                         >
-                          <MapPin size={20} />
+                          <motion.div
+                            animate={{ color: focusedField === "address_line_1" ? "hsl(var(--accent))" : "hsl(var(--muted-foreground))" }}
+                            className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                          >
+                            <MapPin size={20} />
+                          </motion.div>
+                          <input
+                            type="text"
+                            name="address_line_1"
+                            value={formData.address_line_1}
+                            onChange={handleChange}
+                            onFocus={() => setFocusedField("address_line_1")}
+                            onBlur={() => setFocusedField(null)}
+                            className="w-full pl-12 pr-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                            placeholder="Street address, building name"
+                            required
+                          />
                         </motion.div>
-                        <textarea
-                          name="address"
-                          value={formData.address}
-                          onChange={handleChange}
-                          onFocus={() => setFocusedField("address")}
-                          onBlur={() => setFocusedField(null)}
-                          rows={2}
-                          className="w-full pl-12 pr-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium resize-none"
-                          placeholder="Complete shop address"
-                          required
-                        />
-                      </motion.div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-foreground ml-1">Address Line 2 (Optional)</label>
+                        <motion.div
+                          className="relative"
+                          animate={{ scale: focusedField === "address_line_2" ? 1.01 : 1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        >
+                          <motion.div
+                            animate={{ color: focusedField === "address_line_2" ? "hsl(var(--accent))" : "hsl(var(--muted-foreground))" }}
+                            className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                          >
+                            <MapPin size={20} />
+                          </motion.div>
+                          <input
+                            type="text"
+                            name="address_line_2"
+                            value={formData.address_line_2}
+                            onChange={handleChange}
+                            onFocus={() => setFocusedField("address_line_2")}
+                            onBlur={() => setFocusedField(null)}
+                            className="w-full pl-12 pr-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                            placeholder="Apartment, suite, unit etc."
+                          />
+                        </motion.div>
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-foreground ml-1">City</label>
+                          <motion.div
+                            className="relative"
+                            animate={{ scale: focusedField === "city" ? 1.01 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                          >
+                            <input
+                              type="text"
+                              name="city"
+                              value={formData.city}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField("city")}
+                              onBlur={() => setFocusedField(null)}
+                              className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                              placeholder="City"
+                              required
+                            />
+                          </motion.div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-foreground ml-1">State</label>
+                          <motion.div
+                            className="relative"
+                            animate={{ scale: focusedField === "state" ? 1.01 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                          >
+                            <input
+                              type="text"
+                              name="state"
+                              value={formData.state}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField("state")}
+                              onBlur={() => setFocusedField(null)}
+                              className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                              placeholder="State"
+                              required
+                            />
+                          </motion.div>
+                        </div>
+                        <div className="space-y-2 col-span-2 lg:col-span-1">
+                          <label className="text-sm font-bold text-foreground ml-1">Pincode</label>
+                          <motion.div
+                            className="relative"
+                            animate={{ scale: focusedField === "pincode" ? 1.01 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                          >
+                            <input
+                              type="text"
+                              name="pincode"
+                              value={formData.pincode}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField("pincode")}
+                              onBlur={() => setFocusedField(null)}
+                              className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                              placeholder="Pincode"
+                              required
+                            />
+                          </motion.div>
+                        </div>
+                      </div>
                     </motion.div>
 
                     <motion.div variants={itemVariants} className="space-y-2">

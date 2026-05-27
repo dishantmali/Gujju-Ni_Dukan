@@ -237,6 +237,8 @@ const AdminDashboard = () => {
 
   const [newNews, setNewNews] = useState({ title: '', start_date: '', end_date: '' });
   const [bannerImageFile, setBannerImageFile] = useState(null);
+  const [newBannerYoutubeUrl, setNewBannerYoutubeUrl] = useState('');
+  const [newBannerLinkUrl, setNewBannerLinkUrl] = useState('');
   const [newBannerPosition, setNewBannerPosition] = useState<'left' | 'right'>('left');
   const [newBannerOrder, setNewBannerOrder] = useState(0);
   const [newBannerStartDatetime, setNewBannerStartDatetime] = useState('');
@@ -448,10 +450,19 @@ const AdminDashboard = () => {
 
   const handleCreateBanner = async (e) => {
     e.preventDefault();
-    if (!bannerImageFile) return toast.error("Please provide an image for the banner");
+    if (newBannerPosition === 'left' && !bannerImageFile) return toast.error("Please provide an image for the left banner");
+    if (newBannerPosition === 'right' && !newBannerYoutubeUrl) return toast.error("Please provide a YouTube URL for the right banner");
     if (!newBannerStartDatetime || !newBannerEndDatetime) return toast.error("Please provide start and end date/time for the banner");
     const formData = new FormData();
-    formData.append('image', bannerImageFile);
+    if (newBannerPosition === 'left' && bannerImageFile) {
+      formData.append('image', bannerImageFile);
+    }
+    if (newBannerPosition === 'right' && newBannerYoutubeUrl) {
+      formData.append('youtube_url', newBannerYoutubeUrl);
+    }
+    if (newBannerLinkUrl) {
+      formData.append('link_url', newBannerLinkUrl);
+    }
     formData.append('is_active', 'true');
     formData.append('position', newBannerPosition);
     formData.append('display_order', String(newBannerOrder));
@@ -462,6 +473,8 @@ const AdminDashboard = () => {
       const res = await api.post('/admin/banners/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setBanners([res, ...banners]);
       setBannerImageFile(null);
+      setNewBannerYoutubeUrl('');
+      setNewBannerLinkUrl('');
       setNewBannerOrder(0);
       setNewBannerStartDatetime('');
       setNewBannerEndDatetime('');
@@ -1522,33 +1535,70 @@ const AdminDashboard = () => {
               {/* ── MARKETING BANNER TAB ── */}
               {activeTab === 'marketingBanners' && (
                 <div className="animate-fade-in flex flex-col gap-8">
+                  {/* Premium Sub-tabs navigation */}
+                  <div className="flex gap-4 border-b border-[#E8D5BC] pb-4 shrink-0">
+                    <button
+                      onClick={() => setNewBannerPosition('left')}
+                      className={`px-6 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs transition-all duration-300 ${newBannerPosition === 'left'
+                          ? 'bg-[#5A3825] text-white shadow-md'
+                          : 'border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                        }`}
+                    >
+                      Image Banners (Left Side)
+                    </button>
+                    <button
+                      onClick={() => setNewBannerPosition('right')}
+                      className={`px-6 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs transition-all duration-300 ${newBannerPosition === 'right'
+                          ? 'bg-[#5A3825] text-white shadow-md'
+                          : 'border border-[#E8D5BC] hover:bg-[#FAF7F2] text-[#8C7B6E]'
+                        }`}
+                    >
+                      YouTube Videos (Right Side)
+                    </button>
+                  </div>
+
                   {/* Upload Form */}
                   <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
                     <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Add Marketing Banner</h2>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">Upload a promotional banner with a scheduled time period and placement side.</p>
+                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">
+                        Add {newBannerPosition === 'left' ? 'Image Banner' : 'YouTube Video'}
+                      </h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        Upload a promotional {newBannerPosition === 'left' ? 'banner image' : 'YouTube video link'} with a scheduled time period.
+                      </p>
                     </div>
                     <div className="p-6 bg-[var(--bg-main)]/30">
                       <form onSubmit={handleCreateBanner} className="space-y-5">
-                        {/* Image Upload */}
-                        <div>
-                          <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Banner Image</label>
-                          <label
-                            htmlFor="bannerImageInput"
-                            className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D7C8B4] bg-[#FAF7F2] hover:bg-[#F5F0E8] hover:border-[#A87C51] transition-colors cursor-pointer py-6"
-                          >
-                            <svg className="w-6 h-6 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            <span className="text-xs font-bold text-[#A87C51] uppercase tracking-wider">{bannerImageFile ? '✓ Image Selected' : 'Choose Banner Image'}</span>
-                            <span className="text-[10px] text-[var(--text-light)]">Click to choose image (16:9 recommended)</span>
-                          </label>
-                          <input id="bannerImageInput" type="file" accept="image/*" className="hidden" onChange={e => {
-                            const file = e.target.files?.[0] || null;
-                            if (file && !isValidImageFile(file)) {
-                              toast.error("Only image files are allowed.");
-                              return;
-                            }
-                            setBannerImageFile(file);
-                          }} />
+                        {/* Image / Video Upload */}
+                        <div className="mb-6">
+                          {newBannerPosition === 'left' ? (
+                            <>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Upload Desktop Image (1920x800)</label>
+                              <input key="banner-image-input" type="file" accept="image/*" id="bannerImageInput"
+                                className="w-full text-sm file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-[#5A3825] file:text-white hover:file:bg-[#432A1C] border border-[var(--border)] rounded-xl bg-white p-1.5 transition-all"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file && !isValidImageFile(file)) return toast.error("Only image files are allowed.");
+                                  setBannerImageFile(file);
+                                }} />
+                              
+                              <div className="mt-4">
+                                <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Redirect Link URL (Optional)</label>
+                                <input type="url" value={newBannerLinkUrl} onChange={e => setNewBannerLinkUrl(e.target.value)}
+                                  placeholder="https://example.com/product/123"
+                                  className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">YouTube Video URL</label>
+                              <input key="banner-youtube-input" type="url" value={newBannerYoutubeUrl} onChange={e => setNewBannerYoutubeUrl(e.target.value)}
+                                placeholder="https://www.youtube.com/watch?v=..."
+                                className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm"
+                              />
+                            </>
+                          )}
                         </div>
 
                         {/* Time Period */}
@@ -1571,33 +1621,8 @@ const AdminDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Position + Order */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Banner Position</label>
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setNewBannerPosition('left')}
-                                className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] border-2 transition-all duration-200 ${newBannerPosition === 'left'
-                                    ? 'bg-[#5A3825] text-white border-[#5A3825] shadow-lg'
-                                    : 'bg-white text-[#8C7B6E] border-[#E8D5BC] hover:border-[#A87C51] hover:text-[#5A3825]'
-                                  }`}
-                              >
-                                ← Left Side
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewBannerPosition('right')}
-                                className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] border-2 transition-all duration-200 ${newBannerPosition === 'right'
-                                    ? 'bg-[#5A3825] text-white border-[#5A3825] shadow-lg'
-                                    : 'bg-white text-[#8C7B6E] border-[#E8D5BC] hover:border-[#A87C51] hover:text-[#5A3825]'
-                                  }`}
-                              >
-                                Right Side →
-                              </button>
-                            </div>
-                          </div>
+                        {/* Order */}
+                        <div className="grid grid-cols-1 gap-4">
                           <div>
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Display Order</label>
                             <input
@@ -1614,10 +1639,10 @@ const AdminDashboard = () => {
                         {/* Submit */}
                         <div className="flex gap-3 pt-2">
                           <button type="submit" className="flex-1 bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98]">
-                            Upload Marketing Banner
+                            Upload {newBannerPosition === 'left' ? 'Marketing Banner' : 'YouTube Video'}
                           </button>
-                          {bannerImageFile && (
-                            <button type="button" onClick={() => { setBannerImageFile(null); setNewBannerStartDatetime(''); setNewBannerEndDatetime(''); const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = ''; }} className="px-8 py-4 border border-[#E8D5BC] text-[#8C7B6E] rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#FAF7F2] transition-all duration-300 active:scale-[0.98]">
+                          {(bannerImageFile || newBannerYoutubeUrl || newBannerLinkUrl) && (
+                            <button type="button" onClick={() => { setBannerImageFile(null); setNewBannerYoutubeUrl(''); setNewBannerLinkUrl(''); setNewBannerStartDatetime(''); setNewBannerEndDatetime(''); const fi = document.getElementById('bannerImageInput') as HTMLInputElement; if (fi) fi.value = ''; }} className="px-8 py-4 border border-[#E8D5BC] text-[#8C7B6E] rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#FAF7F2] transition-all duration-300 active:scale-[0.98]">
                               Clear
                             </button>
                           )}
@@ -1626,67 +1651,43 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* LEFT BANNERS */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
-                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Left Side Banners</h2>
-                      </div>
-                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
-                        {/* Left banner previews */}
-                        <div className="flex flex-col gap-4">
-                          {banners.filter(b => b.position === 'left' || !b.position).length === 0 ? (
-                            <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                              <p className="text-[var(--coffee-light)] font-light text-sm">No left side banners yet.</p>
-                            </div>
-                          ) : (
-                            banners.filter(b => b.position === 'left' || !b.position).map(banner => (
-                              <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
-                                <img src={banner.image} alt="Marketing banner" className="w-full h-40 object-cover" />
-                                <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
-                                  <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
-                                </div>
-                                <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
-                                <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
-                                {banner.title && banner.title.includes('→') && (
-                                  <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider text-[#5A3825] shadow-sm max-w-[70%] truncate">🕐 {banner.title.split('|').pop()?.trim()}</div>
-                                )}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
+                  {/* BANNERS LIST */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden">
+                    <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
+                      <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">
+                        {newBannerPosition === 'left' ? 'Left Side Banners' : 'Right Side Banners'}
+                      </h2>
                     </div>
-
-                    {/* RIGHT BANNERS */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
-                      <div className="px-8 py-6 border-b border-[#FAF7F2] bg-white shrink-0">
-                        <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Right Side Banners</h2>
-                      </div>
-                      <div className="p-6 flex flex-col gap-6 bg-[var(--bg-main)]/30 flex-1">
-                        {/* Right banner previews */}
-                        <div className="flex flex-col gap-4">
-                          {banners.filter(b => b.position === 'right').length === 0 ? (
-                            <div className="py-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
-                              <p className="text-[var(--coffee-light)] font-light text-sm">No right side banners yet.</p>
-                            </div>
-                          ) : (
-                            banners.filter(b => b.position === 'right').map(banner => (
-                              <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
-                                <img src={banner.image} alt="Marketing banner" className="w-full h-40 object-cover" />
-                                <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
-                                  <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
-                                </div>
-                                <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
-                                <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
-                                {banner.title && banner.title.includes('→') && (
-                                  <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider text-[#5A3825] shadow-sm max-w-[70%] truncate">🕐 {banner.title.split('|').pop()?.trim()}</div>
-                                )}
-                              </div>
-                            ))
-                          )}
+                    <div className="p-6 bg-[var(--bg-main)]/30">
+                      {banners.filter(b => newBannerPosition === 'left' ? (b.position === 'left' || !b.position) : b.position === 'right').length === 0 ? (
+                        <div className="py-12 text-center border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-card)]">
+                          <p className="text-[var(--coffee-light)] font-light text-sm">
+                            No {newBannerPosition === 'left' ? 'left side' : 'right side'} banners yet.
+                          </p>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {banners.filter(b => newBannerPosition === 'left' ? (b.position === 'left' || !b.position) : b.position === 'right').map(banner => (
+                            <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-[var(--border)] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg bg-[var(--bg-card)]">
+                              {banner.youtube_url ? (
+                                <div className="w-full h-40 bg-black flex items-center justify-center text-white p-4">
+                                  <span className="text-xs text-center line-clamp-2">YouTube Video: {banner.youtube_url}</span>
+                                </div>
+                              ) : (
+                                <img src={banner.image} alt="Marketing banner" className="w-full h-40 object-cover" />
+                              )}
+                              <div className="absolute inset-0 bg-[#2C1E16]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm">
+                                <button onClick={() => handleDeleteBanner(banner.id)} className="bg-red-500 text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-red-600 shadow-xl active:scale-95">Delete</button>
+                              </div>
+                              <div className="absolute top-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-green-600 shadow-sm">Active</div>
+                              <div className="absolute bottom-3 right-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-[#A87C51] shadow-sm">#{banner.display_order || 0}</div>
+                              {banner.title && banner.title.includes('→') && (
+                                <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider text-[#5A3825] shadow-sm max-w-[70%] truncate">🕐 {banner.title.split('|').pop()?.trim()}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

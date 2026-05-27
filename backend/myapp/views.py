@@ -29,7 +29,7 @@ from .serializers import (
     CartSerializer, CategoryRequestSerializer, OfferSerializer, WishlistSerializer ,
     ProductReviewSerializer, PlatformReviewSerializer , AdminPlatformReviewSerializer, BannerSerializer , HeroBannerSerializer, UserSerializer ,
     SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
-    IconAssetSerializer, VendorProfileSerializer, ManualReviewSerializer,
+    IconAssetSerializer, VendorProfileSerializer, VendorProfileUpdateSerializer, ManualReviewSerializer,
     CouponSerializer, CouponUsageSerializer, NewsSerializer
 )
 import random
@@ -159,7 +159,8 @@ class HomePageView(APIView):
             return {
                 "id": b.id,
                 "title": b.title,
-                "image": request.build_absolute_uri(b.image.url),
+                "image": request.build_absolute_uri(b.image.url) if b.image else None,
+                "youtube_url": b.youtube_url,
                 "link_url": b.link_url,
             }
 
@@ -413,6 +414,20 @@ class VendorProductUpdateView(generics.RetrieveUpdateDestroyAPIView):
         # to find and cancel any 'pending' orders associated with this product!
         instance.save()
 
+class VendorProfileUpdateView(generics.RetrieveUpdateAPIView):
+    serializer_class = VendorProfileUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_object(self):
+        if self.request.user.role != 'vendor':
+            raise PermissionDenied("Only vendors can access their profile.")
+        
+        vendor_profile = getattr(self.request.user, 'vendor_profile', None)
+        if not vendor_profile:
+            raise ValidationError("Vendor profile not found.")
+        return vendor_profile
+
 # ---------------- Admin APIs ---------------- #
 class AdminProductApprovalView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -516,7 +531,7 @@ class AdminPendingVendorsView(generics.ListAPIView):
                 "shop_name": v.shop_name,
                 "email": v.user.email,
                 "phone": v.phone,
-                "address": v.address,
+                "address": f"{v.address_line_1 or ''} {v.city or ''}".strip() or "No address provided",
                 "is_approved": v.is_approved,
                 "is_active": v.is_active
             }

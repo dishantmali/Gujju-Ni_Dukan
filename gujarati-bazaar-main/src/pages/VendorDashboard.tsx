@@ -18,7 +18,8 @@ import {
   Upload,
   Image as ImageIcon,
   CheckCircle2,
-  Ticket
+  Ticket,
+  User
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { IconPicker } from "@/components/IconPicker";
@@ -116,6 +117,18 @@ const VendorDashboard = () => {
 
   const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[] });
 
+  // Vendor Profile State
+  const [profileForm, setProfileForm] = useState({
+    shop_name: "",
+    city: "",
+    address_line_1: "",
+    address_line_2: "",
+    state: "",
+    pincode: "",
+    phone: ""
+  });
+  const [profileLogo, setProfileLogo] = useState<File | null>(null);
+
   // Mock data queries (replace with actual API calls)
   const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ['vendor-products'],
@@ -152,6 +165,27 @@ const VendorDashboard = () => {
     queryFn: () => api.get('/vendor/coupons/') as any
   });
 
+  const { data: vendorProfile, isLoading: profileLoading } = useQuery({
+    queryKey: ['vendor-profile'],
+    queryFn: () => api.get('/vendor/profile/') as any,
+    enabled: isAuthenticated && user?.role === "vendor"
+  });
+
+  // Populate profile form when data loads
+  useEffect(() => {
+    if (vendorProfile) {
+      setProfileForm({
+        shop_name: vendorProfile.shop_name || "",
+        city: vendorProfile.city || "",
+        address_line_1: vendorProfile.address_line_1 || "",
+        address_line_2: vendorProfile.address_line_2 || "",
+        state: vendorProfile.state || "",
+        pincode: vendorProfile.pincode || "",
+        phone: vendorProfile.phone || ""
+      });
+    }
+  }, [vendorProfile]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       toast.error("Please log in as a vendor.");
@@ -161,8 +195,10 @@ const VendorDashboard = () => {
     if (user && user.role !== "vendor") {
       toast.error("Only vendors can access the vendor dashboard.");
       navigate("/", { replace: true });
+      return;
     }
   }, [isAuthenticated, navigate, user]);
+
 
   useEffect(() => {
     if ((window as any).Razorpay) return;
@@ -176,6 +212,20 @@ const VendorDashboard = () => {
   }, []);
 
   // Mutations
+  const updateVendorProfileMutation = useMutation({
+    mutationFn: (data: FormData) => api.patch('/vendor/profile/', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-profile'] });
+      toast.success('Profile updated successfully');
+      setProfileLogo(null);
+    },
+    onError: (error: any) => {
+      toast.error(getBackendErrorMessage(error, 'Failed to update profile'));
+    }
+  });
+
   const updateProductMutation = useMutation({
     mutationFn: ({ id, data }: { id: number, data: any }) =>
       api.patch(`/vendor/products/${id}/`, data),
@@ -793,6 +843,22 @@ const VendorDashboard = () => {
     createSubscriptionOrderMutation.mutate(planId);
   };
 
+  const handleProfileSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append("shop_name", profileForm.shop_name);
+    formData.append("city", profileForm.city);
+    formData.append("address_line_1", profileForm.address_line_1);
+    formData.append("address_line_2", profileForm.address_line_2);
+    formData.append("state", profileForm.state);
+    formData.append("pincode", profileForm.pincode);
+    formData.append("phone", profileForm.phone);
+    if (profileLogo) {
+      formData.append("logo", profileLogo);
+    }
+    updateVendorProfileMutation.mutate(formData);
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -813,6 +879,7 @@ const VendorDashboard = () => {
     { key: "request_category", label: "Request Category", icon: Tag, badge: null },
     { key: "request_offer", label: "Create Offer", icon: Clock, badge: null },
     { key: "coupons", label: "My Coupons", icon: Ticket, badge: null },
+    { key: "profile", label: "Edit Profile", icon: User, badge: null },
   ];
 
   if (productsLoading || categoriesLoading || ordersLoading || plansLoading) {
@@ -822,6 +889,25 @@ const VendorDashboard = () => {
           <div className="inline-flex items-center gap-2 text-muted-foreground">
             <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full"></div>
             Loading dashboard...
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (vendorProfile && vendorProfile.is_approved === false) {
+    return (
+      <PageShell>
+        <div className="container py-20 text-center">
+          <div className="max-w-md mx-auto p-8 rounded-2xl bg-card border shadow-sm">
+            <Clock className="w-16 h-16 mx-auto text-amber-500 mb-6" />
+            <h2 className="text-2xl font-bold font-display mb-4">Pending Admin Approval</h2>
+            <p className="text-muted-foreground mb-6">
+              Your vendor profile is currently under review by our administration team. You will be able to access your dashboard and manage your products once your account has been approved.
+            </p>
+            <div className="p-4 bg-amber-500/10 text-amber-600 rounded-xl text-sm font-medium">
+              We'll notify you as soon as your account is ready!
+            </div>
           </div>
         </div>
       </PageShell>
@@ -863,8 +949,8 @@ const VendorDashboard = () => {
                     transition={{ delay: 0.1 + index * 0.05 }}
                     onClick={() => setActiveTab(key)}
                     className={`flex items-center justify-between px-5 py-3.5 text-sm font-medium border-b border-border transition-all duration-200 ${activeTab === key
-                        ? "bg-primary text-primary-foreground border-l-4 border-l-accent"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      ? "bg-primary text-primary-foreground border-l-4 border-l-accent"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                       }`}
                   >
                     <div className="flex items-center gap-3">
@@ -907,8 +993,8 @@ const VendorDashboard = () => {
                     <button
                       onClick={() => setViewType("grid")}
                       className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewType === "grid"
-                          ? "bg-card shadow-sm text-foreground"
-                          : "text-muted-foreground hover:text-foreground"
+                        ? "bg-card shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       Grid
@@ -916,8 +1002,8 @@ const VendorDashboard = () => {
                     <button
                       onClick={() => setViewType("list")}
                       className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewType === "list"
-                          ? "bg-card shadow-sm text-foreground"
-                          : "text-muted-foreground hover:text-foreground"
+                        ? "bg-card shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       List Edit
@@ -1009,10 +1095,10 @@ const VendorDashboard = () => {
                           </div>
                           <div className="pt-2 border-t border-border">
                             <span className={`text-xs px-2 py-1 uppercase font-bold rounded-md ${product.status === "approved"
-                                ? "bg-success text-success-foreground"
-                                : product.status === "rejected"
-                                  ? "bg-destructive text-destructive-foreground"
-                                  : "bg-muted text-muted-foreground"
+                              ? "bg-success text-success-foreground"
+                              : product.status === "rejected"
+                                ? "bg-destructive text-destructive-foreground"
+                                : "bg-muted text-muted-foreground"
                               }`}>
                               {product.status}
                             </span>
@@ -1047,7 +1133,7 @@ const VendorDashboard = () => {
                                   <div>
                                     <span className="font-bold text-foreground block truncate max-w-xs">{product.name}</span>
                                     <span className={`text-xs uppercase font-bold ${product.status === "approved" ? "text-success" :
-                                        product.status === "rejected" ? "text-destructive" : "text-muted-foreground"
+                                      product.status === "rejected" ? "text-destructive" : "text-muted-foreground"
                                       }`}>
                                       {product.status}
                                     </span>
@@ -1160,9 +1246,9 @@ const VendorDashboard = () => {
                             <label className="text-xs font-bold text-muted-foreground uppercase">Update Status</label>
                             <select
                               className={`p-2 border rounded-lg text-sm font-bold outline-none transition-colors ${order.status === "pending" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                                  order.status === "confirmed" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                    order.status === "shipped" ? "bg-purple-50 text-purple-700 border-purple-200" :
-                                      "bg-green-50 text-green-700 border-green-200"
+                                order.status === "confirmed" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                  order.status === "shipped" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                    "bg-green-50 text-green-700 border-green-200"
                                 }`}
                               value={order.status}
                               onChange={(e) => handleOrderStatusUpdate(order.id, e.target.value)}
@@ -2177,8 +2263,8 @@ const VendorDashboard = () => {
                           <button
                             onClick={() => setCouponViewMode("grid")}
                             className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${couponViewMode === "grid"
-                                ? "bg-card shadow-sm text-foreground"
-                                : "text-muted-foreground hover:text-foreground"
+                              ? "bg-card shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
                               }`}
                           >
                             Ticket Grid
@@ -2186,8 +2272,8 @@ const VendorDashboard = () => {
                           <button
                             onClick={() => setCouponViewMode("table")}
                             className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${couponViewMode === "table"
-                                ? "bg-card shadow-sm text-foreground"
-                                : "text-muted-foreground hover:text-foreground"
+                              ? "bg-card shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
                               }`}
                           >
                             Table List
@@ -2296,8 +2382,8 @@ const VendorDashboard = () => {
                                   <button
                                     onClick={() => updateCouponMutation.mutate({ id: coupon.id, data: { is_active: !coupon.is_active } })}
                                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${coupon.is_active
-                                        ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80"
-                                        : "bg-success/10 text-success border-success/20 hover:bg-success/20"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80"
+                                      : "bg-success/10 text-success border-success/20 hover:bg-success/20"
                                       }`}
                                   >
                                     {coupon.is_active ? 'Pause' : 'Resume'}
@@ -2399,8 +2485,8 @@ const VendorDashboard = () => {
                                       <button
                                         onClick={() => updateCouponMutation.mutate({ id: coupon.id, data: { is_active: !coupon.is_active } })}
                                         className={`px-3 py-1 rounded text-xs font-bold transition-all ${coupon.is_active
-                                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                                            : "bg-success/15 text-success hover:bg-success/25"
+                                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                          : "bg-success/15 text-success hover:bg-success/25"
                                           }`}
                                       >
                                         {coupon.is_active ? 'Deactivate' : 'Activate'}
@@ -2427,6 +2513,141 @@ const VendorDashboard = () => {
                     )}
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Profile Tab */}
+            {activeTab === "profile" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                <div className="px-6 py-5 border-b border-border bg-background-warm flex justify-between items-center">
+                  <div>
+                    <h2 className="font-display text-xl font-bold text-foreground">Edit Profile</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Update your shop details and contact information.</p>
+                  </div>
+                </div>
+
+                {profileLoading ? (
+                  <div className="p-12 text-center text-muted-foreground">Loading profile...</div>
+                ) : (
+                  <form onSubmit={handleProfileSubmit} className="p-8 space-y-6">
+                    <div className="flex gap-8">
+                      <div className="flex-1 space-y-5">
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Shop Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileForm.shop_name}
+                            onChange={(e) => setProfileForm({ ...profileForm, shop_name: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Phone</label>
+                          <input
+                            type="text"
+                            value={profileForm.phone}
+                            onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div className="w-48 flex flex-col items-center">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 text-center">Shop Logo</label>
+                        <div className="w-32 h-32 rounded-full border-2 border-dashed border-border flex items-center justify-center overflow-hidden bg-muted/50 relative cursor-pointer hover:border-primary transition-colors">
+                          {profileLogo ? (
+                            <ImagePreview file={profileLogo} className="w-full h-full object-cover" />
+                          ) : vendorProfile?.logo ? (
+                            <img src={vendorProfile.logo} alt="Logo" className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="text-muted-foreground" size={32} />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) setProfileLogo(e.target.files[0]);
+                            }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground text-center mt-2">Click to upload new logo</p>
+                      </div>
+                    </div>
+
+
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Address Line 1</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileForm.address_line_1}
+                            onChange={(e) => setProfileForm({ ...profileForm, address_line_1: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Address Line 2</label>
+                          <input
+                            type="text"
+                            value={profileForm.address_line_2}
+                            onChange={(e) => setProfileForm({ ...profileForm, address_line_2: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">City</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileForm.city}
+                            onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">State</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileForm.state}
+                            onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Pincode</label>
+                          <input
+                            type="text"
+                            required
+                            value={profileForm.pincode}
+                            onChange={(e) => setProfileForm({ ...profileForm, pincode: e.target.value })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-border flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={updateVendorProfileMutation.isPending}
+                        className="px-8 py-3 bg-primary text-primary-foreground rounded-full font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <Save size={18} />
+                        {updateVendorProfileMutation.isPending ? 'Saving...' : 'Save Profile'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </motion.div>
             )}
           </main>

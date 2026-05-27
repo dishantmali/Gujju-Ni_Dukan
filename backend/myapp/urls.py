@@ -12,6 +12,7 @@ from .views import (
     # Vendor
     VendorProductListCreateView, VendorProductUpdateView,
     VendorCategoryRequestView, VendorOfferRequestView, VendorOfferDetailView,
+    VendorProfileUpdateView,
     # Orders
     OrderListView, VendorOrderStatusUpdateView,
     # Payment
@@ -89,6 +90,9 @@ urlpatterns = [
     path('vendor/offer-requests/<int:pk>/',
          VendorOfferDetailView.as_view(),
          name='vendor_offer_detail'),
+    path('vendor/profile/',
+         VendorProfileUpdateView.as_view(),
+         name='vendor_profile_update'),
     path('vendor/subscription/plans/',
         SubscriptionPlanListView.as_view(),
         name='subscription_plans'),

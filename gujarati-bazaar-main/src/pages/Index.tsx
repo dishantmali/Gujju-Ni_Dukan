@@ -39,16 +39,23 @@ const SectionHeader = ({
   title: string;
   to?: string;
 }) => (
-  <div className="flex items-end justify-between mb-6">
-    <h2 className="font-display text-2xl sm:text-3xl font-semibold inline-flex items-center gap-2.5">
-      <span className="text-accent">{icon}</span> {title}
-    </h2>
+  <div className="mb-8 sm:mb-10 w-full flex flex-col items-center">
+    <div className="flex items-center justify-center w-full max-w-2xl gap-4 sm:gap-6">
+      <div className="h-px bg-border flex-1"></div>
+      <div className="flex items-center gap-2.5">
+        <span className="text-accent">{icon}</span>
+        <h2 className="font-display text-2xl sm:text-3xl font-medium text-foreground tracking-tight">
+          {title}
+        </h2>
+      </div>
+      <div className="h-px bg-border flex-1"></div>
+    </div>
     {to && (
       <Link
         to={to}
-        className="text-sm font-medium text-brown-mid hover:text-primary inline-flex items-center gap-1 underline-grow"
+        className="mt-5 text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors group"
       >
-        See all <ArrowRight size={14} />
+        Explore more <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
       </Link>
     )}
   </div>
@@ -287,11 +294,10 @@ const HeroBannerCarousel = ({ images, interval = 5000 }: { images: string[]; int
             <button
               key={i}
               onClick={() => setIdx(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === idx
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === idx
                   ? "w-5 bg-white shadow-sm"
                   : "w-1.5 bg-white/50 hover:bg-white/80"
-              }`}
+                }`}
               aria-label={`Go to banner ${i + 1}`}
             />
           ))}
@@ -614,13 +620,13 @@ const IndexPageBody = () => {
       <HeroBannerCarousel images={heroBanners} />
 
       {/* ─── 3. Category Slider ─── */}
-      <section className="container py-8">
+      <section className="container pt-6 pb-4">
         <CategoryMarquee categories={categories} />
       </section>
 
 
       {/* ─── 4. Trending Now — horizontal scroll ─── */}
-      <section className="container py-8">
+      <section className="container pt-4 pb-8">
         <SectionHeader
           icon={<TrendingUp size={22} />}
           title="Trending Now"
