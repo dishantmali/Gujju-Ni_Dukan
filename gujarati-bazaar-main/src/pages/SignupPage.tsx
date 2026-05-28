@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { useAuthWithNavigate } from "@/hooks/useAuthWithNavigate";
 import { toast } from "sonner";
-import logo from "@/assets/logo.jpeg";
+import api from "@/lib/api";
 import { getBackendErrorMessage } from "@/lib/errorHelper";
+import { State, City } from 'country-state-city';
+import logo from "@/assets/logo.jpeg";
 
 const floatVariants = {
   animate: (custom: number) => ({
@@ -116,14 +118,19 @@ const SignupPage = () => {
       return;
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     if (formData.role === "vendor") {
       if (!formData.shop_name || !formData.phone || !formData.address_line_1 || !formData.city || !formData.state || !formData.pincode) {
         toast.error("Please fill in all required vendor details");
         return;
       }
       const phoneDigits = formData.phone.trim();
-      if (!/^\d{10}$/.test(phoneDigits)) {
-        toast.error("Phone number must be exactly 10 digits.");
+      if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+        toast.error("Phone number must be exactly 10 digits and start with 6, 7, 8, or 9.");
         return;
       }
     }
@@ -595,43 +602,53 @@ const SignupPage = () => {
 
                       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <label className="text-sm font-bold text-foreground ml-1">City</label>
-                          <motion.div
-                            className="relative"
-                            animate={{ scale: focusedField === "city" ? 1.01 : 1 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                          >
-                            <input
-                              type="text"
-                              name="city"
-                              value={formData.city}
-                              onChange={handleChange}
-                              onFocus={() => setFocusedField("city")}
-                              onBlur={() => setFocusedField(null)}
-                              className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
-                              placeholder="City"
-                              required
-                            />
-                          </motion.div>
-                        </div>
-                        <div className="space-y-2">
                           <label className="text-sm font-bold text-foreground ml-1">State</label>
                           <motion.div
                             className="relative"
                             animate={{ scale: focusedField === "state" ? 1.01 : 1 }}
                             transition={{ type: "spring", stiffness: 400, damping: 25 }}
                           >
-                            <input
-                              type="text"
+                            <select
                               name="state"
                               value={formData.state}
-                              onChange={handleChange}
+                              onChange={(e) => {
+                                handleChange(e);
+                                setFormData(prev => ({ ...prev, city: '' }));
+                              }}
                               onFocus={() => setFocusedField("state")}
                               onBlur={() => setFocusedField(null)}
                               className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
-                              placeholder="State"
                               required
-                            />
+                            >
+                              <option value="" disabled>Select State</option>
+                              {State.getStatesOfCountry('IN').map(state => (
+                                <option key={state.isoCode} value={state.name}>{state.name}</option>
+                              ))}
+                            </select>
+                          </motion.div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-foreground ml-1">City</label>
+                          <motion.div
+                            className="relative"
+                            animate={{ scale: focusedField === "city" ? 1.01 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                          >
+                            <select
+                              name="city"
+                              value={formData.city}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField("city")}
+                              onBlur={() => setFocusedField(null)}
+                              className="w-full px-4 py-4 bg-background border border-border rounded-2xl focus:ring-[3px] focus:ring-accent/20 focus:border-accent outline-none transition-all font-medium"
+                              required
+                              disabled={!formData.state}
+                            >
+                              <option value="" disabled>Select City</option>
+                              {(formData.state ? City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === formData.state)?.isoCode || '') : []).map((city: any) => (
+                                <option key={city.name} value={city.name}>{city.name}</option>
+                              ))}
+                            </select>
                           </motion.div>
                         </div>
                         <div className="space-y-2 col-span-2 lg:col-span-1">

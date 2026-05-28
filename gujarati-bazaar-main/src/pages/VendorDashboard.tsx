@@ -25,6 +25,8 @@ import { PageShell } from "@/components/PageShell";
 import { IconPicker } from "@/components/IconPicker";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 
+import { State, City } from 'country-state-city';
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -845,6 +847,10 @@ const VendorDashboard = () => {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^[6-9]\d{9}$/.test(profileForm.phone.trim())) {
+      toast.error("Phone number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+      return;
+    }
     const formData = new FormData();
     formData.append("shop_name", profileForm.shop_name);
     formData.append("city", profileForm.city);
@@ -861,7 +867,7 @@ const VendorDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login');
     toast.success('Logged out successfully');
   };
 
@@ -913,7 +919,7 @@ const VendorDashboard = () => {
               onClick={() => {
                 logout();
                 toast.success('Logged out successfully');
-                navigate('/');
+                navigate('/login');
               }}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium transition-colors"
             >
@@ -2616,24 +2622,33 @@ const VendorDashboard = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div>
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">State</label>
+                          <select
+                            required
+                            value={profileForm.state}
+                            onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value, city: '' })}
+                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
+                          >
+                            <option value="" disabled>Select State</option>
+                            {State.getStatesOfCountry('IN').map(state => (
+                              <option key={state.isoCode} value={state.name}>{state.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
                           <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">City</label>
-                          <input
-                            type="text"
+                          <select
                             required
                             value={profileForm.city}
                             onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
                             className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">State</label>
-                          <input
-                            type="text"
-                            required
-                            value={profileForm.state}
-                            onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
-                            className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors"
-                          />
+                            disabled={!profileForm.state}
+                          >
+                            <option value="" disabled>Select City</option>
+                            {(profileForm.state ? City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === profileForm.state)?.isoCode || '') : []).map((city: any) => (
+                              <option key={city.name} value={city.name}>{city.name}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Pincode</label>

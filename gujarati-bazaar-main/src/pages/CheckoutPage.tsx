@@ -9,6 +9,7 @@ import { useCart, cartLineUnitPrice, cartLineId } from "@/store/cart";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { State, City } from 'country-state-city';
 
 const FloatInput = ({ label, error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) => (
   <div className="float-label">
@@ -17,6 +18,19 @@ const FloatInput = ({ label, error, ...props }: React.InputHTMLAttributes<HTMLIn
       placeholder=" "
       className={`w-full h-12 px-3 pt-1 rounded-xl border ${error ? "border-red-400" : "border-border"} bg-card outline-none focus:border-brown-light text-sm`}
     />
+    <label>{label}</label>
+    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+  </div>
+);
+
+const FloatSelect = ({ label, error, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string }) => (
+  <div className="float-label">
+    <select
+      {...props}
+      className={`w-full h-12 px-3 pt-1 rounded-xl border ${error ? "border-red-400" : "border-border"} bg-card outline-none focus:border-brown-light text-sm appearance-none`}
+    >
+      {children}
+    </select>
     <label>{label}</label>
     {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
   </div>
@@ -65,7 +79,7 @@ const CheckoutPage = () => {
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
 
   const [address, setAddress] = useState({
     fullName: "",
@@ -91,14 +105,16 @@ const CheckoutPage = () => {
         }
         const defaultAddr = user.addresses?.find(a => a.is_default) || user.addresses?.[0];
         if (defaultAddr) {
+          const matchedState = State.getStatesOfCountry('IN').find(s => s.name.toLowerCase() === (defaultAddr.state || "").toLowerCase())?.name || defaultAddr.state || "";
+          const matchedCity = City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === matchedState)?.isoCode || '').find(c => c.name.toLowerCase() === (defaultAddr.city || "").toLowerCase())?.name || defaultAddr.city || "";
           return {
             ...prev,
             fullName: user.name || prev.fullName,
             email: user.email || prev.email,
             phone: user.profile?.phone || prev.phone,
             addressLine: defaultAddr.street || "",
-            city: defaultAddr.city || "",
-            state: defaultAddr.state || "",
+            city: matchedCity,
+            state: matchedState,
             pincode: defaultAddr.pincode || ""
           };
         }
@@ -113,18 +129,18 @@ const CheckoutPage = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       toast.error("Please log in to checkout");
       navigate("/login", { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
   const go = (s: number) => { setDirection(s > step ? 1 : -1); setStep(s); };
 
   const validateAddress = () => {
     const newErrors: Record<string, string> = {};
     if (!address.fullName.trim()) newErrors.fullName = "Required";
-    if (!address.phone.trim() || !/^\d{10}$/.test(address.phone.trim())) newErrors.phone = "Enter a valid 10-digit number";
+    if (!address.phone.trim() || !/^[6-9]\d{9}$/.test(address.phone.trim())) newErrors.phone = "Enter a valid 10-digit number starting with 6-9";
     if (!address.addressLine.trim()) newErrors.addressLine = "Required";
     if (!address.city.trim()) newErrors.city = "Required";
     if (!address.state.trim()) newErrors.state = "Required";
@@ -243,7 +259,7 @@ const CheckoutPage = () => {
     }
   }, [payment, address, items, clear, navigate, appliedCoupon]);
 
-  if (!isAuthenticated) return null;
+  if (isLoading || !isAuthenticated) return null;
 
   return (
     <PageShell>
@@ -273,13 +289,17 @@ const CheckoutPage = () => {
                           <button
                             key={addr.id}
                             type="button"
-                            onClick={() => setAddress(prev => ({
-                              ...prev,
-                              addressLine: addr.street,
-                              city: addr.city,
-                              state: addr.state,
-                              pincode: addr.pincode
-                            }))}
+                            onClick={() => {
+                              const matchedState = State.getStatesOfCountry('IN').find(s => s.name.toLowerCase() === (addr.state || "").toLowerCase())?.name || addr.state || "";
+                              const matchedCity = City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === matchedState)?.isoCode || '').find(c => c.name.toLowerCase() === (addr.city || "").toLowerCase())?.name || addr.city || "";
+                              setAddress(prev => ({
+                                ...prev,
+                                addressLine: addr.street,
+                                city: matchedCity,
+                                state: matchedState,
+                                pincode: addr.pincode
+                              }))
+                            }}
                             className="text-left p-4 rounded-xl border border-border hover:border-primary transition-colors bg-card shadow-sm"
                           >
                             <p className="text-sm font-semibold mb-1 line-clamp-1">{addr.street}</p>
@@ -294,8 +314,31 @@ const CheckoutPage = () => {
                     <FloatInput label="Full name" value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} error={errors.fullName} />
                     <FloatInput label="Phone number" inputMode="tel" value={address.phone} onChange={(e) => setAddress({ ...address, phone: e.target.value })} error={errors.phone} />
                     <div className="sm:col-span-2"><FloatInput label="Address line" value={address.addressLine} onChange={(e) => setAddress({ ...address, addressLine: e.target.value })} error={errors.addressLine} /></div>
-                    <FloatInput label="City" value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} error={errors.city} />
-                    <FloatInput label="State" value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} error={errors.state} />
+                      <FloatSelect 
+                        label="State" 
+                        required 
+                        value={address.state} 
+                        onChange={(e) => setAddress({ ...address, state: e.target.value, city: '' })} 
+                        error={errors.state} 
+                      >
+                        <option value="" disabled></option>
+                        {State.getStatesOfCountry('IN').map(state => (
+                          <option key={state.isoCode} value={state.name}>{state.name}</option>
+                        ))}
+                      </FloatSelect>
+                      <FloatSelect 
+                        label="City" 
+                        required 
+                        value={address.city} 
+                        onChange={(e) => setAddress({ ...address, city: e.target.value })} 
+                        error={errors.city} 
+                        disabled={!address.state}
+                      >
+                        <option value="" disabled></option>
+                        {(address.state ? City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === address.state)?.isoCode || '') : []).map((city: any) => (
+                          <option key={city.name} value={city.name}>{city.name}</option>
+                        ))}
+                      </FloatSelect>
                     <FloatInput label="Pincode" inputMode="numeric" value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} error={errors.pincode} />
                     <FloatInput label="Email" type="email" value={address.email} onChange={(e) => setAddress({ ...address, email: e.target.value })} error={errors.email} />
                   </div>

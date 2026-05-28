@@ -63,6 +63,11 @@ const LoginPage = () => {
       return;
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     try {
       setIsLoading(true);
       await login(email, password);

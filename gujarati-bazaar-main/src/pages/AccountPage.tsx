@@ -22,7 +22,7 @@ import { PageShell } from '@/components/PageShell';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
-
+import { State, City } from 'country-state-city';
 type Tab = "overview" | "orders" | "settings";
 
 const tabs: { id: Tab; label: string; icon: any }[] = [
@@ -97,7 +97,22 @@ const AccountPage = () => {
 
   // Address Modal State
   const [addressModal, setAddressModal] = useState({ isOpen: false, isEditing: false, id: null, street: '', city: '', state: '', pincode: '', is_default: false });
-  
+  const [availableCities, setAvailableCities] = useState<any[]>([]);
+
+  // Update cities when state changes
+  useEffect(() => {
+    if (addressModal.state) {
+      const selectedStateObj = State.getStatesOfCountry('IN').find(s => s.name === addressModal.state);
+      if (selectedStateObj) {
+        setAvailableCities(City.getCitiesOfState('IN', selectedStateObj.isoCode));
+      } else {
+        setAvailableCities([]);
+      }
+    } else {
+      setAvailableCities([]);
+    }
+  }, [addressModal.state]);
+
   // Review States
   const [reviewedItemIds, setReviewedItemIds] = useState(new Set());
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -133,8 +148,14 @@ const AccountPage = () => {
     e.preventDefault();
     if (otpModal.type === 'phone') {
       const digits = otpModal.newValue.trim().replace(/^\+91/, '');
-      if (!/^\d{10}$/.test(digits)) {
-        toast.error("Phone number must be exactly 10 digits.");
+      if (!/^[6-9]\d{9}$/.test(digits)) {
+        toast.error("Phone number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+        return;
+      }
+    }
+    if (otpModal.type === 'email') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(otpModal.newValue)) {
+        toast.error("Please enter a valid email address.");
         return;
       }
     }
@@ -526,7 +547,20 @@ const AccountPage = () => {
                         {addr.is_default && <span className="inline-block px-2 py-1 bg-accent text-white text-[10px] font-bold uppercase rounded mb-2">Default</span>}
                         <p className="text-foreground font-medium leading-relaxed">{addr.street}<br/>{addr.city}, {addr.state} {addr.pincode}</p>
                         <div className="mt-4 flex gap-4 text-sm font-bold">
-                          <button onClick={() => setAddressModal({ isOpen: true, isEditing: true, ...addr })} className="text-accent hover:text-accent/80">Edit</button>
+                          <button onClick={() => {
+                                const matchedState = State.getStatesOfCountry('IN').find(s => s.name.toLowerCase() === (addr.state || "").toLowerCase())?.name || addr.state || "";
+                                const matchedCity = City.getCitiesOfState('IN', State.getStatesOfCountry('IN').find(s => s.name === matchedState)?.isoCode || '').find(c => c.name.toLowerCase() === (addr.city || "").toLowerCase())?.name || addr.city || "";
+                                setAddressModal({
+                                  isOpen: true,
+                                  isEditing: true,
+                                  id: addr.id,
+                                  street: addr.street,
+                                  city: matchedCity,
+                                  state: matchedState,
+                                  pincode: addr.pincode,
+                                  is_default: addr.is_default
+                                })
+                              }} className="text-accent hover:text-accent/80">Edit</button>
                           <button onClick={() => deleteAddress(addr.id)} className="text-destructive hover:text-destructive/80">Delete</button>
                         </div>
                       </div>
@@ -572,8 +606,29 @@ const AccountPage = () => {
             <form onSubmit={handleAddressSubmit} className="space-y-4">
               <textarea required placeholder="Street Address" value={addressModal.street} onChange={e => setAddressModal({...addressModal, street: e.target.value})} className="w-full p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent resize-none" rows={2} />
               <div className="grid grid-cols-2 gap-4">
-                <input required type="text" placeholder="City" value={addressModal.city} onChange={e => setAddressModal({...addressModal, city: e.target.value})} className="p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent" />
-                <input required type="text" placeholder="State" value={addressModal.state} onChange={e => setAddressModal({...addressModal, state: e.target.value})} className="p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent" />
+                <select 
+                  required 
+                  value={addressModal.state} 
+                  onChange={e => setAddressModal({...addressModal, state: e.target.value, city: ''})} 
+                  className="p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent"
+                >
+                  <option value="" disabled>Select State</option>
+                  {State.getStatesOfCountry('IN').map(state => (
+                    <option key={state.isoCode} value={state.name}>{state.name}</option>
+                  ))}
+                </select>
+                <select 
+                  required 
+                  value={addressModal.city} 
+                  onChange={e => setAddressModal({...addressModal, city: e.target.value})} 
+                  className="p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent"
+                  disabled={!addressModal.state}
+                >
+                  <option value="" disabled>Select City</option>
+                  {availableCities.map(city => (
+                    <option key={city.name} value={city.name}>{city.name}</option>
+                  ))}
+                </select>
               </div>
               <input required type="text" placeholder="Pincode" value={addressModal.pincode} onChange={e => setAddressModal({...addressModal, pincode: e.target.value})} className="w-full p-3.5 bg-secondary border border-border rounded-xl outline-none focus:border-accent" />
               

@@ -10,8 +10,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 mobile_num_validator = RegexValidator(
-    regex=r'^\d{10}$',
-    message="Mobile number must be exactly 10 digits."
+    regex=r'^[6-9]\d{9}$',
+    message="Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9."
 )
 
 class CustomUser(AbstractUser):

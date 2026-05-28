@@ -127,7 +127,8 @@
   }
 
   .float-label input,
-  .float-label textarea {
+  .float-label textarea,
+  .float-label select {
     /* peer behavior is applied directly in the markup; sibling selectors below handle floating */
   }
 
@@ -138,7 +139,9 @@
   .float-label input:focus+label,
   .float-label input:not(:placeholder-shown)+label,
   .float-label textarea:focus+label,
-  .float-label textarea:not(:placeholder-shown)+label {
+  .float-label textarea:not(:placeholder-shown)+label,
+  .float-label select:focus+label,
+  .float-label select:valid+label {
     @apply -top-2 text-xs text-primary;
   }
 

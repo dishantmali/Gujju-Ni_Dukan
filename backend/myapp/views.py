@@ -74,7 +74,7 @@ class LoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        # Generate tokens using Simple JWT
+         # Generate tokens using Simple JWT
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
         
@@ -944,10 +944,10 @@ class CreateRazorpayOrderView(APIView):
         phone_digits = phone.strip()
         if phone_digits.startswith('+'):
             phone_digits = phone_digits[1:]
-        if phone_digits.startswith('91'):
+        if len(phone_digits) > 10 and phone_digits.startswith('91'):
             phone_digits = phone_digits[2:]
-        if not phone_digits.isdigit() or len(phone_digits) != 10:
-            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
+            return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             product = Product.objects.get(id=product_id, status='approved')
@@ -1020,10 +1020,10 @@ class VerifyPaymentView(APIView):
         phone_digits = phone.strip()
         if phone_digits.startswith('+'):
             phone_digits = phone_digits[1:]
-        if phone_digits.startswith('91'):
+        if len(phone_digits) > 10 and phone_digits.startswith('91'):
             phone_digits = phone_digits[2:]
-        if not phone_digits.isdigit() or len(phone_digits) != 10:
-            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
+            return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 1. Verify Razorpay Signature
         try:
@@ -1299,10 +1299,10 @@ class VerifyCartPaymentView(APIView):
         phone_digits = phone.strip()
         if phone_digits.startswith('+'):
             phone_digits = phone_digits[1:]
-        if phone_digits.startswith('91'):
+        if len(phone_digits) > 10 and phone_digits.startswith('91'):
             phone_digits = phone_digits[2:]
-        if not phone_digits.isdigit() or len(phone_digits) != 10:
-            return Response({"error": "Phone number must be exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
+            return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not razorpay_client:
             return Response(
@@ -1751,10 +1751,10 @@ class RequestContactOTPView(APIView):
             check_digits = formatted_number
             if check_digits.startswith('+'):
                 check_digits = check_digits[1:]
-            if check_digits.startswith('91'):
+            if len(check_digits) > 10 and check_digits.startswith('91'):
                 check_digits = check_digits[2:]
-            if not check_digits.isdigit() or len(check_digits) != 10:
-                return Response({"error": "Phone number must contain exactly 10 digits."}, status=status.HTTP_400_BAD_REQUEST)
+            if not check_digits.isdigit() or len(check_digits) != 10 or check_digits[0] not in '6789':
+                return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
 
             if not formatted_number.startswith('+'):
                 formatted_number = '+91' + formatted_number # Format for India
@@ -1777,6 +1777,9 @@ class RequestContactOTPView(APIView):
         # PATH B: The user requested an Email OTP
         # --------------------------------------------------
         elif contact_type == 'email':
+            import re
+            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', new_value):
+                return Response({"error": "Invalid email address format."}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 # Use Django's built-in SMTP to send the Email
                 send_mail(
@@ -1812,9 +1815,9 @@ class VerifyContactOTPView(APIView):
             check_digits = new_phone
             if check_digits.startswith('+'):
                 check_digits = check_digits[1:]
-            if check_digits.startswith('91'):
+            if len(check_digits) > 10 and check_digits.startswith('91'):
                 check_digits = check_digits[2:]
-            if not check_digits.isdigit() or len(check_digits) != 10:
+            if not check_digits.isdigit() or len(check_digits) != 10 or check_digits[0] not in '6789':
                 return Response({"error": "Invalid phone number format."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not cached_data or cached_data['otp'] != provided_otp:
