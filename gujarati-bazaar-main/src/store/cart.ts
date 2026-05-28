@@ -14,10 +14,12 @@ export function cartLineUnitPrice(line: CartLine): number {
   return line.variant ? line.variant.price : line.product.price;
 }
 
-/** Check if the user is currently authenticated by looking for an access token. */
 function isAuthenticated(): boolean {
   return !!localStorage.getItem("access_token");
 }
+
+const qtySyncTimeouts: Record<string, any> = {};
+const qtySyncPromises: Record<string, Promise<any>> = {};
 
 type CartState = {
   items: CartLine[];
@@ -108,7 +110,7 @@ export const useCart = create<CartState>()(
         }
       },
       setQty: (lineId, qty) => {
-        const prevItem = get().items.find((i) => cartLineId(i) === lineId);
+        // 1. Immediately update the client-side state for perfect responsive UI feedback
         set((s) => ({
           items:
             qty <= 0
@@ -116,27 +118,55 @@ export const useCart = create<CartState>()(
               : s.items.map((i) => (cartLineId(i) === lineId ? { ...i, qty } : i)),
         }));
 
-        // Sync quantity change to backend (fire-and-forget)
-        if (isAuthenticated() && prevItem?.backendItemId) {
-          if (qty <= 0) {
-            // Remove from backend
-            api.delete(`/cart/remove/${prevItem.backendItemId}/`).catch((err) => {
-              console.error("Failed to sync cart removal to backend:", err);
-            });
-          } else {
-            // Remove and re-add with new quantity
-            api.delete(`/cart/remove/${prevItem.backendItemId}/`).then(() => {
-              return api.post("/cart/add/", {
-                product_id: prevItem.product.id,
-                variant_id: prevItem.variant?.id ?? null,
-                quantity: qty,
-              });
-            }).then(() => {
-              get().syncCart();
-            }).catch((err) => {
-              console.error("Failed to sync cart qty change to backend:", err);
-            });
+        // 2. Debounce quantity change sync to backend to prevent race conditions from rapid clicking
+        if (isAuthenticated()) {
+          if (qtySyncTimeouts[lineId]) {
+            clearTimeout(qtySyncTimeouts[lineId]);
           }
+
+          qtySyncTimeouts[lineId] = setTimeout(() => {
+            // Retrieve the active promise (if any) and chain onto it to ensure sequential execution
+            const currentPromise = qtySyncPromises[lineId] || Promise.resolve();
+
+            qtySyncPromises[lineId] = currentPromise.then(() => {
+              // Fetch the LATEST item state from the store to ensure we get the updated backendItemId
+              const currentItem = get().items.find((i) => cartLineId(i) === lineId);
+              
+              if (qty <= 0) {
+                // If item is removed, retrieve the backendItemId and delete it
+                const backendItemId = currentItem?.backendItemId || get().items.find((i) => cartLineId(i) === lineId)?.backendItemId;
+                if (backendItemId) {
+                  return api.delete(`/cart/remove/${backendItemId}/`).catch((err) => {
+                    console.error("Failed to sync cart removal to backend:", err);
+                  });
+                }
+                return;
+              }
+
+              if (!currentItem) return;
+
+              const backendItemId = currentItem.backendItemId;
+              const productId = currentItem.product.id;
+              const variantId = currentItem.variant?.id ?? null;
+
+              if (backendItemId) {
+                // Remove old and re-add with new quantity to sync
+                return api.delete(`/cart/remove/${backendItemId}/`).then(() => {
+                  return api.post("/cart/add/", {
+                    product_id: productId,
+                    variant_id: variantId,
+                    quantity: currentItem.qty, // Sync with the latest captured quantity!
+                  });
+                }).then(() => {
+                  return get().syncCart();
+                }).catch((err) => {
+                  console.error("Failed to sync cart qty change to backend:", err);
+                });
+              }
+            });
+
+            delete qtySyncTimeouts[lineId];
+          }, 400);
         }
       },
       clear: () => {
@@ -222,7 +252,7 @@ export const useCart = create<CartState>()(
         try {
           const res: any = await api.get("/cart/");
           if (res && res.items) {
-            const serverItems: CartLine[] = res.items.map((item: any) => {
+            const mapItem = (item: any): CartLine => {
               const vd = item.variant_details;
               const mappedVariant: ProductVariant | undefined = vd ? {
                 id: String(vd.id),
@@ -240,8 +270,21 @@ export const useCart = create<CartState>()(
                 variant: mappedVariant,
                 backendItemId: item.id,
               };
-            });
-            set({ items: serverItems });
+            };
+
+            const serverItems: CartLine[] = res.items.map(mapItem);
+
+            // Merge local cart to server if the server cart is empty but we have local items
+            if (serverItems.length === 0 && get().items.length > 0) {
+              await get().mergeCart();
+              const mergeRes: any = await api.get("/cart/");
+              if (mergeRes && mergeRes.items) {
+                const mergedServerItems: CartLine[] = mergeRes.items.map(mapItem);
+                set({ items: mergedServerItems });
+              }
+            } else {
+              set({ items: serverItems });
+            }
           }
         } catch (err) {
           console.error("Failed to sync cart:", err);
