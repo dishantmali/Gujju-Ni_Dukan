@@ -76,6 +76,21 @@ const CheckoutPage = () => {
     };
     fetchAvailableCoupons();
   }, []);
+
+  const [platformConfig, setPlatformConfig] = useState({ gst_percentage: 18, platform_fee_percentage: 5 });
+
+  useEffect(() => {
+    api.get("/platform-config/")
+      .then((res: any) => {
+        if (res) {
+          setPlatformConfig({
+            gst_percentage: parseFloat(res.gst_percentage),
+            platform_fee_percentage: parseFloat(res.platform_fee_percentage)
+          });
+        }
+      })
+      .catch((err) => console.error("Error fetching platform config:", err));
+  }, []);
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const navigate = useNavigate();
@@ -421,8 +436,8 @@ const CheckoutPage = () => {
                     const sub = items.reduce((a, l) => a + cartLineUnitPrice(l) * l.qty, 0);
                     const discount = appliedCoupon ? parseFloat(appliedCoupon.discount_amount) : 0;
                     const subAfterDiscount = Math.max(0, sub - discount);
-                    const pf = Math.round(subAfterDiscount * 0.05 * 100) / 100;
-                    const gst = Math.round(pf * 0.18 * 100) / 100;
+                    const pf = Math.round(subAfterDiscount * (platformConfig.platform_fee_percentage / 100) * 100) / 100;
+                    const gst = Math.round(pf * (platformConfig.gst_percentage / 100) * 100) / 100;
                     const tot = Math.round((subAfterDiscount + pf + gst) * 100) / 100;
                     return (
                       <dl className="mt-4 space-y-1.5 text-sm">
@@ -433,8 +448,8 @@ const CheckoutPage = () => {
                             <dd>-₹{discount.toLocaleString("en-IN")}</dd>
                           </div>
                         )}
-                        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee (5%)</dt><dd className="font-medium">₹{pf.toLocaleString("en-IN")}</dd></div>
-                        <div className="flex justify-between"><dt className="text-muted-foreground">GST (18%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
+                        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee ({platformConfig.platform_fee_percentage}%)</dt><dd className="font-medium">₹{pf.toLocaleString("en-IN")}</dd></div>
+                        <div className="flex justify-between"><dt className="text-muted-foreground">GST ({platformConfig.gst_percentage}%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
                         <div className="border-t border-border pt-2 mt-2 flex justify-between text-base">
                           <dt className="font-semibold">You Pay</dt>
                           <dd className="font-display font-bold text-lg">₹{tot.toLocaleString("en-IN")}</dd>

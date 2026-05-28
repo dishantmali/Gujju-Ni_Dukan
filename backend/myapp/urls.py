@@ -33,6 +33,7 @@ from .views import (
     VendorCouponListCreateView, VendorCouponDetailView,
     ValidateCouponView, ActiveCouponListView,
     AdminNewsListCreateView, AdminNewsDetailView,
+    PlatformConfigView,
 
     # Category
     CategoryListView,WishlistToggleView,WishlistListView,MergeWishlistView,
@@ -165,6 +166,9 @@ urlpatterns = [
     # Platform Reviews Admin
     path('admin/platform-reviews/', AdminPlatformReviewListView.as_view(), name='admin_platform_reviews'),
     path('admin/platform-reviews/<int:pk>/', AdminPlatformReviewDetailView.as_view(), name='admin_platform_review_detail'),
+
+    # Platform Settings
+    path('platform-config/', PlatformConfigView.as_view(), name='platform_config'),
 
     # Coupon Section
     path('admin/coupons/', AdminCouponListCreateView.as_view(), name='admin_coupons'),

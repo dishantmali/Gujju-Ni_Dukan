@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingBag, User, Menu, X, Heart, ChevronDown, LogIn, UserPlus, LayoutGrid, ArrowRight } from "lucide-react";
+import { ShoppingCart, User, Menu, X, Heart, ChevronDown, LogIn, UserPlus, LayoutGrid, ArrowRight } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/store/cart";
@@ -162,7 +162,7 @@ export const Navbar = () => {
 
               {/* Cart */}
               <Link to="/cart" className="relative h-10 w-10 grid place-items-center rounded-full hover:bg-secondary text-brown-mid transition-colors" aria-label="Cart">
-                <ShoppingBag size={18} className={bumped ? "animate-bounce-soft" : ""} />
+                <ShoppingCart size={18} className={bumped ? "animate-bounce-soft" : ""} />
                 {count > 0 && (
                   <motion.span
                     key={count}
@@ -213,7 +213,7 @@ export const Navbar = () => {
         <div className="md:hidden flex items-center gap-1 ml-auto">
           {(!isAuthenticated || user?.role === 'buyer') && (
             <Link to="/cart" className="relative h-10 w-10 grid place-items-center rounded-full hover:bg-secondary text-brown-mid" aria-label="Cart">
-              <ShoppingBag size={18} />
+              <ShoppingCart size={18} />
               {count > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-accent text-accent-foreground text-[10px] font-bold">{count}</span>
               )}

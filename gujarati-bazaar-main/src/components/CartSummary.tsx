@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { useCart } from "@/store/cart";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 
 export const CartSummary = ({ 
   ctaTo = "/checkout", 
@@ -16,8 +18,24 @@ export const CartSummary = ({
   const items = useCart((s) => s.items);
   const discount = appliedCoupon ? parseFloat(appliedCoupon.discount_amount) : 0;
   const subAfterDiscount = Math.max(0, subtotal - discount);
-  const platformFee = Math.round(subAfterDiscount * 0.05 * 100) / 100;
-  const gst = Math.round(platformFee * 0.18 * 100) / 100;
+
+  const [config, setConfig] = useState({ gst_percentage: 18, platform_fee_percentage: 5 });
+
+  useEffect(() => {
+    api.get("/platform-config/")
+      .then((res: any) => {
+        if (res) {
+          setConfig({
+            gst_percentage: parseFloat(res.gst_percentage),
+            platform_fee_percentage: parseFloat(res.platform_fee_percentage)
+          });
+        }
+      })
+      .catch((err) => console.error("Error fetching platform config:", err));
+  }, []);
+
+  const platformFee = Math.round(subAfterDiscount * (config.platform_fee_percentage / 100) * 100) / 100;
+  const gst = Math.round(platformFee * (config.gst_percentage / 100) * 100) / 100;
   const total = Math.round((subAfterDiscount + platformFee + gst) * 100) / 100;
 
   return (
@@ -31,8 +49,8 @@ export const CartSummary = ({
             <dd>-₹{discount.toLocaleString("en-IN")}</dd>
           </div>
         )}
-        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee (5%)</dt><dd className="font-medium">₹{platformFee.toLocaleString("en-IN")}</dd></div>
-        <div className="flex justify-between"><dt className="text-muted-foreground">GST (18%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee ({config.platform_fee_percentage}%)</dt><dd className="font-medium">₹{platformFee.toLocaleString("en-IN")}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">GST ({config.gst_percentage}%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
         <div className="border-t border-border pt-3 mt-3 flex justify-between text-base">
           <dt className="font-semibold">Total</dt>
           <dd className="font-display font-bold text-xl">₹{total.toLocaleString("en-IN")}</dd>

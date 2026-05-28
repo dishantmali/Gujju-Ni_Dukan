@@ -381,8 +381,14 @@ const AccountPage = () => {
                       <div className="flex justify-between items-center border-b border-border pb-4 mb-4 bg-secondary -mx-6 -mt-6 px-6 pt-6 rounded-t-xl">
                         <div>
                           <p className="text-sm text-muted-foreground font-bold tracking-widest">ORDER #{order.id}</p>
-                          <p className="font-bold text-foreground mt-1 text-sm">
-                            Payment: <span className="uppercase text-success bg-success/10 px-2 py-0.5 rounded ml-1">{order.payment_status}</span>
+                          <p className="font-bold text-foreground mt-1 text-sm flex items-center flex-wrap gap-2">
+                            Payment: <span className="uppercase text-success bg-success/10 px-2 py-0.5 rounded">{order.payment_status}</span>
+                            <Link 
+                              to={`/order/${order.id}/invoice`} 
+                              className="text-xs text-accent hover:text-accent/80 font-black ml-2 underline underline-offset-2 transition-colors print:hidden"
+                            >
+                              📄 View Invoice
+                            </Link>
                           </p>
                         </div>
                         <div className="text-right">

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ChevronRight,
-  ShoppingBag,
+  ShoppingCart,
   Heart,
   Shield,
   CheckCircle2,
@@ -832,7 +832,7 @@ const ProductPage = () => {
                   }}
                   className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/10 hover:bg-brown-mid transition-all disabled:opacity-50 disabled:pointer-events-none text-sm sm:text-base"
                 >
-                  <ShoppingBag size={18} className="sm:w-5 sm:h-5" />
+                  <ShoppingCart size={18} className="sm:w-5 sm:h-5" />
                   Add to Cart
                 </motion.button>
               </div>

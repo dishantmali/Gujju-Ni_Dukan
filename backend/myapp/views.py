@@ -20,7 +20,7 @@ from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
     Category ,Cart, CartItem, CategoryRequest, Offer , Wishlist,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
-    IconAsset, ManualReview, Coupon, CouponUsage, News
+    IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration
 )
 # pyrefly: ignore [missing-import]
 from .serializers import (
@@ -30,7 +30,7 @@ from .serializers import (
     ProductReviewSerializer, PlatformReviewSerializer , AdminPlatformReviewSerializer, BannerSerializer , HeroBannerSerializer, UserSerializer ,
     SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
     IconAssetSerializer, VendorProfileSerializer, VendorProfileUpdateSerializer, ManualReviewSerializer,
-    CouponSerializer, CouponUsageSerializer, NewsSerializer
+    CouponSerializer, CouponUsageSerializer, NewsSerializer, PlatformConfigurationSerializer
 )
 import random
 # Initialize Razorpay client gracefully
@@ -965,8 +965,11 @@ class CreateRazorpayOrderView(APIView):
             return Response({"error": "Product has no variants."}, status=status.HTTP_400_BAD_REQUEST)
 
         base_amount = float(pv.discounted_price) * quantity
-        platform_fee = base_amount * 0.05
-        gst = platform_fee * 0.18
+        config = PlatformConfiguration.get_config()
+        platform_fee_rate = float(config.platform_fee_percentage) / 100.0
+        gst_rate = float(config.gst_percentage) / 100.0
+        platform_fee = base_amount * platform_fee_rate
+        gst = platform_fee * gst_rate
         total_amount = base_amount + platform_fee + gst
         amount_in_paise = int(total_amount * 100)
 
@@ -1250,8 +1253,11 @@ class CheckoutView(APIView):
             discount_amount = discount_details['discount_amount']
 
         subtotal_after_discount = max(0.0, base_amount - discount_amount)
-        platform_fee = subtotal_after_discount * 0.05
-        gst = platform_fee * 0.18
+        config = PlatformConfiguration.get_config()
+        platform_fee_rate = float(config.platform_fee_percentage) / 100.0
+        gst_rate = float(config.gst_percentage) / 100.0
+        platform_fee = subtotal_after_discount * platform_fee_rate
+        gst = platform_fee * gst_rate
         total_amount = subtotal_after_discount + platform_fee + gst
         amount_in_paise = int(total_amount * 100)
 
@@ -1357,8 +1363,11 @@ class VerifyCartPaymentView(APIView):
                         discount_amount = discount_details['discount_amount']
 
                 subtotal_after_discount = max(0.0, total_amount - discount_amount)
-                platform_fee = subtotal_after_discount * 0.05
-                gst = platform_fee * 0.18
+                config = PlatformConfiguration.get_config()
+                platform_fee_rate = float(config.platform_fee_percentage) / 100.0
+                gst_rate = float(config.gst_percentage) / 100.0
+                platform_fee = subtotal_after_discount * platform_fee_rate
+                gst = platform_fee * gst_rate
                 final_total = subtotal_after_discount + platform_fee + gst
 
                 # Create Order
@@ -2168,4 +2177,24 @@ class AdminNewsDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.user.role != 'admin':
             raise PermissionDenied("Only admin can delete news.")
         instance.delete()
+
+
+class PlatformConfigView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        config = PlatformConfiguration.get_config()
+        serializer = PlatformConfigurationSerializer(config)
+        return Response(serializer.data)
+
+    def post(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admin can update platform configuration.")
+        config = PlatformConfiguration.get_config()
+        serializer = PlatformConfigurationSerializer(config, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 

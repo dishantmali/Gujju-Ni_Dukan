@@ -1,7 +1,7 @@
 import { useRef, useState, MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, ShoppingBag, Sparkles } from "lucide-react";
+import { Heart, ShoppingCart, Sparkles } from "lucide-react";
 import { Product } from "@/data/types";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/context/AuthContext";
@@ -100,7 +100,7 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
               aria-label="Add to cart"
               className="h-9 w-9 shrink-0 grid place-items-center rounded-full bg-primary text-primary-foreground hover:bg-brown-mid transition-colors active:scale-95"
             >
-              <ShoppingBag size={14} />
+              <ShoppingCart size={14} />
             </button>
           </div>
         </div>

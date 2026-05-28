@@ -212,6 +212,10 @@ const AdminDashboard = () => {
   const [activeReviewSubTab, setActiveReviewSubTab] = useState<'manual' | 'platform'>('manual');
   const [loading, setLoading] = useState(true);
 
+  // Platform Config State
+  const [platformConfig, setPlatformConfig] = useState({ gst_percentage: '18.00', platform_fee_percentage: '5.00' });
+  const [updatingConfig, setUpdatingConfig] = useState(false);
+
   // Coupon States
   const [coupons, setCoupons] = useState<any[]>([]);
   const [newCoupon, setNewCoupon] = useState({
@@ -303,6 +307,16 @@ const AdminDashboard = () => {
           const adminCoupons = (coupRes || []).filter((c: any) => !c.vendor);
           setCoupons(adminCoupons);
         } catch (e) { console.warn("Coupons endpoint error", e); }
+
+        try {
+          const configRes: any = await api.get('/platform-config/');
+          if (configRes) {
+            setPlatformConfig({
+              gst_percentage: String(configRes.gst_percentage),
+              platform_fee_percentage: String(configRes.platform_fee_percentage)
+            });
+          }
+        } catch (e) { console.warn("Platform config endpoint error", e); }
 
       } catch (error) {
         console.error(error);
@@ -722,6 +736,28 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSaveConfig = async (e: any) => {
+    e.preventDefault();
+    setUpdatingConfig(true);
+    try {
+      const res: any = await api.post('/platform-config/', {
+        gst_percentage: parseFloat(platformConfig.gst_percentage),
+        platform_fee_percentage: parseFloat(platformConfig.platform_fee_percentage)
+      });
+      if (res) {
+        setPlatformConfig({
+          gst_percentage: String(res.gst_percentage),
+          platform_fee_percentage: String(res.platform_fee_percentage)
+        });
+        toast.success("Platform settings updated successfully!");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update platform settings");
+    } finally {
+      setUpdatingConfig(false);
+    }
+  };
+
   if (loading) return (
     <div className="fixed inset-0 z-[60] bg-[var(--bg-main)] flex items-center justify-center text-[var(--coffee-light)] font-sans">
       <div className="flex flex-col items-center gap-4">
@@ -756,6 +792,7 @@ const AdminDashboard = () => {
     { key: 'reviews', label: 'Reviews', Icon: Icons.Reviews, badge: pendingPlatformReviewsCount > 0 ? pendingPlatformReviewsCount : null },
     { key: 'orders', label: 'Global Orders', Icon: Icons.Orders, badge: null },
     { key: 'coupons', label: 'Coupons', Icon: Icons.Coupons, badge: null },
+    { key: 'platformSettings', label: 'Platform Settings', Icon: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>, badge: null },
   ];
 
   const RangeSelect = ({ value, onChange, options }) => (
@@ -2257,6 +2294,50 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── PLATFORM SETTINGS TAB ── */}
+              {activeTab === 'platformSettings' && (
+                <div className="animate-fade-in flex flex-col gap-8">
+                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
+                    <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Platform Settings</h2>
+                    <form onSubmit={handleSaveConfig} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">GST Percentage (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={platformConfig.gst_percentage}
+                          onChange={e => setPlatformConfig({ ...platformConfig, gst_percentage: e.target.value })}
+                          className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                          placeholder="e.g. 18.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">Platform Fee Percentage (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={platformConfig.platform_fee_percentage}
+                          onChange={e => setPlatformConfig({ ...platformConfig, platform_fee_percentage: e.target.value })}
+                          className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                          placeholder="e.g. 5.00"
+                        />
+                      </div>
+                      <div className="md:col-span-2 flex gap-3 mt-2">
+                        <button
+                          type="submit"
+                          disabled={updatingConfig}
+                          className="flex-1 bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98]"
+                        >
+                          {updatingConfig ? "Saving..." : "Save Settings"}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               )}

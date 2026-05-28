@@ -297,3 +297,31 @@
     width: 2.5rem;
   }
 }
+
+/* ── Custom Invoice Print Styles ── */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Hide headers, footers, aside, buttons, navigation and scroll-to-top buttons */
+  header, footer, nav, aside, .print-hidden, button, a[href^="/"] {
+    display: none !important;
+  }
+
+  /* Force printable invoice to fill page seamlessly */
+  #printable-invoice {
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Prevent awkward page cuts in table row elements */
+  tr, td {
+    page-break-inside: avoid;
+  }
+}

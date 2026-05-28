@@ -8,7 +8,7 @@ from .models import (
     CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
     Category, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
-    IconAsset, ManualReview, Coupon, CouponUsage, News
+    IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration
 )
 User = get_user_model()
 # ---------------- BASE SANITIZER (The Armor) ----------------
@@ -680,4 +680,12 @@ class NewsSerializer(SanitizedSerializer):
         model = News
         fields = ['id', 'title', 'start_date', 'end_date', 'is_active', 'created_at']
         read_only_fields = ['created_at']
+
+
+# ---------------- PLATFORM CONFIG ----------------
+class PlatformConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlatformConfiguration
+        fields = ['gst_percentage', 'platform_fee_percentage']
+
 

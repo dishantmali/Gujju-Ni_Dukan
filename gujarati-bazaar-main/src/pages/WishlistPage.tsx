@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Heart, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageShell } from '@/components/PageShell';
 import { ProductCard } from '@/components/ProductCard';
@@ -66,7 +66,7 @@ const WishlistPage = () => {
               to="/" 
               className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-white rounded-full font-bold hover:bg-accent/90 transition-all active:scale-95 shadow-lg shadow-accent/20"
             >
-              <ShoppingBag size={18} />
+              <ShoppingCart size={18} />
               Continue Shopping
             </Link>
           </motion.div>

@@ -1,4 +1,5 @@
 from django.contrib import admin
+# pyrefly: ignore [missing-import]
 from .models import (
     CustomUser,
     VendorProfile,
@@ -16,7 +17,8 @@ from .models import (
     PlatformReview,
     SubscriptionPlan,
     VendorSubscription,
-    ManualReview
+    ManualReview,
+    PlatformConfiguration
 )
 
 
@@ -188,3 +190,9 @@ class ManualReviewAdmin(admin.ModelAdmin):
     def deactivate_reviews(self, request, queryset):
         queryset.update(is_active=False)
     deactivate_reviews.short_description = "Deactivate selected reviews"
+
+
+@admin.register(PlatformConfiguration)
+class PlatformConfigurationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'gst_percentage', 'platform_fee_percentage', 'updated_at')
+

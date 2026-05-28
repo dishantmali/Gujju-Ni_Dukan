@@ -636,3 +636,18 @@ class News(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class PlatformConfiguration(models.Model):
+    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, help_text="GST percentage applied on platform fee")
+    platform_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5.00, help_text="Platform fee percentage applied on base order amount")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"GST: {self.gst_percentage}%, Fee: {self.platform_fee_percentage}%"
+
+    @classmethod
+    def get_config(cls):
+        config, created = cls.objects.get_or_create(id=1)
+        return config
+

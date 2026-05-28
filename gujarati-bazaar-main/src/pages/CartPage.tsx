@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { CartItem } from "@/components/CartItem";
 import { CartSummary } from "@/components/CartSummary";
@@ -16,7 +16,7 @@ const CartPage = () => {
         <h1 className="font-display text-3xl sm:text-4xl font-semibold mb-6">Your Cart</h1>
         {items.length === 0 ? (
           <EmptyState
-            icon={<ShoppingBag size={32} />}
+            icon={<ShoppingCart size={32} />}
             title="Your cart is empty"
             description="Looks like you haven't added anything yet. Discover authentic Gujarati treasures."
             action={

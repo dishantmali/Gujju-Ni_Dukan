@@ -19,6 +19,7 @@ import SignupPage from "./pages/SignupPage.tsx";
 import VendorDashboard from "./pages/VendorDashboard.tsx";
 import AdminDashboardNew from "./pages/AdminDashboardNew.tsx";
 import WishlistPage from "./pages/WishlistPage.tsx";
+import InvoicePage from "./pages/InvoicePage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const AnimatedRoutes = () => {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/wishlist" element={<WishlistPage />} />
+        <Route path="/order/:orderId/invoice" element={<InvoicePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/admin" element={<RequireRole role="admin"><AdminDashboardNew /></RequireRole>} />
