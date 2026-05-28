@@ -905,9 +905,21 @@ const VendorDashboard = () => {
             <p className="text-muted-foreground mb-6">
               Your vendor profile is currently under review by our administration team. You will be able to access your dashboard and manage your products once your account has been approved.
             </p>
-            <div className="p-4 bg-amber-500/10 text-amber-600 rounded-xl text-sm font-medium">
+            <div className="p-4 bg-amber-500/10 text-amber-600 rounded-xl text-sm font-medium mb-6">
               We'll notify you as soon as your account is ready!
             </div>
+            
+            <button
+              onClick={() => {
+                logout();
+                toast.success('Logged out successfully');
+                navigate('/');
+              }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium transition-colors"
+            >
+              <LogOut size={18} />
+              Logout
+            </button>
           </div>
         </div>
       </PageShell>
