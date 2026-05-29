@@ -414,7 +414,6 @@ const SignupPage = () => {
                   <span>Vendor</span>
                 </button>
                 <motion.div
-                  layout
                   className="absolute top-1.5 bottom-1.5 bg-card rounded-xl shadow-md border border-border"
                   style={{ width: "calc(50% - 6px)" }}
                   animate={{

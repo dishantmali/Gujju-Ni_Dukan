@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 # pyrefly: ignore [missing-import]
 from .views import (
     # Auth
-    LoginView, RegisterView, MeView,
+    LoginView, RegisterView, MeView, ForgotPasswordView, ResetPasswordView,
     # Products
     ProductListView, ProductDetailView,
     # Vendor
@@ -58,6 +58,8 @@ urlpatterns = [
     # ---------------- AUTH ---------------- #
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
+    path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
+    path('auth/reset-password/', ResetPasswordView.as_view(), name='reset_password'),
     path(
         'auth/token/refresh/',
         TokenRefreshView.as_view(),

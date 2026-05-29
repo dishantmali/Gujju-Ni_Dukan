@@ -16,6 +16,14 @@ from django.db import transaction , models
 from django.contrib.auth import update_session_auth_hash
 import requests 
 # pyrefly: ignore [missing-import]
+from .email_utils import (
+    send_forgot_password_email,
+    send_vendor_approval_email,
+    send_product_approval_email,
+    send_buyer_order_confirmation_email,
+    send_order_item_tracking_email
+)
+# pyrefly: ignore [missing-import]
 from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
     Category ,Cart, CartItem, CategoryRequest, Offer , Wishlist,
@@ -96,6 +104,61 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'No account found with this email address'}, status=status.HTTP_404_NOT_FOUND)
+        
+        otp = str(random.randint(100000, 999999))
+        cache_key = f"password_reset_{email}"
+        cache.set(cache_key, otp, timeout=600)  # 10 minutes
+
+        # Send SMTP email
+        send_forgot_password_email(email, otp)
+
+        return Response({'message': 'OTP sent successfully to your email'})
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        new_password = request.data.get('new_password')
+
+        if not email or not otp or not new_password:
+            return Response({'error': 'Email, OTP, and new password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cache_key = f"password_reset_{email}"
+        cached_otp = cache.get(cache_key)
+
+        if not cached_otp or str(cached_otp) != str(otp):
+            return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+
+        # Clear OTP from cache
+        cache.delete(cache_key)
+
+        return Response({'message': 'Password reset successfully'})
 
 
 class HomePageView(APIView):
@@ -458,6 +521,12 @@ class AdminProductApprovalView(APIView):
 
         product.save()
 
+        # Send email notification
+        try:
+            send_product_approval_email(product, approved=(action == 'approve'))
+        except Exception as e:
+            print("ERROR SENDING PRODUCT APPROVAL EMAIL:", e)
+
         return Response({"message": f"Product {action}d successfully"})
 
 class AdminVendorApprovalView(APIView):
@@ -481,9 +550,18 @@ class AdminVendorApprovalView(APIView):
             vendor.is_active = True  # Ensure active
             vendor.save()
             Product.objects.filter(vendor=vendor).update(is_active=True)
+            
+            try:
+                send_vendor_approval_email(vendor, approved=True)
+            except Exception as e:
+                print("ERROR SENDING VENDOR APPROVAL EMAIL:", e)
+                
             return Response({"message": "Vendor approved successfully"})
 
         elif action == 'reject':
+            if not vendor.is_approved and not vendor.is_active:
+                return Response({"message": "Vendor already suspended"}, status=400)
+                
             # --- ENTERPRISE SOFT DELETE ---
             vendor.is_approved = False
             vendor.is_active = False
@@ -493,6 +571,12 @@ class AdminVendorApprovalView(APIView):
             for product in Product.objects.filter(vendor=vendor):
                 product.is_active = False
                 product.save()
+                
+            try:
+                send_vendor_approval_email(vendor, approved=False)
+            except Exception as e:
+                print("ERROR SENDING VENDOR REJECTION EMAIL:", e)
+                
             return Response({"message": "Vendor account suspended. Products hidden."})
 
         return Response({"error": "Invalid action"}, status=400)
@@ -1094,6 +1178,12 @@ class VerifyPaymentView(APIView):
                 price=pv.discounted_price
             )
 
+        # Trigger order confirmation email to the buyer!
+        try:
+            send_buyer_order_confirmation_email(order)
+        except Exception as e:
+            print("ERROR SENDING BUYER ORDER CONFIRMATION EMAIL:", e)
+
         serializer = OrderSerializer(order)
 
         return Response({
@@ -1144,6 +1234,12 @@ class VendorOrderStatusUpdateView(generics.UpdateAPIView):
         if new_status in timestamp_fields:
             extra_kwargs[timestamp_fields[new_status]] = timezone.now()
         serializer.save(**extra_kwargs)
+
+        # Trigger order tracking email notification
+        try:
+            send_order_item_tracking_email(serializer.instance, status=new_status)
+        except Exception as e:
+            print("ERROR SENDING ORDER TRACKING EMAIL:", e)
 
 
 class CartView(APIView):
@@ -1403,6 +1499,12 @@ class VerifyCartPaymentView(APIView):
 
                 # Clear Cart NOW (after successful payment and order creation)
                 items.delete()
+
+            # Trigger email to the buyer!
+            try:
+                send_buyer_order_confirmation_email(order)
+            except Exception as e:
+                print("ERROR SENDING CART ORDER CONFIRMATION EMAIL:", e)
 
             return Response({"message": "Order placed successfully"}, status=status.HTTP_201_CREATED)
 
