@@ -2,25 +2,30 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 
+import threading
+
 def send_html_email(subject, recipient_email, html_content, text_content=""):
     """
-    Core helper to send a beautifully styled HTML email.
-    Saves from failing silently but catches exceptions to avoid crashing requests.
+    Core helper to send a beautifully styled HTML email asynchronously in a background thread.
+    Prevents network delays/timeouts on SMTP connections from blocking HTTP responses.
     """
-    try:
-        send_mail(
-            subject=subject,
-            message=text_content,
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[recipient_email],
-            html_message=html_content,
-            fail_silently=False,
-        )
-        print(f"[SMTP EMAIL SUCCESS] Sent email '{subject}' to {recipient_email}")
-        return True
-    except Exception as e:
-        print(f"[SMTP EMAIL ERROR] Failed to send email '{subject}' to {recipient_email}. Error: {e}")
-        return False
+    def _send():
+        try:
+            send_mail(
+                subject=subject,
+                message=text_content,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[recipient_email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+            print(f"[SMTP EMAIL SUCCESS] Sent email '{subject}' to {recipient_email}")
+        except Exception as e:
+            print(f"[SMTP EMAIL ERROR] Failed to send email '{subject}' to {recipient_email}. Error: {e}")
+
+    thread = threading.Thread(target=_send)
+    thread.start()
+    return True
 
 # Base visual template wrapping all emails for visual consistency and premium look
 def get_base_template(content_html, title_text):
@@ -282,3 +287,59 @@ def send_order_item_tracking_email(order_item, status):
         </div>
     """
     return send_html_email(subject, order_item.order.user.email, get_base_template(content_html, f"Item {status_label}"))
+
+def send_vendor_order_notification_email(vendor, items, order):
+    subject = f"New Order Received #{order.id} - Gujju Ni Dukan"
+    
+    items_html = ""
+    for item in items:
+        variant_desc = f" ({item.variant_options_snapshot})" if item.variant_options_snapshot else ""
+        item_total = item.price * item.quantity
+        items_html += f"""
+        <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                <div style="font-weight: 600; color: #1F2937;">{item.product_name_snapshot}{variant_desc}</div>
+            </td>
+            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #E5E7EB; color: #4B5563;">x{item.quantity}</td>
+            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #E5E7EB; font-weight: 600; color: #1F2937;">₹{item_total}</td>
+        </tr>
+        """
+        
+    content_html = f"""
+        <h2 style="font-size: 20px; color: #1F2937; margin-top: 0; text-align: center;">New Order Notification!</h2>
+        <p>Hello {vendor.shop_name},</p>
+        <p>You have received a new order <strong>#{order.id}</strong> for your products. Please review the details below and prepare for shipment.</p>
+        
+        <div class="divider"></div>
+        
+        <h3 style="font-size: 16px; color: #1F2937; margin-bottom: 16px;">Ordered Items</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; padding-bottom: 8px; color: #6B7280; font-size: 13px; border-bottom: 2px solid #E5E7EB;">ITEM</th>
+                    <th style="text-align: center; padding-bottom: 8px; color: #6B7280; font-size: 13px; border-bottom: 2px solid #E5E7EB; width: 60px;">QTY</th>
+                    <th style="text-align: right; padding-bottom: 8px; color: #6B7280; font-size: 13px; border-bottom: 2px solid #E5E7EB; width: 80px;">TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {items_html}
+            </tbody>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <h3 style="font-size: 16px; color: #1F2937; margin-bottom: 8px;">Delivery Details</h3>
+        <p style="margin: 0; line-height: 1.5; color: #4B5563;">
+            <strong>Customer:</strong> {order.user.name or order.user.username}<br>
+            <strong>Shipping Address:</strong><br>
+            {order.address}
+        </p>
+        <p style="margin: 8px 0 0 0; color: #4B5563;">
+            <strong>Phone:</strong> {order.phone}
+        </p>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="https://gujju-ni-dukan.vercel.app/profile" class="btn">Go to Vendor Dashboard</a>
+        </div>
+    """
+    return send_html_email(subject, vendor.user.email, get_base_template(content_html, "New Order Notification"))

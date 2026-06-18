@@ -21,7 +21,8 @@ from .email_utils import (
     send_vendor_approval_email,
     send_product_approval_email,
     send_buyer_order_confirmation_email,
-    send_order_item_tracking_email
+    send_order_item_tracking_email,
+    send_vendor_order_notification_email
 )
 # pyrefly: ignore [missing-import]
 from .models import (
@@ -1318,6 +1319,12 @@ class VerifyPaymentView(APIView):
             except Exception as e:
                 print("ERROR SENDING BUYER ORDER CONFIRMATION EMAIL:", e)
 
+            # Trigger email to the vendor!
+            try:
+                send_vendor_order_notification_email(product.vendor, order.items.all(), order)
+            except Exception as e:
+                print("ERROR SENDING VENDOR ORDER NOTIFICATION EMAIL:", e)
+
             serializer = OrderSerializer(order)
 
             return Response({
@@ -1747,6 +1754,17 @@ class VerifyCartPaymentView(APIView):
                 send_buyer_order_confirmation_email(order)
             except Exception as e:
                 print("ERROR SENDING CART ORDER CONFIRMATION EMAIL:", e)
+
+            # Trigger email to the vendors!
+            try:
+                from collections import defaultdict
+                vendor_items = defaultdict(list)
+                for item in order.items.all():
+                    vendor_items[item.vendor].append(item)
+                for vendor, items_list in vendor_items.items():
+                    send_vendor_order_notification_email(vendor, items_list, order)
+            except Exception as e:
+                print("ERROR SENDING VENDOR ORDER NOTIFICATIONS:", e)
 
             return Response({"message": "Order placed successfully"}, status=status.HTTP_201_CREATED)
 
