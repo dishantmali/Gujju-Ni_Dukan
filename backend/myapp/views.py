@@ -1166,156 +1166,167 @@ class VerifyPaymentView(APIView):
         if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
             return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Verify Razorpay Signature
-        try:
-            razorpay_client.utility.verify_payment_signature({
-                'razorpay_order_id': razorpay_order_id,
-                'razorpay_payment_id': razorpay_payment_id,
-                'razorpay_signature': razorpay_signature,
-            })
-        except Exception:
-            return Response({"error": "Payment verification failed. Invalid signature."},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        # 2. Atomic Transaction for Stock Check, Decrement, and Order Creation
-        product = Product.objects.filter(id=product_id, status='approved').first()
-        if not product:
-            return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        with transaction.atomic():
-            if variant_id:
-                locked = list(
-                    ProductVariant.objects.select_for_update().filter(id=variant_id, product_id=product_id)[:1]
-                )
-            else:
-                locked = list(
-                    ProductVariant.objects.select_for_update()
-                    .filter(product_id=product_id)
-                    .order_by('id')[:1]
-                )
-            pv = locked[0] if locked else None
-            if not pv:
-                return Response({"error": "Variant not found."}, status=status.HTTP_404_NOT_FOUND)
-
-            # Check if enough stock is available
-            if pv.stock_quantity < quantity:
-                return Response(
-                    {"error": f"Insufficient stock. Only {pv.stock_quantity} available."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Decrement variant stock and save
-            pv.stock_quantity -= quantity
-            pv.save()
-
-            base_amount = float(pv.discounted_price) * quantity
-            
-            # Determine state splitting
-            buyer_state = get_state_from_address(address)
-            vendor_state = product.vendor.state or ""
-            is_same_state = buyer_state.lower().strip() == vendor_state.lower().strip()
-
-            category_gst_rate = float(product.category.gst_percentage) if product.category else 18.00
-            product_gst = base_amount * (category_gst_rate / (100.0 + category_gst_rate))
-
-            # Platform configuration & platform fee GST
-            config = PlatformConfiguration.get_config()
-            platform_fee = float(config.platform_fee)
-            platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
-
-            shipping_charge = float(config.shipping_charge)
-            shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
-
-            # Product GST Splitting
-            if is_same_state:
-                product_cgst = product_gst / 2.0
-                product_sgst = product_gst / 2.0
-                product_igst = 0.0
-                item_cgst = product_gst / 2.0
-                item_sgst = product_gst / 2.0
-                item_igst = 0.0
-            else:
-                product_cgst = 0.0
-                product_sgst = 0.0
-                product_igst = product_gst
-                item_cgst = 0.0
-                item_sgst = 0.0
-                item_igst = product_gst
-
-            # Platform GST Splitting (Platform based in Gujarat)
-            is_platform_same_state = buyer_state.lower().strip() == "gujarat"
-            if is_platform_same_state:
-                platform_cgst = platform_fee_gst / 2.0
-                platform_sgst = platform_fee_gst / 2.0
-                platform_igst = 0.0
-            else:
-                platform_cgst = 0.0
-                platform_sgst = 0.0
-                platform_igst = platform_fee_gst
-
-            # Shipping GST Splitting (Platform based in Gujarat)
-            if is_platform_same_state:
-                shipping_cgst = shipping_charge_gst / 2.0
-                shipping_sgst = shipping_charge_gst / 2.0
-                shipping_igst = 0.0
-            else:
-                shipping_cgst = 0.0
-                shipping_sgst = 0.0
-                shipping_igst = shipping_charge_gst
-
-            cgst = product_cgst + platform_cgst + shipping_cgst
-            sgst = product_sgst + platform_sgst + shipping_sgst
-            igst = product_igst + platform_igst + shipping_igst
-
-            final_total = base_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
-
-            # Create Order
-            order = Order.objects.create(
-                user=user,
-                address=address,
-                phone=phone_digits,
-                payment_status='paid',
-                razorpay_order_id=razorpay_order_id,
-                razorpay_payment_id=razorpay_payment_id,
-                razorpay_signature=razorpay_signature,
-                total_price=final_total,
-                platform_fee=platform_fee,
-                platform_fee_gst=platform_fee_gst,
-                shipping_charge=shipping_charge,
-                shipping_charge_gst=shipping_charge_gst,
-                product_gst=product_gst,
-                cgst=cgst,
-                sgst=sgst,
-                igst=igst
+        if not razorpay_client:
+            return Response(
+                {"error": "Payment gateway not configured."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            # Create OrderItem
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_variant=pv,
-                vendor=product.vendor,
-                quantity=quantity,
-                price=pv.discounted_price,
-                gst_rate=category_gst_rate,
-                gst_amount=product_gst,
-                cgst_amount=item_cgst,
-                sgst_amount=item_sgst,
-                igst_amount=item_igst
-            )
-
-        # Trigger order confirmation email to the buyer!
         try:
-            send_buyer_order_confirmation_email(order)
+            # 1. Verify Razorpay Signature
+            try:
+                razorpay_client.utility.verify_payment_signature({
+                    'razorpay_order_id': razorpay_order_id,
+                    'razorpay_payment_id': razorpay_payment_id,
+                    'razorpay_signature': razorpay_signature,
+                })
+            except Exception:
+                return Response({"error": "Payment verification failed. Invalid signature."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # 2. Atomic Transaction for Stock Check, Decrement, and Order Creation
+            product = Product.objects.filter(id=product_id, status='approved').first()
+            if not product:
+                return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            with transaction.atomic():
+                if variant_id:
+                    locked = list(
+                        ProductVariant.objects.select_for_update().filter(id=variant_id, product_id=product_id)[:1]
+                    )
+                else:
+                    locked = list(
+                        ProductVariant.objects.select_for_update()
+                        .filter(product_id=product_id)
+                        .order_by('id')[:1]
+                    )
+                pv = locked[0] if locked else None
+                if not pv:
+                    return Response({"error": "Variant not found."}, status=status.HTTP_404_NOT_FOUND)
+
+                # Check if enough stock is available
+                if pv.stock_quantity < quantity:
+                    return Response(
+                        {"error": f"Insufficient stock. Only {pv.stock_quantity} available."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Decrement variant stock and save
+                pv.stock_quantity -= quantity
+                pv.save()
+
+                base_amount = float(pv.discounted_price) * quantity
+                
+                # Determine state splitting
+                buyer_state = get_state_from_address(address)
+                vendor_state = product.vendor.state or ""
+                is_same_state = buyer_state.lower().strip() == vendor_state.lower().strip()
+
+                category_gst_rate = float(product.category.gst_percentage) if product.category else 18.00
+                product_gst = base_amount * (category_gst_rate / (100.0 + category_gst_rate))
+
+                # Platform configuration & platform fee GST
+                config = PlatformConfiguration.get_config()
+                platform_fee = float(config.platform_fee)
+                platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+
+                shipping_charge = float(config.shipping_charge)
+                shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+
+                # Product GST Splitting
+                if is_same_state:
+                    product_cgst = product_gst / 2.0
+                    product_sgst = product_gst / 2.0
+                    product_igst = 0.0
+                    item_cgst = product_gst / 2.0
+                    item_sgst = product_gst / 2.0
+                    item_igst = 0.0
+                else:
+                    product_cgst = 0.0
+                    product_sgst = 0.0
+                    product_igst = product_gst
+                    item_cgst = 0.0
+                    item_sgst = 0.0
+                    item_igst = product_gst
+
+                # Platform GST Splitting (Platform based in Gujarat)
+                is_platform_same_state = buyer_state.lower().strip() == "gujarat"
+                if is_platform_same_state:
+                    platform_cgst = platform_fee_gst / 2.0
+                    platform_sgst = platform_fee_gst / 2.0
+                    platform_igst = 0.0
+                else:
+                    platform_cgst = 0.0
+                    platform_sgst = 0.0
+                    platform_igst = platform_fee_gst
+
+                # Shipping GST Splitting (Platform based in Gujarat)
+                if is_platform_same_state:
+                    shipping_cgst = shipping_charge_gst / 2.0
+                    shipping_sgst = shipping_charge_gst / 2.0
+                    shipping_igst = 0.0
+                else:
+                    shipping_cgst = 0.0
+                    shipping_sgst = 0.0
+                    shipping_igst = shipping_charge_gst
+
+                cgst = product_cgst + platform_cgst + shipping_cgst
+                sgst = product_sgst + platform_sgst + shipping_sgst
+                igst = product_igst + platform_igst + shipping_igst
+
+                final_total = base_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
+
+                # Create Order
+                order = Order.objects.create(
+                    user=user,
+                    address=address,
+                    phone=phone_digits,
+                    payment_status='paid',
+                    razorpay_order_id=razorpay_order_id,
+                    razorpay_payment_id=razorpay_payment_id,
+                    razorpay_signature=razorpay_signature,
+                    total_price=final_total,
+                    platform_fee=platform_fee,
+                    platform_fee_gst=platform_fee_gst,
+                    shipping_charge=shipping_charge,
+                    shipping_charge_gst=shipping_charge_gst,
+                    product_gst=product_gst,
+                    cgst=cgst,
+                    sgst=sgst,
+                    igst=igst
+                )
+
+                # Create OrderItem
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    product_variant=pv,
+                    vendor=product.vendor,
+                    quantity=quantity,
+                    price=pv.discounted_price,
+                    gst_rate=category_gst_rate,
+                    gst_amount=product_gst,
+                    cgst_amount=item_cgst,
+                    sgst_amount=item_sgst,
+                    igst_amount=item_igst
+                )
+
+            # Trigger order confirmation email to the buyer!
+            try:
+                send_buyer_order_confirmation_email(order)
+            except Exception as e:
+                print("ERROR SENDING BUYER ORDER CONFIRMATION EMAIL:", e)
+
+            serializer = OrderSerializer(order)
+
+            return Response({
+                "message": "Order placed successfully",
+                "order": serializer.data
+            }, status=status.HTTP_201_CREATED)
+
         except Exception as e:
-            print("ERROR SENDING BUYER ORDER CONFIRMATION EMAIL:", e)
-
-        serializer = OrderSerializer(order)
-
-        return Response({
-            "message": "Order placed successfully",
-            "order": serializer.data
-        }, status=status.HTTP_201_CREATED)
+            print(f"Checkout Error: {e}")
+            return Response({"error": f"Checkout Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 # ---------------- Order APIs ---------------- #
 
@@ -1553,21 +1564,21 @@ class VerifyCartPaymentView(APIView):
         if not razorpay_client:
             return Response(
                 {"error": "Payment gateway not configured."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 1. Verify Signature
         try:
-            razorpay_client.utility.verify_payment_signature({
-                'razorpay_order_id': razorpay_order_id,
-                'razorpay_payment_id': razorpay_payment_id,
-                'razorpay_signature': razorpay_signature,
-            })
-        except Exception:
-            return Response({"error": "Payment verification failed."}, status=status.HTTP_400_BAD_REQUEST)
+            # 1. Verify Signature
+            try:
+                razorpay_client.utility.verify_payment_signature({
+                    'razorpay_order_id': razorpay_order_id,
+                    'razorpay_payment_id': razorpay_payment_id,
+                    'razorpay_signature': razorpay_signature,
+                })
+            except Exception:
+                return Response({"error": "Payment verification failed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Process Cart Atomically
-        try:
+            # 2. Process Cart Atomically
             cart = Cart.objects.get(user=user)
             items = cart.items.all()
             
@@ -1741,7 +1752,7 @@ class VerifyCartPaymentView(APIView):
 
         except Exception as e:
             print(f"Checkout Error: {e}")
-            return Response({"error": "An error occurred while processing your order."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"Checkout Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 class WishlistToggleView(APIView):
     permission_classes = [permissions.IsAuthenticated] #
