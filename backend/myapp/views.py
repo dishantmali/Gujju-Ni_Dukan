@@ -1273,7 +1273,7 @@ class VerifyPaymentView(APIView):
             order = Order.objects.create(
                 user=user,
                 address=address,
-                phone=phone,
+                phone=phone_digits,
                 payment_status='paid',
                 razorpay_order_id=razorpay_order_id,
                 razorpay_payment_id=razorpay_payment_id,
@@ -1685,7 +1685,7 @@ class VerifyCartPaymentView(APIView):
 
                 # Create Order
                 order = Order.objects.create(
-                    user=user, address=address, phone=phone,
+                    user=user, address=address, phone=phone_digits,
                     payment_status='paid',
                     coupon=coupon_obj,
                     discount_amount=discount_amount,
