@@ -1148,31 +1148,32 @@ class VerifyPaymentView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        razorpay_order_id = request.data.get('razorpay_order_id')
-        razorpay_payment_id = request.data.get('razorpay_payment_id')
-        razorpay_signature = request.data.get('razorpay_signature')
-        product_id = request.data.get('product_id')
-        variant_id = request.data.get('variant_id')
-        address = request.data.get('address')
-        phone = request.data.get('phone')
-        quantity = int(request.data.get('quantity', 1))
-
-        # Validate phone format
-        phone_digits = phone.strip()
-        if phone_digits.startswith('+'):
-            phone_digits = phone_digits[1:]
-        if len(phone_digits) > 10 and phone_digits.startswith('91'):
-            phone_digits = phone_digits[2:]
-        if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
-            return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not razorpay_client:
-            return Response(
-                {"error": "Payment gateway not configured."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
+            razorpay_order_id = request.data.get('razorpay_order_id')
+            razorpay_payment_id = request.data.get('razorpay_payment_id')
+            razorpay_signature = request.data.get('razorpay_signature')
+            product_id = request.data.get('product_id')
+            variant_id = request.data.get('variant_id')
+            address = request.data.get('address')
+            phone = request.data.get('phone')
+            quantity = int(request.data.get('quantity', 1))
+
+            # Validate phone format
+            if not phone:
+                return Response({"error": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+            phone_digits = str(phone).strip()
+            if phone_digits.startswith('+'):
+                phone_digits = phone_digits[1:]
+            if len(phone_digits) > 10 and phone_digits.startswith('91'):
+                phone_digits = phone_digits[2:]
+            if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
+                return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not razorpay_client:
+                return Response(
+                    {"error": "Payment gateway not configured."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             # 1. Verify Razorpay Signature
             try:
                 razorpay_client.utility.verify_payment_signature({
@@ -1538,36 +1539,35 @@ class VerifyCartPaymentView(APIView):
 
     def post(self, request):
         user = request.user
-        razorpay_order_id = request.data.get('razorpay_order_id')
-        razorpay_payment_id = request.data.get('razorpay_payment_id')
-        razorpay_signature = request.data.get('razorpay_signature')
-        address = request.data.get('address')
-        phone = request.data.get('phone')
-        coupon_code = request.data.get('coupon_code')
-
-        # Validate address presence
-        if not address or not address.strip():
-            return Response({"error": "Delivery address is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validate phone presence and structure
-        if not phone:
-            return Response({"error": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        phone_digits = phone.strip()
-        if phone_digits.startswith('+'):
-            phone_digits = phone_digits[1:]
-        if len(phone_digits) > 10 and phone_digits.startswith('91'):
-            phone_digits = phone_digits[2:]
-        if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
-            return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not razorpay_client:
-            return Response(
-                {"error": "Payment gateway not configured."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
+            razorpay_order_id = request.data.get('razorpay_order_id')
+            razorpay_payment_id = request.data.get('razorpay_payment_id')
+            razorpay_signature = request.data.get('razorpay_signature')
+            address = request.data.get('address')
+            phone = request.data.get('phone')
+            coupon_code = request.data.get('coupon_code')
+
+            # Validate address presence
+            if not address or not address.strip():
+                return Response({"error": "Delivery address is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate phone presence and structure
+            if not phone:
+                return Response({"error": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            phone_digits = str(phone).strip()
+            if phone_digits.startswith('+'):
+                phone_digits = phone_digits[1:]
+            if len(phone_digits) > 10 and phone_digits.startswith('91'):
+                phone_digits = phone_digits[2:]
+            if not phone_digits.isdigit() or len(phone_digits) != 10 or phone_digits[0] not in '6789':
+                return Response({"error": "Phone number must be exactly 10 digits and start with 6, 7, 8, or 9."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not razorpay_client:
+                return Response(
+                    {"error": "Payment gateway not configured."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             # 1. Verify Signature
             try:
                 razorpay_client.utility.verify_payment_signature({
