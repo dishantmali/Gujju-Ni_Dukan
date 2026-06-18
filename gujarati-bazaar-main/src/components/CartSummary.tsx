@@ -19,24 +19,28 @@ export const CartSummary = ({
   const discount = appliedCoupon ? parseFloat(appliedCoupon.discount_amount) : 0;
   const subAfterDiscount = Math.max(0, subtotal - discount);
 
-  const [config, setConfig] = useState({ gst_percentage: 18, platform_fee_percentage: 5 });
+  const [config, setConfig] = useState({ platform_fee: 0, platform_fee_gst: 18, shipping_charge: 0, shipping_charge_gst: 18 });
 
   useEffect(() => {
     api.get("/platform-config/")
       .then((res: any) => {
         if (res) {
           setConfig({
-            gst_percentage: parseFloat(res.gst_percentage),
-            platform_fee_percentage: parseFloat(res.platform_fee_percentage)
+            platform_fee: parseFloat(res.platform_fee || 0),
+            platform_fee_gst: parseFloat(res.platform_fee_gst || 18),
+            shipping_charge: parseFloat(res.shipping_charge || 0),
+            shipping_charge_gst: parseFloat(res.shipping_charge_gst || 18)
           });
         }
       })
       .catch((err) => console.error("Error fetching platform config:", err));
   }, []);
 
-  const platformFee = Math.round(subAfterDiscount * (config.platform_fee_percentage / 100) * 100) / 100;
-  const gst = Math.round(platformFee * (config.gst_percentage / 100) * 100) / 100;
-  const total = Math.round((subAfterDiscount + platformFee + gst) * 100) / 100;
+  const platformFee = config.platform_fee || 0;
+  const gst = Math.round(platformFee * (config.platform_fee_gst / 100) * 100) / 100;
+  const shippingCharge = config.shipping_charge || 0;
+  const shippingGst = Math.round(shippingCharge * (config.shipping_charge_gst / 100) * 100) / 100;
+  const total = Math.round((subAfterDiscount + platformFee + gst + shippingCharge + shippingGst) * 100) / 100;
 
   return (
     <aside className={`rounded-2xl bg-card border border-border/60 shadow-card p-5 sticky top-24${hideCta ? " max-w-xs" : ""}`}>
@@ -49,8 +53,10 @@ export const CartSummary = ({
             <dd>-₹{discount.toLocaleString("en-IN")}</dd>
           </div>
         )}
-        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee ({config.platform_fee_percentage}%)</dt><dd className="font-medium">₹{platformFee.toLocaleString("en-IN")}</dd></div>
-        <div className="flex justify-between"><dt className="text-muted-foreground">GST ({config.gst_percentage}%)</dt><dd className="font-medium">₹{gst.toLocaleString("en-IN")}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee</dt><dd className="font-medium">₹{(platformFee + gst).toLocaleString("en-IN")}</dd></div>
+        {shippingCharge > 0 && (
+          <div className="flex justify-between"><dt className="text-muted-foreground">Shipping Charge</dt><dd className="font-medium">₹{(shippingCharge + shippingGst).toLocaleString("en-IN")}</dd></div>
+        )}
         <div className="border-t border-border pt-3 mt-3 flex justify-between text-base">
           <dt className="font-semibold">Total</dt>
           <dd className="font-display font-bold text-xl">₹{total.toLocaleString("en-IN")}</dd>

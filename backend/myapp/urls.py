@@ -21,7 +21,8 @@ from .views import (
     AdminProductApprovalView, AdminVendorApprovalView,
     AdminPendingProductsView, AdminPendingVendorsView,
     AdminUserListView, AdminCategoryListCreateView,
-    AdminCategoryDetailView, AdminOrderListView,
+    AdminCategoryDetailView, AdminGSTCategoryListCreateView,
+    AdminGSTCategoryDetailView, AdminOrderListView,
     AdminCategoryRequestListView, AdminCategoryRequestActionView,
     AdminOfferListCreateView, AdminOfferActionView,
     AdminBannerView, AdminHeroBannerView, AdminSubscriptionPlanListCreateView, AdminSubscriptionPlanDetailView,
@@ -132,6 +133,13 @@ urlpatterns = [
     path('admin/categories/<int:pk>/',
          AdminCategoryDetailView.as_view(),
          name='admin_category_detail'),
+    path(
+        'admin/gst-categories/',
+        AdminGSTCategoryListCreateView.as_view(),
+        name='admin_gst_categories_manage'),
+    path('admin/gst-categories/<int:pk>/',
+         AdminGSTCategoryDetailView.as_view(),
+         name='admin_gst_category_detail'),
     path(
         'admin/orders/',
         AdminOrderListView.as_view(),

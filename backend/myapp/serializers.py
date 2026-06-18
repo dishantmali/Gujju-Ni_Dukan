@@ -6,10 +6,12 @@ from django.contrib.auth import get_user_model
 # pyrefly: ignore [missing-import]
 from .models import (
     CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
-    Category, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
+    Category, GSTCategory, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
-    IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration
+    IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration,
+    _lookup_gst_percentage_for_category
 )
+
 User = get_user_model()
 # ---------------- BASE SANITIZER (The Armor) ----------------
 class SanitizedSerializer(serializers.ModelSerializer):
@@ -213,7 +215,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProductVariant
-        fields = ['id', 'sku', 'image', 'images', 'price', 'stock_quantity', 'option_values']
+        fields = ['id', 'sku', 'image', 'images', 'price', 'stock_quantity', 'option_values', 'base_price', 'gst_percentage', 'gst_amount', 'final_price']
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -266,9 +268,13 @@ class ProductSerializer(SanitizedSerializer):
             'product_images',
             'variants_input',
             'extra_images',
+            'base_price',
+            'gst_percentage',
+            'gst_amount',
+            'final_price',
         ]
         # Keep workflow-managed flags server-controlled; multipart/form-data can coerce missing booleans to False.
-        read_only_fields = ['vendor', 'status', 'is_active', 'is_new']
+        read_only_fields = ['vendor', 'status', 'is_active', 'is_new', 'base_price', 'gst_percentage', 'gst_amount', 'final_price']
 
     def to_internal_value(self, data):
         mutable_data = dict(data) if not isinstance(data, dict) else data.copy()
@@ -453,6 +459,7 @@ class OrderItemSerializer(SanitizedSerializer):
     product_details = ProductSerializer(source='product', read_only=True)
     variant_details = ProductVariantSerializer(source='product_variant', read_only=True)
     vendor_shop = serializers.CharField(source='vendor.shop_name', read_only=True)
+    vendor_state = serializers.CharField(source='vendor.state', read_only=True)
     
     # Extra fields for the Vendor view
     order_id = serializers.IntegerField(source='order.id', read_only=True)
@@ -466,10 +473,12 @@ class OrderItemSerializer(SanitizedSerializer):
         fields = [
             'id', 'order_id', 'buyer_name', 'address', 'phone', 'order_date',
             'product', 'product_variant', 'product_details', 'variant_details',
-            'vendor', 'vendor_shop',
+            'vendor', 'vendor_shop', 'vendor_state',
             'quantity', 'price', 'variant_options_snapshot', 'status',
             'confirmed_at', 'shipped_at', 'delivered_at',
+            'gst_rate', 'gst_amount', 'cgst_amount', 'sgst_amount', 'igst_amount',
         ]
+
 
 class OrderSerializer(SanitizedSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
@@ -484,7 +493,10 @@ class OrderSerializer(SanitizedSerializer):
             'total_price', 'coupon', 'coupon_code', 'discount_amount',
             'address', 'phone', 'payment_status',
             'razorpay_order_id', 'razorpay_payment_id', 'created_at',
+            'platform_fee', 'platform_fee_gst', 'product_gst',
+            'shipping_charge', 'shipping_charge_gst', 'cgst', 'sgst', 'igst',
         ]
+
 
     def get_coupon_code(self, obj):
         return obj.coupon.code if obj.coupon else None
@@ -504,9 +516,31 @@ class VendorOrderUpdateSerializer(SanitizedSerializer):
 
 
 class CategorySerializer(SanitizedSerializer):
+    gst_percentage = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'icon', 'icon_type', 'parent']
+        fields = ['id', 'name', 'slug', 'icon', 'icon_type', 'parent', 'gst_percentage']
+
+    def get_gst_percentage(self, obj):
+        return _lookup_gst_percentage_for_category(obj)
+
+
+
+class GSTCategorySerializer(serializers.ModelSerializer):
+    categories = CategorySerializer(many=True, read_only=True)
+    category_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        write_only=True,
+        many=True,
+        source='categories',
+        required=False
+    )
+
+    class Meta:
+        model = GSTCategory
+        fields = ['id', 'name', 'gst_percentage', 'categories', 'category_ids', 'created_at', 'updated_at']
+
 
 
 class IconAssetSerializer(serializers.ModelSerializer):
@@ -686,6 +720,6 @@ class NewsSerializer(SanitizedSerializer):
 class PlatformConfigurationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformConfiguration
-        fields = ['gst_percentage', 'platform_fee_percentage']
+        fields = ['platform_fee', 'platform_fee_gst', 'shipping_charge', 'shipping_charge_gst']
 
 

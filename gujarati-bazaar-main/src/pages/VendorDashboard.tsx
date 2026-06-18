@@ -1054,7 +1054,10 @@ const VendorDashboard = () => {
                             )}
                           </div>
                           <h3 className="font-bold text-foreground truncate">{product.name}</h3>
-                          <p className="text-brown-mid font-bold mb-2 text-lg">₹{parseFloat(product.price).toLocaleString()}</p>
+                          <p className="text-brown-mid font-bold text-lg">₹{parseFloat(product.final_price || product.price).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Base: ₹{parseFloat(product.base_price || product.price).toLocaleString()} | GST: {product.gst_percentage || 0}%
+                          </p>
                           <div className="mb-4">
                             <p className="text-sm text-muted-foreground">
                               Stock: <span className={`font-bold ${product.stock_quantity === 0 ? "text-destructive" : "text-foreground"}`}>
@@ -1329,6 +1332,15 @@ const VendorDashboard = () => {
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
                         </select>
+                        {newProduct.category && (
+                          <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                            <span className="font-bold text-foreground">GST Category Rate:</span>
+                            <span className="bg-[#FAF6F0] text-[#A87C51] text-[10px] px-2 py-0.5 rounded-full font-black border border-[#E8D5BC]">
+                              {categories.find((c: any) => c.id === Number(newProduct.category))?.gst_percentage || 0}%
+                            </span>
+                            <span className="text-gray-400 font-medium">Applied automatically to variants.</span>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground mb-1">Base Product Image</label>
@@ -2730,6 +2742,15 @@ const VendorDashboard = () => {
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
                       </select>
+                      {editingProduct.category && (
+                        <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5 bg-secondary/20 p-2.5 rounded-lg border border-border/40">
+                          <span className="font-bold text-foreground">GST Category Rate:</span>
+                          <span className="bg-[#FAF6F0] text-[#A87C51] text-[10px] px-2 py-0.5 rounded-full font-black border border-[#E8D5BC]">
+                            {categories.find((c: any) => c.id === Number(editingProduct.category))?.gst_percentage || 0}%
+                          </span>
+                          <span className="text-gray-400 font-medium">Applied automatically to variants.</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-5">

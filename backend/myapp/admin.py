@@ -7,6 +7,7 @@ from .models import (
     ProductVariant,
     ProductVariantImage,
     Category,
+    GSTCategory,
     Order,
     OrderItem,
     Cart,
@@ -44,6 +45,7 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'parent')
     search_fields = ('name',)
 
+
     def delete_queryset(self, request, queryset):
         """
         Forces the custom delete() logic for every category 
@@ -66,15 +68,17 @@ class ProductVariantInline(admin.TabularInline):
 
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
-    list_display = ('id', 'product', 'sku', 'price', 'stock_quantity')
+    list_display = ('id', 'product', 'sku', 'price', 'gst_percentage', 'final_price', 'stock_quantity')
+    readonly_fields = ('base_price', 'gst_percentage', 'gst_amount', 'final_price')
     inlines = [ProductVariantImageInline]
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'vendor', 'price', 'status', 'created_at')
+    list_display = ('id', 'name', 'vendor', 'price', 'gst_percentage', 'final_price', 'status', 'created_at')
     list_filter = ('status', 'category')
     search_fields = ('name',)
+    readonly_fields = ('base_price', 'gst_percentage', 'gst_amount', 'final_price')
     inlines = [ProductVariantInline]
 
     # Quick approve from admin panel
@@ -85,12 +89,25 @@ class ProductAdmin(admin.ModelAdmin):
     approve_products.short_description = "Approve selected products"
 
 
+# ---------------- GST CATEGORY ---------------- #
+@admin.register(GSTCategory)
+class GSTCategoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'gst_percentage', 'get_categories', 'updated_at')
+    filter_horizontal = ('categories',)
+    search_fields = ('name',)
+
+    def get_categories(self, obj):
+        return ", ".join(c.name for c in obj.categories.all())
+    get_categories.short_description = 'Assigned Categories'
+
+
 # ---------------- ORDER ITEM ---------------- #
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     # Added the new fields so you can manage them inside the Order view
-    fields = ('product', 'product_variant', 'vendor', 'quantity', 'price', 'status', 'confirmed_at', 'shipped_at', 'delivered_at')
+    fields = ('product', 'product_variant', 'vendor', 'quantity', 'price', 'gst_rate', 'gst_amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'status', 'confirmed_at', 'shipped_at', 'delivered_at')
+
 
 
 # ---------------- ORDER ---------------- #
@@ -100,7 +117,11 @@ class OrderAdmin(admin.ModelAdmin):
         'id',
         'user',
         'total_price',
-        # 'status',  <-- REMOVED THIS
+        'platform_fee',
+        'product_gst',
+        'cgst',
+        'sgst',
+        'igst',
         'payment_status',
         'created_at'
     )
@@ -108,6 +129,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('payment_status',) 
     search_fields = ('user__email',)
     inlines = [OrderItemInline]
+
 
 
 # ---------------- CART ---------------- #
@@ -194,5 +216,5 @@ class ManualReviewAdmin(admin.ModelAdmin):
 
 @admin.register(PlatformConfiguration)
 class PlatformConfigurationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'gst_percentage', 'platform_fee_percentage', 'updated_at')
+    list_display = ('id', 'platform_fee', 'platform_fee_gst', 'shipping_charge', 'shipping_charge_gst', 'updated_at')
 

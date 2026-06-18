@@ -15,7 +15,9 @@ import {
   Trash2,
   X,
   Check,
-  Grid3X3
+  Grid3X3,
+  ArrowLeft,
+  ChevronDown
 } from 'lucide-react';
 import { useAuthWithNavigate } from '@/hooks/useAuthWithNavigate';
 import { PageShell } from '@/components/PageShell';
@@ -73,6 +75,166 @@ const StarRatingInput = ({ rating, setRating }) => {
   );
 };
 
+const OrderDetailView = ({ order, onBack, reviewedItemIds, openProductReviewModal }) => {
+  const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false);
+
+  // Date formatting
+  const formattedDate = new Date(order.created_at).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  // Calculate pricing breakdown
+  const itemsSubtotal = order.items?.reduce((sum: number, item: any) => {
+    const itemPrice = parseFloat(item.price_snapshot || item.price || '0');
+    return sum + (itemPrice * item.quantity);
+  }, 0) || 0;
+
+  const productGst = parseFloat(order.product_gst || '0');
+  const platformFee = parseFloat(order.platform_fee || '0');
+  const platformFeeGst = parseFloat(order.platform_fee_gst || '0');
+  const discountAmount = parseFloat(order.discount_amount || '0');
+  const totalPrice = parseFloat(order.total_price || '0');
+  const displayShipping = parseFloat(order.shipping_charge || '0') + parseFloat(order.shipping_charge_gst || '0');
+
+  const displaySubtotal = itemsSubtotal;
+  const displayMarketplaceFee = platformFee + platformFeeGst;
+  const displayTotal = displaySubtotal + displayMarketplaceFee + displayShipping;
+
+  return (
+    <div className="space-y-6">
+      {/* Back button */}
+      <button 
+        onClick={onBack}
+        className="flex items-center gap-2 text-sm font-bold text-accent hover:underline mb-4"
+      >
+        <ArrowLeft size={16} /> Back to Orders
+      </button>
+
+      {/* Header Title */}
+      <h1 className="text-3xl font-bold text-foreground">Order Details</h1>
+
+      {/* Info Row: Placement Date & Number on Left, Invoice Dropdown on Right */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-sm text-foreground">
+        <div>
+          <span>Order placed {formattedDate}</span>
+          <span className="mx-2 text-muted-foreground font-light">|</span>
+          <span>Order number {order.razorpay_order_id || `GJB-ORD-${order.id}`}</span>
+        </div>
+
+        {/* View Invoice Button */}
+        <div>
+          <Link 
+            to={`/order/${order.id}/invoice`}
+            className="text-accent hover:text-accent/80 font-bold transition-colors border border-border px-4 py-2 rounded-lg bg-card shadow-sm inline-flex items-center gap-2 text-sm"
+          >
+            📄 View Invoice
+          </Link>
+        </div>
+      </div>
+
+      {/* Boxed Grid Card */}
+      <div className="border border-border rounded-xl p-6 bg-card shadow-sm grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
+        {/* Column 1: Ship to */}
+        <div>
+          <h3 className="font-bold text-foreground mb-3 text-base">Ship to</h3>
+          <p className="font-semibold text-foreground mb-1">{order.buyer_name || 'Valued Customer'}</p>
+          <p className="text-muted-foreground whitespace-pre-line leading-relaxed">{order.address}</p>
+        </div>
+
+        {/* Column 2: Payment method */}
+        <div>
+          <h3 className="font-bold text-foreground mb-3 text-base">Payment method</h3>
+          <div className="space-y-1">
+            <p className="text-foreground font-semibold">Digital Online Payment</p>
+            <p className="text-xs text-muted-foreground font-medium">Razorpay Gateway</p>
+            {order.payment_status && (
+              <span className="inline-block mt-1.5 uppercase text-success bg-success/10 px-2 py-0.5 rounded text-[10px] font-bold">
+                {order.payment_status}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Column 3: Order Summary */}
+        <div>
+          <h3 className="font-bold text-foreground mb-3 text-base">Order Summary</h3>
+          <div className="space-y-2 text-foreground font-medium">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Item(s) Subtotal:</span>
+              <span>₹{displaySubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Shipping:</span>
+              <span>₹{displayShipping.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Marketplace Fee:</span>
+              <span>₹{displayMarketplaceFee.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between border-t border-border pt-2 font-semibold">
+              <span>Total:</span>
+              <span>₹{displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-destructive">
+                <span>Promotion Applied:</span>
+                <span>-₹{discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-border pt-2 text-base font-black text-accent">
+              <span>Grand Total:</span>
+              <span>₹{totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Order Items List under the summary */}
+      <div className="space-y-4">
+        <h3 className="font-bold text-lg text-foreground mt-8">Items in this Order</h3>
+        {order.items?.map(item => (
+          <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 border border-border rounded-lg bg-card shadow-sm">
+            <div className="flex items-center gap-4">
+              <img src={item.product_details?.image} className="w-16 h-16 object-cover bg-secondary rounded-md border border-border shrink-0" alt="" />
+              <div>
+                <p className="font-bold text-foreground">{item.product_details?.name}</p>
+                <p className="text-sm text-muted-foreground">Qty: {item.quantity} | Vendor: {item.vendor_shop}</p>
+                {item.variant_options_snapshot && (
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded mt-1 inline-block font-semibold">
+                    {item.variant_options_snapshot}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="text-right flex flex-col items-end gap-2">
+              <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-full ${
+                item.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                item.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                item.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
+                'bg-success/10 text-success'
+              }`}>
+                {item.status}
+              </span>
+              
+              {item.status === 'delivered' && !reviewedItemIds.has(item.id) && (
+                <button onClick={() => openProductReviewModal(item)} className="text-[11px] font-bold text-accent hover:text-accent/80 underline underline-offset-2 transition-colors">
+                  Leave a Review
+                </button>
+              )}
+              {reviewedItemIds.has(item.id) && (
+                <span className="text-[11px] font-bold text-muted-foreground">Reviewed ✓</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const AccountPage = () => {
   const { logout } = useAuthWithNavigate();
 
@@ -82,6 +244,7 @@ const AccountPage = () => {
   // --- Orders State ---
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   // --- Profile & Address State ---
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -351,90 +514,109 @@ const AccountPage = () => {
           {/* TAB: MY ORDERS */}
           {tab === "orders" && (
             <div>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-border pb-4 gap-4">
-                <h1 className="text-3xl font-bold text-foreground">My Orders</h1>
-                <button
-                  onClick={() => {
-                    setPlatformRating(5);
-                    setPlatformFeedback('');
-                    setPlatformReviewModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 bg-secondary text-accent border border-border hover:border-accent px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 shadow-sm active:scale-95"
-                >
-                  <Star className="w-4 h-4" />
-                  Rate Platform
-                </button>
-              </div>
-
-              {loading ? (
-                <div className="space-y-6">
-                  {[...Array(3)].map((_, i) => <SkeletonOrderCard key={i} />)}
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="text-center py-20 bg-secondary rounded-xl border border-dashed border-border">
-                  <p className="text-muted-foreground font-medium">You haven't placed any orders yet.</p>
-                </div>
+              {selectedOrder ? (
+                <OrderDetailView 
+                  order={selectedOrder} 
+                  onBack={() => setSelectedOrder(null)} 
+                  reviewedItemIds={reviewedItemIds}
+                  openProductReviewModal={openProductReviewModal}
+                />
               ) : (
-                <div className="space-y-6">
-                  {orders.map(order => (
-                    <div key={order.id} className="border border-border rounded-xl p-6 bg-card shadow-sm">
-                      <div className="flex justify-between items-center border-b border-border pb-4 mb-4 bg-secondary -mx-6 -mt-6 px-6 pt-6 rounded-t-xl">
-                        <div>
-                          <p className="text-sm text-muted-foreground font-bold tracking-widest">ORDER #{order.id}</p>
-                          <p className="font-bold text-foreground mt-1 text-sm flex items-center flex-wrap gap-2">
-                            Payment: <span className="uppercase text-success bg-success/10 px-2 py-0.5 rounded">{order.payment_status}</span>
-                            <Link 
-                              to={`/order/${order.id}/invoice`} 
-                              className="text-xs text-accent hover:text-accent/80 font-black ml-2 underline underline-offset-2 transition-colors print:hidden"
-                            >
-                              📄 View Invoice
-                            </Link>
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground font-bold">Total</p>
-                          <p className="font-bold text-xl text-accent">
-                            ₹{parseFloat(order.total_price).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
+                <>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-border pb-4 gap-4">
+                    <h1 className="text-3xl font-bold text-foreground">My Orders</h1>
+                    <button
+                      onClick={() => {
+                        setPlatformRating(5);
+                        setPlatformFeedback('');
+                        setPlatformReviewModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 bg-secondary text-accent border border-border hover:border-accent px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 shadow-sm active:scale-95"
+                    >
+                      <Star className="w-4 h-4" />
+                      Rate Platform
+                    </button>
+                  </div>
 
-                      <div className="space-y-3">
-                        {order.items?.map(item => (
-                          <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 border border-border rounded-lg bg-card">
-                            <div className="flex items-center gap-4">
-                              <img src={item.product_details?.image} className="w-16 h-16 object-cover bg-secondary rounded-md border border-border shrink-0" alt="" />
-                              <div>
-                                <p className="font-bold text-foreground">{item.product_details?.name}</p>
-                                <p className="text-sm text-muted-foreground">Qty: {item.quantity} | Vendor: {item.vendor_shop}</p>
-                              </div>
+                  {loading ? (
+                    <div className="space-y-6">
+                      {[...Array(3)].map((_, i) => <SkeletonOrderCard key={i} />)}
+                    </div>
+                  ) : orders.length === 0 ? (
+                    <div className="text-center py-20 bg-secondary rounded-xl border border-dashed border-border">
+                      <p className="text-muted-foreground font-medium">You haven't placed any orders yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {orders.map(order => (
+                        <div 
+                          key={order.id} 
+                          onClick={() => setSelectedOrder(order)}
+                          className="border border-border rounded-xl p-6 bg-card shadow-sm cursor-pointer hover:shadow-md transition-shadow duration-200"
+                        >
+                          <div className="flex justify-between items-center border-b border-border pb-4 mb-4 bg-secondary -mx-6 -mt-6 px-6 pt-6 rounded-t-xl">
+                            <div>
+                              <p className="text-sm text-muted-foreground font-bold tracking-widest">ORDER #{order.id}</p>
+                              <p className="font-bold text-foreground mt-1 text-sm flex items-center flex-wrap gap-2">
+                                Payment: <span className="uppercase text-success bg-success/10 px-2 py-0.5 rounded">{order.payment_status}</span>
+                                <Link 
+                                  to={`/order/${order.id}/invoice`} 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-accent hover:text-accent/80 font-black ml-2 underline underline-offset-2 transition-colors print:hidden flex items-center gap-1"
+                                >
+                                  📄 View Invoice
+                                </Link>
+                              </p>
                             </div>
-                            
-                            <div className="text-right flex flex-col items-end gap-2">
-                              <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-full ${
-                                item.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                item.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
-                                item.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
-                                'bg-success/10 text-success'
-                              }`}>
-                                {item.status}
-                              </span>
-                              
-                              {item.status === 'delivered' && !reviewedItemIds.has(item.id) && (
-                                <button onClick={() => openProductReviewModal(item)} className="text-[11px] font-bold text-accent hover:text-accent/80 underline underline-offset-2 transition-colors">
-                                  Leave a Review
-                                </button>
-                              )}
-                              {reviewedItemIds.has(item.id) && (
-                                <span className="text-[11px] font-bold text-muted-foreground">Reviewed ✓</span>
-                              )}
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground font-bold">Total</p>
+                              <p className="font-bold text-xl text-accent">
+                                ₹{parseFloat(order.total_price).toLocaleString()}
+                              </p>
                             </div>
                           </div>
-                        ))}
-                      </div>
+
+                          <div className="space-y-3">
+                            {order.items?.map(item => (
+                              <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 border border-border rounded-lg bg-card">
+                                <div className="flex items-center gap-4">
+                                  <img src={item.product_details?.image} className="w-16 h-16 object-cover bg-secondary rounded-md border border-border shrink-0" alt="" />
+                                  <div>
+                                    <p className="font-bold text-foreground">{item.product_details?.name}</p>
+                                    <p className="text-sm text-muted-foreground">Qty: {item.quantity} | Vendor: {item.vendor_shop}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="text-right flex flex-col items-end gap-2">
+                                  <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-full ${
+                                    item.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                    item.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                                    item.status === 'shipped' ? 'bg-purple-100 text-purple-700' :
+                                    'bg-success/10 text-success'
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                  
+                                  {item.status === 'delivered' && !reviewedItemIds.has(item.id) && (
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); openProductReviewModal(item); }} 
+                                      className="text-[11px] font-bold text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+                                    >
+                                      Leave a Review
+                                    </button>
+                                  )}
+                                  {reviewedItemIds.has(item.id) && (
+                                    <span className="text-[11px] font-bold text-muted-foreground">Reviewed ✓</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}

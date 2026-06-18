@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django_resized import ResizedImageField
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from django.core.cache import cache
 from django.utils import timezone
@@ -110,6 +110,7 @@ class Category(models.Model):
         choices=ICON_TYPE_CHOICES,
         default='iconify'
     )
+
     parent = models.ForeignKey(
         'self',
         null=True,
@@ -137,6 +138,37 @@ class Category(models.Model):
         self.product_set.all().update(category=uncategorized)
         super().delete(*args, **kwargs)
 
+
+class GSTCategory(models.Model):
+    """Groups product categories under a single GST rate. Admin-managed only."""
+    name = models.CharField(max_length=255, unique=True)
+    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, help_text="GST percentage for assigned categories")
+    categories = models.ManyToManyField(
+        Category,
+        related_name='gst_categories',
+        blank=True,
+        help_text="Product categories assigned to this GST rate"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'GST Categories'
+        ordering = ['gst_percentage']
+
+    def __str__(self):
+        return f"{self.name} ({self.gst_percentage}%)"
+
+def _lookup_gst_percentage_for_category(category):
+    """Helper: find the GST percentage for a product category via GSTCategory mapping."""
+    if not category:
+        return 0
+    gst_cat = category.gst_categories.first()
+    if gst_cat:
+        return gst_cat.gst_percentage
+    return 0
+
+
 class Product(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -156,7 +188,7 @@ class Product(models.Model):
         blank=True
     )
     name = models.CharField(max_length=255)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Base price without GST")
     image = ResizedImageField(
         size=[800, 1000],        # Max width/height
         crop=['middle', 'center'], # Optional: auto-crop to fit ratio
@@ -168,6 +200,12 @@ class Product(models.Model):
     
     # FIX #2: Stock management field
     stock_quantity = models.PositiveIntegerField(default=0)
+
+    # GST fields — auto-calculated from GSTCategory mapping
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Mirrors 'price' field for clarity")
+    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Auto-set from GST Category")
+    gst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Calculated: base_price × gst_percentage / 100")
+    final_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Calculated: base_price + gst_amount")
 
     # FIX #5: auto_now_add ensures field is never None
     created_at = models.DateTimeField(auto_now_add=True)
@@ -184,6 +222,14 @@ class Product(models.Model):
     class Meta:
         ordering = ['-created_at']
     
+    def _calculate_gst_fields(self):
+        """Auto-calculate GST fields from category → GSTCategory mapping."""
+        import decimal
+        self.base_price = self.price
+        self.gst_percentage = _lookup_gst_percentage_for_category(self.category)
+        self.gst_amount = round(self.base_price * self.gst_percentage / decimal.Decimal(100), 2)
+        self.final_price = self.base_price + self.gst_amount
+
     def save(self, *args, **kwargs):
         # Check if the product is being deactivated
         if self.pk:
@@ -196,6 +242,9 @@ class Product(models.Model):
                     item.status = 'cancelled'
                     item.save()
                     # You could optionally trigger an email notification to the buyer here
+
+        # Auto-calculate GST fields
+        self._calculate_gst_fields()
                     
         super().save(*args, **kwargs)
 
@@ -213,11 +262,14 @@ class Product(models.Model):
 
     @property
     def discounted_price(self):
+        """Returns the GST-inclusive discounted final price."""
         discount = self.current_discount
         if discount > 0:
             import decimal
-            return round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
-        return self.price
+            discounted_base = round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
+            gst_on_discounted = round(discounted_base * self.gst_percentage / decimal.Decimal(100), 2)
+            return discounted_base + gst_on_discounted
+        return self.final_price
 
 
 class ProductVariant(models.Model):
@@ -238,23 +290,44 @@ class ProductVariant(models.Model):
         null=True,
         blank=True
     )
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Base price without GST")
     stock_quantity = models.PositiveIntegerField(default=0)
     option_values = models.JSONField(default=dict)
 
+    # GST fields — auto-calculated from parent product's category → GSTCategory
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    final_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     class Meta:
         ordering = ['id']
+
+    def _calculate_gst_fields(self):
+        """Auto-calculate GST fields from the parent product's category → GSTCategory mapping."""
+        import decimal
+        self.base_price = self.price
+        self.gst_percentage = _lookup_gst_percentage_for_category(self.product.category)
+        self.gst_amount = round(self.base_price * self.gst_percentage / decimal.Decimal(100), 2)
+        self.final_price = self.base_price + self.gst_amount
+
+    def save(self, *args, **kwargs):
+        self._calculate_gst_fields()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.product.name} #{self.pk}"
 
     @property
     def discounted_price(self):
+        """Returns the GST-inclusive discounted final price."""
         discount = self.product.current_discount
         if discount > 0:
             import decimal
-            return round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
-        return self.price
+            discounted_base = round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
+            gst_on_discounted = round(discounted_base * self.gst_percentage / decimal.Decimal(100), 2)
+            return discounted_base + gst_on_discounted
+        return self.final_price
 
 
 class ProductVariantImage(models.Model):
@@ -350,6 +423,16 @@ class Order(models.Model):
     razorpay_signature = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    platform_fee_gst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    product_gst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    shipping_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    shipping_charge_gst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    cgst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    sgst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    igst = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+
     class Meta:
         ordering = ['-created_at']
 
@@ -393,6 +476,13 @@ class OrderItem(models.Model):
     vendor_shop_snapshot = models.CharField(max_length=255, blank=True, null=True)
     price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     variant_options_snapshot = models.CharField(max_length=512, blank=True, null=True)
+
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    gst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    cgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    sgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    igst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
 
     # Tracking Fields Moved Here
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -543,6 +633,47 @@ def invalidate_category_cache(sender, **kwargs):
     cache.delete('global_categories')
     print("Category updated: Cache Cleared.")
 
+
+def _recalculate_products_for_categories(category_ids):
+    """Recalculate GST fields for all products/variants in the given categories."""
+    products = Product.objects.filter(category_id__in=category_ids)
+    for product in products:
+        product._calculate_gst_fields()
+        Product.objects.filter(pk=product.pk).update(
+            base_price=product.base_price,
+            gst_percentage=product.gst_percentage,
+            gst_amount=product.gst_amount,
+            final_price=product.final_price
+        )
+        for variant in product.variants.all():
+            variant._calculate_gst_fields()
+            ProductVariant.objects.filter(pk=variant.pk).update(
+                base_price=variant.base_price,
+                gst_percentage=variant.gst_percentage,
+                gst_amount=variant.gst_amount,
+                final_price=variant.final_price
+            )
+
+
+@receiver(post_save, sender=GSTCategory)
+def recalculate_on_gst_category_save(sender, instance, **kwargs):
+    """When a GSTCategory's percentage changes, recalculate all assigned products."""
+    category_ids = list(instance.categories.values_list('id', flat=True))
+    if category_ids:
+        _recalculate_products_for_categories(category_ids)
+
+
+@receiver(m2m_changed, sender=GSTCategory.categories.through)
+def recalculate_on_gst_category_m2m_change(sender, instance, action, pk_set, **kwargs):
+    """When categories are added/removed from a GSTCategory, recalculate affected products."""
+    if action in ('post_add', 'post_remove', 'post_clear'):
+        if pk_set:
+            _recalculate_products_for_categories(pk_set)
+        # Also recalculate all currently assigned categories
+        category_ids = list(instance.categories.values_list('id', flat=True))
+        if category_ids:
+            _recalculate_products_for_categories(category_ids)
+
 class ProductReview(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
@@ -639,12 +770,14 @@ class News(models.Model):
 
 
 class PlatformConfiguration(models.Model):
-    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, help_text="GST percentage applied on platform fee")
-    platform_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5.00, help_text="Platform fee percentage applied on base order amount")
+    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Flat platform fee in rupees")
+    platform_fee_gst = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, help_text="GST percentage on platform fee")
+    shipping_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Flat shipping charge in rupees")
+    shipping_charge_gst = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, help_text="GST percentage on shipping charge")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"GST: {self.gst_percentage}%, Fee: {self.platform_fee_percentage}%"
+        return f"Fee: ₹{self.platform_fee} (GST: {self.platform_fee_gst}%), Shipping: ₹{self.shipping_charge} (GST: {self.shipping_charge_gst}%)"
 
     @classmethod
     def get_config(cls):

@@ -26,14 +26,14 @@ from .email_utils import (
 # pyrefly: ignore [missing-import]
 from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
-    Category ,Cart, CartItem, CategoryRequest, Offer , Wishlist,
+    Category, GSTCategory, Cart, CartItem, CategoryRequest, Offer , Wishlist,
     ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
     IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration
 )
 # pyrefly: ignore [missing-import]
 from .serializers import (
     RegisterSerializer, CustomUserSerializer, ProductSerializer,
-    OrderSerializer,OrderItemSerializer, VendorOrderUpdateSerializer, CategorySerializer,
+    OrderSerializer,OrderItemSerializer, VendorOrderUpdateSerializer, CategorySerializer, GSTCategorySerializer,
     CartSerializer, CategoryRequestSerializer, OfferSerializer, WishlistSerializer ,
     ProductReviewSerializer, PlatformReviewSerializer , AdminPlatformReviewSerializer, BannerSerializer , HeroBannerSerializer, UserSerializer ,
     SubscriptionPlanSerializer, VendorSubscriptionSerializer , AddressSerializer,
@@ -657,6 +657,38 @@ class AdminCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
+class AdminGSTCategoryListCreateView(generics.ListCreateAPIView):
+    serializer_class = GSTCategorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = GSTCategory.objects.all()
+
+    def perform_create(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can create GST categories.")
+        serializer.save()
+
+    def get_queryset(self):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can access GST categories.")
+        return super().get_queryset()
+
+
+class AdminGSTCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = GSTCategorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = GSTCategory.objects.all()
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can modify GST categories.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can delete GST categories.")
+        instance.delete()
+
+
 class AdminOrderListView(generics.ListAPIView):
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -998,6 +1030,23 @@ class AdminOfferActionView(APIView):
             )
 
 
+def get_state_from_address(address_str):
+    import re
+    if not address_str:
+        return ""
+    lines = [l.strip() for l in address_str.split('\n') if l.strip()]
+    if lines:
+        last_line = lines[-1]
+        match = re.search(r',\s*([A-Za-z\s]+?)\s*-\s*\d+', last_line)
+        if match:
+            return match.group(1).strip()
+        parts = last_line.split(',')
+        if len(parts) >= 2:
+            return parts[1].split('-')[0].strip()
+        return re.sub(r'\d+', '', last_line).replace('-', '').strip()
+    return ""
+
+
 # ---------------- Razorpay Payment APIs ---------------- #
 
 class CreateRazorpayOrderView(APIView):
@@ -1050,11 +1099,16 @@ class CreateRazorpayOrderView(APIView):
 
         base_amount = float(pv.discounted_price) * quantity
         config = PlatformConfiguration.get_config()
-        platform_fee_rate = float(config.platform_fee_percentage) / 100.0
-        gst_rate = float(config.gst_percentage) / 100.0
-        platform_fee = base_amount * platform_fee_rate
-        gst = platform_fee * gst_rate
-        total_amount = base_amount + platform_fee + gst
+        platform_fee = float(config.platform_fee)
+        platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+
+        shipping_charge = float(config.shipping_charge)
+        shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+
+        category_gst_rate = float(product.category.gst_percentage) if product.category else 18.00
+        product_gst = base_amount * (category_gst_rate / (100.0 + category_gst_rate))
+
+        total_amount = base_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
         amount_in_paise = int(total_amount * 100)
 
         if not razorpay_client:
@@ -1154,7 +1208,66 @@ class VerifyPaymentView(APIView):
             pv.stock_quantity -= quantity
             pv.save()
 
-            total_amount = float(pv.discounted_price) * quantity
+            base_amount = float(pv.discounted_price) * quantity
+            
+            # Determine state splitting
+            buyer_state = get_state_from_address(address)
+            vendor_state = product.vendor.state or ""
+            is_same_state = buyer_state.lower().strip() == vendor_state.lower().strip()
+
+            category_gst_rate = float(product.category.gst_percentage) if product.category else 18.00
+            product_gst = base_amount * (category_gst_rate / (100.0 + category_gst_rate))
+
+            # Platform configuration & platform fee GST
+            config = PlatformConfiguration.get_config()
+            platform_fee = float(config.platform_fee)
+            platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+
+            shipping_charge = float(config.shipping_charge)
+            shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+
+            # Product GST Splitting
+            if is_same_state:
+                product_cgst = product_gst / 2.0
+                product_sgst = product_gst / 2.0
+                product_igst = 0.0
+                item_cgst = product_gst / 2.0
+                item_sgst = product_gst / 2.0
+                item_igst = 0.0
+            else:
+                product_cgst = 0.0
+                product_sgst = 0.0
+                product_igst = product_gst
+                item_cgst = 0.0
+                item_sgst = 0.0
+                item_igst = product_gst
+
+            # Platform GST Splitting (Platform based in Gujarat)
+            is_platform_same_state = buyer_state.lower().strip() == "gujarat"
+            if is_platform_same_state:
+                platform_cgst = platform_fee_gst / 2.0
+                platform_sgst = platform_fee_gst / 2.0
+                platform_igst = 0.0
+            else:
+                platform_cgst = 0.0
+                platform_sgst = 0.0
+                platform_igst = platform_fee_gst
+
+            # Shipping GST Splitting (Platform based in Gujarat)
+            if is_platform_same_state:
+                shipping_cgst = shipping_charge_gst / 2.0
+                shipping_sgst = shipping_charge_gst / 2.0
+                shipping_igst = 0.0
+            else:
+                shipping_cgst = 0.0
+                shipping_sgst = 0.0
+                shipping_igst = shipping_charge_gst
+
+            cgst = product_cgst + platform_cgst + shipping_cgst
+            sgst = product_sgst + platform_sgst + shipping_sgst
+            igst = product_igst + platform_igst + shipping_igst
+
+            final_total = base_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
 
             # Create Order
             order = Order.objects.create(
@@ -1165,7 +1278,15 @@ class VerifyPaymentView(APIView):
                 razorpay_order_id=razorpay_order_id,
                 razorpay_payment_id=razorpay_payment_id,
                 razorpay_signature=razorpay_signature,
-                total_price=total_amount
+                total_price=final_total,
+                platform_fee=platform_fee,
+                platform_fee_gst=platform_fee_gst,
+                shipping_charge=shipping_charge,
+                shipping_charge_gst=shipping_charge_gst,
+                product_gst=product_gst,
+                cgst=cgst,
+                sgst=sgst,
+                igst=igst
             )
 
             # Create OrderItem
@@ -1175,7 +1296,12 @@ class VerifyPaymentView(APIView):
                 product_variant=pv,
                 vendor=product.vendor,
                 quantity=quantity,
-                price=pv.discounted_price
+                price=pv.discounted_price,
+                gst_rate=category_gst_rate,
+                gst_amount=product_gst,
+                cgst_amount=item_cgst,
+                sgst_amount=item_sgst,
+                igst_amount=item_igst
             )
 
         # Trigger order confirmation email to the buyer!
@@ -1349,12 +1475,30 @@ class CheckoutView(APIView):
             discount_amount = discount_details['discount_amount']
 
         subtotal_after_discount = max(0.0, base_amount - discount_amount)
+        
+        # Calculate product GST
+        product_gst = 0.0
+        for item in items:
+            prod = item.product
+            cat_gst_rate = float(prod.gst_percentage)
+            item_base = float(item.product_variant.discounted_price) * item.quantity
+            if base_amount > 0:
+                ratio = item_base / base_amount
+                item_discounted_value = max(0.0, item_base - (discount_amount * ratio))
+            else:
+                item_discounted_value = 0.0
+            
+            item_gst = item_discounted_value * (cat_gst_rate / (100.0 + cat_gst_rate))
+            product_gst += item_gst
+
         config = PlatformConfiguration.get_config()
-        platform_fee_rate = float(config.platform_fee_percentage) / 100.0
-        gst_rate = float(config.gst_percentage) / 100.0
-        platform_fee = subtotal_after_discount * platform_fee_rate
-        gst = platform_fee * gst_rate
-        total_amount = subtotal_after_discount + platform_fee + gst
+        platform_fee = float(config.platform_fee)
+        platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+
+        shipping_charge = float(config.shipping_charge)
+        shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+        
+        total_amount = subtotal_after_discount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
         amount_in_paise = int(total_amount * 100)
 
         # Create Razorpay order (DO NOT delete cart items yet!)
@@ -1459,12 +1603,85 @@ class VerifyCartPaymentView(APIView):
                         discount_amount = discount_details['discount_amount']
 
                 subtotal_after_discount = max(0.0, total_amount - discount_amount)
+                
+                # Retrieve buyer state
+                buyer_state = get_state_from_address(address)
+
+                product_gst = 0.0
+                cgst = 0.0
+                sgst = 0.0
+                igst = 0.0
+
+                item_calculations = []
+                for item in items:
+                    v = variant_map[item.product_variant_id]
+                    prod = v.product
+                    vendor = prod.vendor
+                    vendor_state = vendor.state or ""
+                    is_same_state = buyer_state.lower().strip() == vendor_state.lower().strip()
+
+                    item_base = float(v.discounted_price) * item.quantity
+                    if total_amount > 0:
+                        ratio = item_base / total_amount
+                        item_discounted_value = max(0.0, item_base - (discount_amount * ratio))
+                    else:
+                        item_discounted_value = 0.0
+
+                    cat_gst_rate = float(prod.gst_percentage)
+                    item_gst = item_discounted_value * (cat_gst_rate / (100.0 + cat_gst_rate))
+
+                    if is_same_state:
+                        item_cgst = item_gst / 2.0
+                        item_sgst = item_gst / 2.0
+                        item_igst = 0.0
+                        cgst += item_cgst
+                        sgst += item_sgst
+                    else:
+                        item_cgst = 0.0
+                        item_sgst = 0.0
+                        item_igst = item_gst
+                        igst += item_igst
+
+                    product_gst += item_gst
+                    item_calculations.append({
+                        'item': item,
+                        'v': v,
+                        'gst_rate': cat_gst_rate,
+                        'gst_amount': item_gst,
+                        'cgst_amount': item_cgst,
+                        'sgst_amount': item_sgst,
+                        'igst_amount': item_igst
+                    })
+
+                # Calculate platform fee and platform fee GST
                 config = PlatformConfiguration.get_config()
-                platform_fee_rate = float(config.platform_fee_percentage) / 100.0
-                gst_rate = float(config.gst_percentage) / 100.0
-                platform_fee = subtotal_after_discount * platform_fee_rate
-                gst = platform_fee * gst_rate
-                final_total = subtotal_after_discount + platform_fee + gst
+                platform_fee = float(config.platform_fee)
+                platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+
+                shipping_charge = float(config.shipping_charge)
+                shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+
+                is_platform_same_state = buyer_state.lower().strip() == "gujarat"
+                if is_platform_same_state:
+                    platform_cgst = platform_fee_gst / 2.0
+                    platform_sgst = platform_fee_gst / 2.0
+                    platform_igst = 0.0
+                    shipping_cgst = shipping_charge_gst / 2.0
+                    shipping_sgst = shipping_charge_gst / 2.0
+                    shipping_igst = 0.0
+                else:
+                    platform_cgst = 0.0
+                    platform_sgst = 0.0
+                    platform_igst = platform_fee_gst
+                    shipping_cgst = 0.0
+                    shipping_sgst = 0.0
+                    shipping_igst = shipping_charge_gst
+
+                cgst += platform_cgst + shipping_cgst
+                sgst += platform_sgst + shipping_sgst
+                igst += platform_igst + shipping_igst
+
+                final_total = subtotal_after_discount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
 
                 # Create Order
                 order = Order.objects.create(
@@ -1475,7 +1692,15 @@ class VerifyCartPaymentView(APIView):
                     razorpay_order_id=razorpay_order_id,
                     razorpay_payment_id=razorpay_payment_id,
                     razorpay_signature=razorpay_signature,
-                    total_price=final_total
+                    total_price=final_total,
+                    platform_fee=platform_fee,
+                    platform_fee_gst=platform_fee_gst,
+                    shipping_charge=shipping_charge,
+                    shipping_charge_gst=shipping_charge_gst,
+                    product_gst=product_gst,
+                    cgst=cgst,
+                    sgst=sgst,
+                    igst=igst
                 )
 
                 # Record Coupon Usage
@@ -1487,14 +1712,20 @@ class VerifyCartPaymentView(APIView):
                     )
 
                 # Create OrderItems & Decrement Stock
-                for item in items:
-                    v = variant_map[item.product_variant_id]
+                for calc in item_calculations:
+                    item = calc['item']
+                    v = calc['v']
                     v.stock_quantity -= item.quantity
                     v.save()
                     
                     OrderItem.objects.create(
                         order=order, product=v.product, product_variant=v, vendor=v.product.vendor,
-                        quantity=item.quantity, price=v.discounted_price
+                        quantity=item.quantity, price=v.discounted_price,
+                        gst_rate=calc['gst_rate'],
+                        gst_amount=calc['gst_amount'],
+                        cgst_amount=calc['cgst_amount'],
+                        sgst_amount=calc['sgst_amount'],
+                        igst_amount=calc['igst_amount']
                     )
 
                 # Clear Cart NOW (after successful payment and order creation)

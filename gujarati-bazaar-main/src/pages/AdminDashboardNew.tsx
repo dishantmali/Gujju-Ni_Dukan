@@ -213,7 +213,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // Platform Config State
-  const [platformConfig, setPlatformConfig] = useState({ gst_percentage: '18.00', platform_fee_percentage: '5.00' });
+  const [platformConfig, setPlatformConfig] = useState({ platform_fee: '0.00', platform_fee_gst: '18.00', shipping_charge: '0.00', shipping_charge_gst: '18.00' });
   const [updatingConfig, setUpdatingConfig] = useState(false);
 
   // Coupon States
@@ -238,6 +238,12 @@ const AdminDashboard = () => {
   const [newCatIconType, setNewCatIconType] = useState('iconify');
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+
+  const [gstCategories, setGstCategories] = useState<any[]>([]);
+  const [newGstCatName, setNewGstCatName] = useState('');
+  const [newGstCatPercentage, setNewGstCatPercentage] = useState('');
+  const [newGstCatSelectedCategories, setNewGstCatSelectedCategories] = useState<number[]>([]);
+  const [editingGstCategoryId, setEditingGstCategoryId] = useState<number | null>(null);
 
   const [newNews, setNewNews] = useState({ title: '', start_date: '', end_date: '' });
   const [bannerImageFile, setBannerImageFile] = useState(null);
@@ -273,6 +279,11 @@ const AdminDashboard = () => {
         setOrders(orderRes || []);
         setCategoryRequests(catReqRes || []);
         setNews(offerRes || []);
+
+        try {
+          const gstCatRes: any = await api.get('/admin/gst-categories/');
+          setGstCategories(gstCatRes || []);
+        } catch (e) { console.warn("GST Categories endpoint error", e); }
 
         try {
           const bannerRes: any = await api.get('/admin/banners/');
@@ -312,8 +323,10 @@ const AdminDashboard = () => {
           const configRes: any = await api.get('/platform-config/');
           if (configRes) {
             setPlatformConfig({
-              gst_percentage: String(configRes.gst_percentage),
-              platform_fee_percentage: String(configRes.platform_fee_percentage)
+              platform_fee: String(configRes.platform_fee || '0.00'),
+              platform_fee_gst: String(configRes.platform_fee_gst || '18.00'),
+              shipping_charge: String(configRes.shipping_charge || '0.00'),
+              shipping_charge_gst: String(configRes.shipping_charge_gst || '18.00')
             });
           }
         } catch (e) { console.warn("Platform config endpoint error", e); }
@@ -736,18 +749,90 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSaveGstCategory = async (e: any) => {
+    e.preventDefault();
+    if (!newGstCatName.trim()) return toast.error("Please enter a name.");
+    if (!newGstCatPercentage) return toast.error("Please enter a percentage.");
+
+    const payload = {
+      name: newGstCatName.trim(),
+      gst_percentage: parseFloat(newGstCatPercentage),
+      category_ids: newGstCatSelectedCategories
+    };
+
+    try {
+      if (editingGstCategoryId) {
+        const res: any = await api.put(`/admin/gst-categories/${editingGstCategoryId}/`, payload);
+        const catRes: any = await api.get('/admin/categories/');
+        setCategories(catRes || []);
+        
+        const gstRes: any = await api.get('/admin/gst-categories/');
+        setGstCategories(gstRes || []);
+        toast.success("GST Category updated!");
+      } else {
+        const res: any = await api.post('/admin/gst-categories/', payload);
+        const catRes: any = await api.get('/admin/categories/');
+        setCategories(catRes || []);
+
+        const gstRes: any = await api.get('/admin/gst-categories/');
+        setGstCategories(gstRes || []);
+        toast.success("GST Category created!");
+      }
+      setNewGstCatName('');
+      setNewGstCatPercentage('');
+      setNewGstCatSelectedCategories([]);
+      setEditingGstCategoryId(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.name?.[0] || "Failed to save GST Category.");
+    }
+  };
+
+  const handleEditGstCategory = (gstCat: any) => {
+    setEditingGstCategoryId(gstCat.id);
+    setNewGstCatName(gstCat.name);
+    setNewGstCatPercentage(String(gstCat.gst_percentage));
+    setNewGstCatSelectedCategories(gstCat.categories?.map((c: any) => c.id) || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteGstCategory = async (id: number) => {
+    if (!window.confirm("Are you sure? This will remove these categories from this GST rate.")) return;
+    try {
+      await api.delete(`/admin/gst-categories/${id}/`);
+      const catRes: any = await api.get('/admin/categories/');
+      setCategories(catRes || []);
+
+      const gstRes: any = await api.get('/admin/gst-categories/');
+      setGstCategories(gstRes || []);
+      toast.success("GST Category deleted");
+    } catch {
+      toast.error("Failed to delete GST Category.");
+    }
+  };
+
+  const handleCancelGstCategoryEdit = () => {
+    setEditingGstCategoryId(null);
+    setNewGstCatName('');
+    setNewGstCatPercentage('');
+    setNewGstCatSelectedCategories([]);
+  };
+
   const handleSaveConfig = async (e: any) => {
     e.preventDefault();
     setUpdatingConfig(true);
     try {
       const res: any = await api.post('/platform-config/', {
-        gst_percentage: parseFloat(platformConfig.gst_percentage),
-        platform_fee_percentage: parseFloat(platformConfig.platform_fee_percentage)
+        platform_fee: parseFloat(platformConfig.platform_fee),
+        platform_fee_gst: parseFloat(platformConfig.platform_fee_gst),
+        shipping_charge: parseFloat(platformConfig.shipping_charge),
+        shipping_charge_gst: parseFloat(platformConfig.shipping_charge_gst)
       });
       if (res) {
         setPlatformConfig({
-          gst_percentage: String(res.gst_percentage),
-          platform_fee_percentage: String(res.platform_fee_percentage)
+          platform_fee: String(res.platform_fee || '0.00'),
+          platform_fee_gst: String(res.platform_fee_gst || '18.00'),
+          shipping_charge: String(res.shipping_charge || '0.00'),
+          shipping_charge_gst: String(res.shipping_charge_gst || '18.00')
         });
         toast.success("Platform settings updated successfully!");
       }
@@ -786,6 +871,7 @@ const AdminDashboard = () => {
     { key: 'users', label: 'Users Directory', Icon: Icons.Users, badge: null },
     { key: 'subscriptions', label: 'Manage Subs', Icon: Icons.Subscriptions, badge: null },
     { key: 'categories', label: 'Categories', Icon: Icons.Categories, badge: pendingCatReqs.length },
+    { key: 'gstCategories', label: 'GST Categories', Icon: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l2-2 4 4m0-7V3a2 2 0 012-2h2a2 2 0 012 2v3a2 2 0 01-2 2h-2a2 2 0 01-2-2zM3 7a2 2 0 012-2h2a2 2 0 012 2v3a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></svg>, badge: null },
     { key: 'news', label: 'News', Icon: Icons.Offers, badge: null },
     { key: 'headerBanners', label: 'Header Banner', Icon: Icons.Banners, badge: null },
     { key: 'marketingBanners', label: 'Marketing Banner', Icon: Icons.Banners, badge: null },
@@ -2298,6 +2384,100 @@ const AdminDashboard = () => {
                 </div>
               )}
 
+              {/* ── GST CATEGORIES TAB ── */}
+              {activeTab === 'gstCategories' && (
+                <div className="animate-fade-in flex flex-col gap-8">
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <div className="xl:col-span-1">
+                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#E8D5BC]">
+                        <div className="flex items-center justify-between mb-8">
+                          <h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">{editingGstCategoryId ? 'Edit GST Category' : 'Create GST Category'}</h2>
+                          {editingGstCategoryId && (
+                            <button onClick={handleCancelGstCategoryEdit} className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-widest flex items-center gap-1 transition-colors">
+                              <X size={12} /> Cancel
+                            </button>
+                          )}
+                        </div>
+                        <form onSubmit={handleSaveGstCategory} className="space-y-5">
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">GST Category Name</label>
+                            <input type="text" placeholder="e.g., Low GST" required value={newGstCatName} onChange={e => setNewGstCatName(e.target.value)} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">GST Percentage (%)</label>
+                            <input type="number" step="0.01" placeholder="e.g., 5" required value={newGstCatPercentage} onChange={e => setNewGstCatPercentage(e.target.value)} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Assigned Categories</label>
+                            <div className="max-h-48 overflow-y-auto border border-[var(--border)] rounded-xl p-3 space-y-2 bg-[var(--bg-main)]/10">
+                              {categories.map(cat => (
+                                <label key={cat.id} className="flex items-center gap-3 text-sm text-[var(--text-dark)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={newGstCatSelectedCategories.includes(cat.id)}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        setNewGstCatSelectedCategories([...newGstCatSelectedCategories, cat.id]);
+                                      } else {
+                                        setNewGstCatSelectedCategories(newGstCatSelectedCategories.filter(id => id !== cat.id));
+                                      }
+                                    }}
+                                    className="rounded border-gray-300 text-[var(--brown-mid)] focus:ring-[var(--brown-mid)]"
+                                  />
+                                  <span>{cat.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-2">
+                            {editingGstCategoryId ? 'Update GST Category' : 'Publish GST Category'}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                    <div className="xl:col-span-2">
+                      <div className="bg-white rounded-2xl shadow-sm border border-[#E8D5BC] overflow-hidden h-full flex flex-col">
+                        <div className="px-8 py-6 border-b border-[#FAF7F2] shrink-0"><h2 className="text-[10px] font-bold text-[#A87C51] uppercase tracking-widest">Live GST Categories</h2></div>
+                        <div className="divide-y divide-gray-50 flex-1 overflow-y-auto">
+                          {gstCategories.length === 0
+                            ? <p className="p-10 text-center text-[var(--text-muted)] bg-[var(--bg-main)]/30">No GST categories active.</p>
+                            : gstCategories.map(gstCat => (
+                              <div key={gstCat.id} className="p-6 flex flex-col md:flex-row md:justify-between md:items-center hover:bg-[var(--bg-main)] transition-colors gap-4">
+                                <div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-bold text-[var(--text-dark)] text-lg">{gstCat.name}</span>
+                                    <span className="bg-[#FAF6F0] text-[#A87C51] text-xs px-2.5 py-1 rounded-full font-black border border-[#E8D5BC]">{gstCat.gst_percentage}%</span>
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {gstCat.categories && gstCat.categories.length > 0 ? (
+                                      gstCat.categories.map((c: any) => (
+                                        <span key={c.id} className="bg-[#FAF6F0] text-[10px] px-2 py-0.5 rounded-md border border-[#E8D5BC] text-[#A87C51] font-medium">
+                                          {c.name}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">No assigned categories</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 self-end md:self-center">
+                                  <button onClick={() => handleEditGstCategory(gstCat)} className="text-[var(--brown-mid)] hover:bg-[var(--bg-main)] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-[var(--border)] transition-all duration-200 active:scale-95 flex items-center gap-1.5">
+                                    <Pencil size={12} /> Edit
+                                  </button>
+                                  <button onClick={() => handleDeleteGstCategory(gstCat.id)} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-transparent hover:border-red-100 transition-all duration-200 active:scale-95">Delete</button>
+                                </div>
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ── PLATFORM SETTINGS TAB ── */}
               {activeTab === 'platformSettings' && (
                 <div className="animate-fade-in flex flex-col gap-8">
@@ -2305,27 +2485,51 @@ const AdminDashboard = () => {
                     <h2 className="text-[10px] font-bold text-[#A87C51] mb-8 uppercase tracking-widest">Platform Settings</h2>
                     <form onSubmit={handleSaveConfig} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">GST Percentage (%)</label>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">Platform Fee (₹)</label>
                         <input
                           type="number"
                           step="0.01"
                           required
-                          value={platformConfig.gst_percentage}
-                          onChange={e => setPlatformConfig({ ...platformConfig, gst_percentage: e.target.value })}
+                          value={platformConfig.platform_fee}
+                          onChange={e => setPlatformConfig({ ...platformConfig, platform_fee: e.target.value })}
+                          className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                          placeholder="e.g. 5.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">GST on Platform Fee (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={platformConfig.platform_fee_gst}
+                          onChange={e => setPlatformConfig({ ...platformConfig, platform_fee_gst: e.target.value })}
                           className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
                           placeholder="e.g. 18.00"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">Platform Fee Percentage (%)</label>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">Shipping Charge (₹)</label>
                         <input
                           type="number"
                           step="0.01"
                           required
-                          value={platformConfig.platform_fee_percentage}
-                          onChange={e => setPlatformConfig({ ...platformConfig, platform_fee_percentage: e.target.value })}
+                          value={platformConfig.shipping_charge}
+                          onChange={e => setPlatformConfig({ ...platformConfig, shipping_charge: e.target.value })}
                           className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
-                          placeholder="e.g. 5.00"
+                          placeholder="e.g. 50.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2 ml-1">GST on Shipping Charge (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={platformConfig.shipping_charge_gst}
+                          onChange={e => setPlatformConfig({ ...platformConfig, shipping_charge_gst: e.target.value })}
+                          className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors text-sm text-[var(--text-dark)]"
+                          placeholder="e.g. 18.00"
                         />
                       </div>
                       <div className="md:col-span-2 flex gap-3 mt-2">

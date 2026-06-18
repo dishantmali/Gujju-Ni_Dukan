@@ -295,8 +295,8 @@ const HeroBannerCarousel = ({ images, interval = 5000 }: { images: string[]; int
               key={i}
               onClick={() => setIdx(i)}
               className={`h-1.5 rounded-full transition-all duration-300 ${i === idx
-                  ? "w-5 bg-white shadow-sm"
-                  : "w-1.5 bg-white/50 hover:bg-white/80"
+                ? "w-5 bg-white shadow-sm"
+                : "w-1.5 bg-white/50 hover:bg-white/80"
                 }`}
               aria-label={`Go to banner ${i + 1}`}
             />
