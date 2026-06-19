@@ -19,9 +19,9 @@ def send_html_email(subject, recipient_email, html_content, text_content=""):
                 html_message=html_content,
                 fail_silently=False,
             )
-            print(f"[SMTP EMAIL SUCCESS] Sent email '{subject}' to {recipient_email}")
+            print(f"[SMTP EMAIL SUCCESS] Sent email '{subject}' to {recipient_email}", flush=True)
         except Exception as e:
-            print(f"[SMTP EMAIL ERROR] Failed to send email '{subject}' to {recipient_email}. Error: {e}")
+            print(f"[SMTP EMAIL ERROR] Failed to send email '{subject}' to {recipient_email}. Error: {e}", flush=True)
 
     thread = threading.Thread(target=_send)
     thread.start()
