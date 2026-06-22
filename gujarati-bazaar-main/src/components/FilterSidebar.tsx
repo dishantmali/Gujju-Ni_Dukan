@@ -1,9 +1,11 @@
-import { useState, useMemo } from "react";
-import { vendors } from "@/data/vendors";
+import { useState, useMemo, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { StarRating } from "./StarRating";
 import { X } from "lucide-react";
+import api from "@/lib/api";
+
+type VendorItem = { id: string; name: string };
 
 export type Filters = {
   price: [number, number];
@@ -22,9 +24,26 @@ export const defaultFilters: Filters = {
 export const FilterSidebar = ({
   value, onChange, vendorIdsInUse,
 }: { value: Filters; onChange: (v: Filters) => void; vendorIdsInUse?: string[] }) => {
+  const [apiVendors, setApiVendors] = useState<VendorItem[]>([]);
+
+  useEffect(() => {
+    api.get('/vendors/')
+      .then((res: any) => {
+        const list = (Array.isArray(res) ? res : res.results || []).map((v: any) => ({
+          id: String(v.id),
+          name: v.name || v.shop_name || 'Unknown',
+        }));
+        setApiVendors(list);
+      })
+      .catch((err) => {
+        console.error('[FilterSidebar] Failed to fetch vendors:', err);
+        setApiVendors([]);
+      });
+  }, []);
+
   const visibleVendors = useMemo(
-    () => vendorIdsInUse ? vendors.filter(v => vendorIdsInUse.includes(v.id)) : vendors,
-    [vendorIdsInUse]
+    () => vendorIdsInUse ? apiVendors.filter(v => vendorIdsInUse.includes(v.id)) : apiVendors,
+    [vendorIdsInUse, apiVendors]
   );
 
   const toggleVendor = (id: string) => {
@@ -66,19 +85,25 @@ export const FilterSidebar = ({
 
       <div>
         <h4 className="text-sm font-semibold mb-3">Vendor</h4>
-        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-          {visibleVendors.map((v) => (
-            <label key={v.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={value.vendorIds.includes(v.id)}
-                onChange={() => toggleVendor(v.id)}
-                className="h-4 w-4 rounded border-border accent-primary"
-              />
-              <span className="text-foreground">{v.name}</span>
-            </label>
-          ))}
-        </div>
+        {apiVendors.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Loading vendors…</p>
+        ) : visibleVendors.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No vendors for this category.</p>
+        ) : (
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            {visibleVendors.map((v) => (
+              <label key={v.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value.vendorIds.includes(v.id)}
+                  onChange={() => toggleVendor(v.id)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <span className="text-foreground">{v.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between">

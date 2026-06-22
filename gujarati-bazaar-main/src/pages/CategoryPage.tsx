@@ -4,9 +4,9 @@ import { ChevronRight, X, SlidersHorizontal } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { ProductGrid } from "@/components/ProductGrid";
 import { FilterSidebar, Filters, defaultFilters } from "@/components/FilterSidebar";
-import { categories, vendors } from "@/data/vendors";
-import { getProductsByCategory, products } from "@/data/products";
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CategoryPills } from "@/components/CategoryPills";
 import api from "@/lib/api";
 import { mapApiProduct } from "@/lib/mapApiProduct";
@@ -35,19 +35,14 @@ const CategoryPage = () => {
       const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
       const prods = (Array.isArray(res) ? res : res.results || []).map(mapProduct);
-      const fallback = products.filter(p => slug === "all" || p.category === slug);
 
       console.log("[CategoryPage] slug:", slug);
       console.log("[CategoryPage] API response type:", Array.isArray(res) ? "array" : "object", "| results count:", Array.isArray(res) ? res.length : (res.results || []).length);
-      console.log("[CategoryPage] mapped prods:", prods.length, "| fallback mock:", fallback.length);
-      console.log("[CategoryPage] using:", prods.length > 0 ? "API products" : "mock fallback");
 
-      setAll(prods.length > 0 ? prods : fallback);
+      setAll(prods);
     } catch (err) {
       console.error("[CategoryPage] API error:", err);
-      const fallback = products.filter(p => slug === "all" || p.category === slug);
-      console.log("[CategoryPage] catch fallback mock:", fallback.length);
-      setAll(fallback);
+      setAll([]);
     } finally {
       setLoading(false);
     }
@@ -106,12 +101,18 @@ const CategoryPage = () => {
 
   const vendorIdsInUse = useMemo(() => Array.from(new Set(all.map((p) => p.vendorId))), [all]);
 
+  const vendorNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    all.forEach((p) => { if (p.vendorId && p.vendor_shop) map[p.vendorId] = p.vendor_shop; });
+    return map;
+  }, [all]);
+
   const activeChips = [
     ...(filters.minRating > 0 ? [{ key: "rating", label: `${filters.minRating}★ & up`, clear: () => setFilters({ ...filters, minRating: 0 }) }] : []),
     ...(filters.inStock ? [{ key: "stock", label: "In stock", clear: () => setFilters({ ...filters, inStock: false }) }] : []),
     ...filters.vendorIds.map((id) => ({
       key: `v-${id}`,
-      label: vendors.find((v) => v.id === id)?.name || "",
+      label: vendorNameMap[id] || `Vendor ${id}`,
       clear: () => setFilters({ ...filters, vendorIds: filters.vendorIds.filter((x) => x !== id) }),
     })),
   ];
@@ -155,17 +156,18 @@ const CategoryPage = () => {
     </SheetContent>
             </Sheet>
             <p className="text-sm text-muted-foreground hidden sm:block">Showing {filtered.length} of {all.length}</p>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as Sort)}
-              className="ml-auto h-9 px-3 pr-8 rounded-full bg-card border border-border text-sm focus:border-brown-light outline-none"
-            >
-              <option value="relevance">Sort: Relevance</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="newest">Newest</option>
-              <option value="top-rated">Top Rated</option>
-            </select>
+            <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
+              <SelectTrigger className="ml-auto h-9 w-[180px] rounded-full bg-card border border-border text-sm focus:ring-brown-light/40">
+                <SelectValue placeholder="Sort: Relevance" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="relevance">Sort: Relevance</SelectItem>
+                <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="top-rated">Top Rated</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {activeChips.length > 0 && (

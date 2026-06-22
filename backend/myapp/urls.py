@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 # pyrefly: ignore [missing-import]
 from .views import (
     # Auth
-    LoginView, RegisterView, MeView, ForgotPasswordView, ResetPasswordView,
+    LoginView, RegisterView, MeView, ForgotPasswordView, ResetPasswordView, TestEmailView,
     # Products
     ProductListView, ProductDetailView,
     # Vendor
@@ -34,7 +34,7 @@ from .views import (
     VendorCouponListCreateView, VendorCouponDetailView,
     ValidateCouponView, ActiveCouponListView,
     AdminNewsListCreateView, AdminNewsDetailView,
-    PlatformConfigView,
+    PlatformConfigView, PublicVendorListView,
 
     # Category
     CategoryListView,WishlistToggleView,WishlistListView,MergeWishlistView,
@@ -61,6 +61,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
     path('auth/reset-password/', ResetPasswordView.as_view(), name='reset_password'),
+    path('auth/test-email/', TestEmailView.as_view(), name='test_email'),
     path(
         'auth/token/refresh/',
         TokenRefreshView.as_view(),
@@ -190,6 +191,9 @@ urlpatterns = [
 
     # ---------------- CATEGORY ---------------- #
     path('categories/', CategoryListView.as_view(), name='category_list'),
+
+    # ---------------- PUBLIC VENDORS ---------------- #
+    path('vendors/', PublicVendorListView.as_view(), name='public_vendor_list'),
 
     # ---------------- CART ---------------- #
     path('cart/', CartView.as_view(), name='cart'),

@@ -162,6 +162,43 @@ class ResetPasswordView(APIView):
         return Response({'message': 'Password reset successfully'})
 
 
+class TestEmailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        email = request.query_params.get('email')
+        if not email:
+            return Response({'error': 'Please provide an email parameter in the query string, e.g., ?email=yourname@example.com'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            print(f"[TEST EMAIL] Attempting to send sync test email to {email}...", flush=True)
+            
+            send_mail(
+                subject="Test SMTP Email - Gujju Ni Dukan",
+                message="This is a test email sent synchronously from the server to verify SMTP credentials.",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            return Response({
+                'status': 'success',
+                'message': f'Test email sent successfully to {email}!',
+                'smtp_user': settings.EMAIL_HOST_USER
+            })
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"[TEST EMAIL ERROR] Failed to send: {e}", flush=True)
+            return Response({
+                'status': 'failed',
+                'error': str(e),
+                'traceback': error_trace,
+                'smtp_user': settings.EMAIL_HOST_USER
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class HomePageView(APIView):
     permission_classes = [permissions.AllowAny]
     pagination_class = None
@@ -2559,4 +2596,13 @@ class PlatformConfigView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class PublicVendorListView(APIView):
+    """Public endpoint to list approved vendors for storefront filtering."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        vendors = VendorProfile.objects.filter(is_approved=True, is_active=True)
+        serializer = VendorProfileSerializer(vendors, many=True, context={'request': request})
+        return Response(serializer.data)
 

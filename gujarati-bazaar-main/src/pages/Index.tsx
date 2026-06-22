@@ -16,10 +16,8 @@ import {
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
 import { VendorCard } from "@/components/VendorCard";
-import { vendors as mockVendors, categories as mockCategories } from "@/data/vendors";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
-import { products as mockProducts, getProductsByCategory } from "@/data/products";
 import banner1 from "@/assets/promo-banner-1.png";
 import banner2 from "@/assets/promo-banner-2.png";
 import api from "@/lib/api";
@@ -73,63 +71,15 @@ const offers = [
   "🥜 Dry Fruits Combo Packs — Up to 30% Off",
 ];
 
-/* ── Customer Reviews Data ── */
-const customerReviews = [
-  {
-    id: 1,
-    name: "Priya Mehta",
-    city: "Ahmedabad",
-    rating: 5,
-    comment:
-      "The theplas remind me of my grandmother's kitchen! Authentic taste, delivered fresh. Absolutely love Gujju ni Dukan!",
-    avatar: "PM",
-  },
-  {
-    id: 2,
-    name: "Rahul Patel",
-    city: "Mumbai",
-    rating: 5,
-    comment:
-      "Best Kaju Katli I've ever ordered online. The quality is premium, packaging was beautiful. Perfect for gifting!",
-    avatar: "RP",
-  },
-  {
-    id: 3,
-    name: "Aanya Shah",
-    city: "Bangalore",
-    rating: 4,
-    comment:
-      "Ordered the mirror-work wall hanging — it's absolutely stunning! Real artisanal craftsmanship from Kutch.",
-    avatar: "AS",
-  },
-  {
-    id: 4,
-    name: "Vikram Joshi",
-    city: "Delhi",
-    rating: 5,
-    comment:
-      "The stone-ground spices are incredibly fresh and aromatic. You can tell the difference from store-bought ones!",
-    avatar: "VJ",
-  },
-  {
-    id: 5,
-    name: "Meera Desai",
-    city: "Surat",
-    rating: 5,
-    comment:
-      "I'm a repeat customer. The mango pickle is divine, and the free delivery makes it even better. 10/10 recommend!",
-    avatar: "MD",
-  },
-  {
-    id: 6,
-    name: "Karan Bhatt",
-    city: "Vadodara",
-    rating: 4,
-    comment:
-      "Great selection of Gujarati products! The Patola saree I bought for my wife was a masterpiece. Excellent vendor quality.",
-    avatar: "KB",
-  },
-];
+type ReviewType = {
+  id: string | number;
+  name: string;
+  city: string;
+  rating: number;
+  comment: string;
+  avatar: string;
+};
+
 
 /* ── Horizontal Scroll Hook ── */
 const useHScroll = () => {
@@ -178,7 +128,7 @@ const ReviewCard = ({
   review,
   index,
 }: {
-  review: (typeof customerReviews)[0];
+  review: ReviewType;
   index: number;
 }) => (
   <motion.div
@@ -337,26 +287,14 @@ const IndexPageBody = () => {
       const newProds = (homeRes.new_products || []).map(mapProduct);
       const fetchedAll = (prodsRes || []).map(mapProduct);
 
-      // Prefer backend products if any exist; otherwise use mock data
-      const hasBackendProducts = featured.length > 0 || newProds.length > 0;
-
       const productMap = new Map();
-
-      if (hasBackendProducts) {
-        // Only show backend products
-        [...featured, ...newProds].forEach(p => {
-          productMap.set(p.id, p);
-        });
-      } else {
-        // No backend products yet, show mock data
-        mockProducts.filter(p => p.isTrending || p.isNew).forEach(p => {
-          productMap.set(p.id, p);
-        });
-      }
+      [...featured, ...newProds].forEach(p => {
+        productMap.set(p.id, p);
+      });
 
       setProducts(Array.from(productMap.values()));
-      setAllProducts(fetchedAll.length > 0 ? fetchedAll : mockProducts);
-      setCategories(catsRes && catsRes.length > 0 ? catsRes : mockCategories);
+      setAllProducts(fetchedAll);
+      setCategories(catsRes && catsRes.length > 0 ? catsRes : []);
 
       if (homeRes.vendors && homeRes.vendors.length > 0) {
         setVendors(homeRes.vendors.map((v: any) => ({
@@ -365,7 +303,7 @@ const IndexPageBody = () => {
           joined: "2024", // Fallback for joined date
         })));
       } else {
-        setVendors(mockVendors);
+        setVendors([]);
       }
 
       if (homeRes.offers_marquee && homeRes.offers_marquee.length > 0) {
@@ -423,8 +361,8 @@ const IndexPageBody = () => {
 
     } catch (err) {
       console.error("Failed to fetch home data:", err);
-      setProducts(mockProducts.filter(p => p.isTrending || p.isNew));
-      setAllProducts(mockProducts);
+      setProducts([]);
+      setAllProducts([]);
       setBanners({ left: [], right: [] });
       setHeroBanners([heroBanner, banner1, banner2]);
     } finally {
@@ -444,11 +382,11 @@ const IndexPageBody = () => {
   const vendorScroll = useHScroll();
 
   const displayReviews = useMemo(() => {
-    return manualReviews.length > 0 ? manualReviews : customerReviews;
+    return manualReviews;
   }, [manualReviews]);
 
   const tripledReviews = useMemo(() => {
-    return [...displayReviews, ...displayReviews, ...displayReviews];
+    return displayReviews.length > 0 ? [...displayReviews, ...displayReviews, ...displayReviews] : [];
   }, [displayReviews]);
 
   /* Category filter state */
@@ -533,21 +471,24 @@ const IndexPageBody = () => {
   const list = useMemo(() => {
     if (selectedCategory === "all") return allProducts;
 
-    // Filter from allProducts
-    const filtered = allProducts.filter(p => {
-      // Check for category slug or name match
-      const pCat = p.categoryId || (p.category && typeof p.category === 'object' ? p.category.id : p.category);
-      const pCatSlug = p.category && typeof p.category === 'object' ? p.category.slug : null;
+    const activeCat = categories.find(
+      (c: any) => c.slug === selectedCategory || c.id.toString() === selectedCategory
+    );
 
-      return pCat === selectedCategory ||
-        pCatSlug === selectedCategory ||
-        p.category === selectedCategory ||
-        p.category_name?.toLowerCase() === selectedCategory.toLowerCase();
+    const targetCatId = activeCat ? activeCat.id.toString() : selectedCategory.toLowerCase();
+
+    return allProducts.filter(p => {
+      const pCatId = String(p.categoryId || "");
+      const pCatName = String(p.category || "").toLowerCase();
+      const pCatSlug = p.category ? p.category.toLowerCase().replace(/\s+/g, '-') : "";
+      const selectedLower = selectedCategory.toLowerCase();
+
+      return pCatId === targetCatId ||
+             pCatName === targetCatId ||
+             pCatName === selectedLower ||
+             pCatSlug === selectedLower;
     });
-
-    if (filtered.length > 0) return filtered;
-    return getProductsByCategory(selectedCategory);
-  }, [selectedCategory, allProducts]);
+  }, [selectedCategory, allProducts, categories]);
 
   const filteredProducts = useMemo(() => {
     return isExpanded ? list.slice(0, 24) : list.slice(0, 12);
@@ -626,76 +567,80 @@ const IndexPageBody = () => {
 
 
       {/* ─── 4. Trending Now — horizontal scroll ─── */}
-      <section className="container pt-4 pb-8">
-        <SectionHeader
-          icon={<TrendingUp size={22} />}
-          title="Trending Now"
-        />
-        <div className="relative group">
-          <button
-            onClick={() => trendingScroll.scroll("left")}
-            className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div
-            ref={trendingScroll.ref}
-            className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
-          >
-            <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-              {trending.map((p, i) => (
-                <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
-                  <ProductCard product={p} index={i} />
-                </div>
-              ))}
+      {trending.length > 0 && (
+        <section className="container pt-4 pb-8">
+          <SectionHeader
+            icon={<TrendingUp size={22} />}
+            title="Trending Now"
+          />
+          <div className="relative group">
+            <button
+              onClick={() => trendingScroll.scroll("left")}
+              className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div
+              ref={trendingScroll.ref}
+              className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
+            >
+              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
+                {trending.map((p, i) => (
+                  <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
+                    <ProductCard product={p} index={i} />
+                  </div>
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => trendingScroll.scroll("right")}
+              className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button
-            onClick={() => trendingScroll.scroll("right")}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ─── 5. New Arrivals — horizontal scroll ─── */}
-      <section className="container py-8">
-        <SectionHeader
-          icon={<Sparkles size={22} />}
-          title="New Arrivals"
-        />
-        <div className="relative group">
-          <button
-            onClick={() => newArrivalsScroll.scroll("left")}
-            className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div
-            ref={newArrivalsScroll.ref}
-            className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
-          >
-            <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-              {newArrivals.map((p, i) => (
-                <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
-                  <ProductCard product={p} index={i} />
-                </div>
-              ))}
+      {newArrivals.length > 0 && (
+        <section className="container py-8">
+          <SectionHeader
+            icon={<Sparkles size={22} />}
+            title="New Arrivals"
+          />
+          <div className="relative group">
+            <button
+              onClick={() => newArrivalsScroll.scroll("left")}
+              className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div
+              ref={newArrivalsScroll.ref}
+              className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
+            >
+              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
+                {newArrivals.map((p, i) => (
+                  <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
+                    <ProductCard product={p} index={i} />
+                  </div>
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => newArrivalsScroll.scroll("right")}
+              className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button
-            onClick={() => newArrivalsScroll.scroll("right")}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ─── 6. Promotion Banners (2 side by side sliders) ─── */}
       <section className="container py-6">
@@ -767,74 +712,78 @@ const IndexPageBody = () => {
       </section>
 
       {/* ─── 10. Top Vendors ─── */}
-      <section className="container py-10">
-        <SectionHeader
-          icon={<Store size={22} />}
-          title="Our Trusted Vendors"
-        />
-        <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
-          <button
-            onClick={() => vendorScroll.scroll("left")}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div
-            ref={vendorScroll.ref}
-            className="pill-scroll overflow-x-auto"
-          >
-            <div className="flex gap-3 sm:gap-4 min-w-max pb-2">
-              {[...vendors, ...vendors, ...vendors].map((v, i) => (
-                <div key={`${v.id}-${i}`} className="w-[150px] sm:w-[170px] shrink-0">
-                  <VendorCard vendor={v} />
-                </div>
-              ))}
+      {vendors.length > 0 && (
+        <section className="container py-10">
+          <SectionHeader
+            icon={<Store size={22} />}
+            title="Our Trusted Vendors"
+          />
+          <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
+            <button
+              onClick={() => vendorScroll.scroll("left")}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div
+              ref={vendorScroll.ref}
+              className="pill-scroll overflow-x-auto"
+            >
+              <div className="flex gap-3 sm:gap-4 min-w-max pb-2">
+                {[...vendors, ...vendors, ...vendors].map((v, i) => (
+                  <div key={`${v.id}-${i}`} className="w-[150px] sm:w-[170px] shrink-0">
+                    <VendorCard vendor={v} />
+                  </div>
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => vendorScroll.scroll("right")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button
-            onClick={() => vendorScroll.scroll("right")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ─── 11. Customer Reviews ─── */}
-      <section className="container py-10">
-        <SectionHeader
-          icon={<Star size={22} />}
-          title="What Our Customers Say"
-        />
-        <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
-          <button
-            onClick={() => reviewScroll.scroll("left")}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div
-            ref={reviewScroll.ref}
-            className="pill-scroll overflow-x-auto"
-          >
-            <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-              {tripledReviews.map((r, i) => (
-                <ReviewCard key={`${r.id}-${i}`} review={r} index={i} />
-              ))}
+      {displayReviews.length > 0 && (
+        <section className="container py-10">
+          <SectionHeader
+            icon={<Star size={22} />}
+            title="What Our Customers Say"
+          />
+          <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
+            <button
+              onClick={() => reviewScroll.scroll("left")}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div
+              ref={reviewScroll.ref}
+              className="pill-scroll overflow-x-auto"
+            >
+              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
+                {tripledReviews.map((r, i) => (
+                  <ReviewCard key={`${r.id}-${i}`} review={r} index={i} />
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => reviewScroll.scroll("right")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button
-            onClick={() => reviewScroll.scroll("right")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
     </>
   );
 };

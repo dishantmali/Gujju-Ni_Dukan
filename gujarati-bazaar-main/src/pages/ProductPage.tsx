@@ -18,7 +18,6 @@ import { PageShell } from "@/components/PageShell";
 import { StarRating } from "@/components/StarRating";
 import { PriceTag } from "@/components/PriceTag";
 import { ProductCard } from "@/components/ProductCard";
-import { getRelatedProducts } from "@/data/products";
 import { vendors } from "@/data/vendors";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/context/AuthContext";
@@ -92,8 +91,7 @@ const ProductPage = () => {
         const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 8);
         setRelatedProducts(shuffled);
       } catch {
-        // Fallback to local mock data
-        setRelatedProducts(getRelatedProducts(product, 8));
+        setRelatedProducts([]);
       }
     };
     if (product) fetchRelated();
@@ -196,7 +194,7 @@ const ProductPage = () => {
 
   const vendor = vendors.find((v) => v.id === product.vendorId);
   const isWish = wishlist.includes(product.id.toString());
-  const related = relatedProducts.length > 0 ? relatedProducts : getRelatedProducts(product, 8);
+  const related = relatedProducts;
   const displayPrice = selectedVariant ? selectedVariant.price : product.price;
   const displayOriginal = selectedVariant ? (selectedVariant.originalPrice ?? displayPrice) : (product.originalPrice ?? displayPrice);
   const selectedStock =

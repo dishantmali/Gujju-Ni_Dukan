@@ -1,17 +1,6 @@
 import { Category, Vendor } from "./types";
 
-export const categories: Category[] = [
-  { slug: "groceries", name: "Groceries", icon: "GiWheat" },
-  { slug: "snacks", name: "Snacks", icon: "FaCookie" },
-  { slug: "pickles", name: "Pickles", icon: "GiJar" },
-  { slug: "spices", name: "Spices", icon: "GiChiliPepper" },
-  { slug: "sweets", name: "Sweets", icon: "LuCandy" },
-  { slug: "dry-fruits", name: "Dry Fruits", icon: "GiPeanut" },
-  { slug: "handicrafts", name: "Handicrafts", icon: "GiAmphora" },
-  { slug: "clothing", name: "Clothing", icon: "GiDress" },
-  { slug: "pooja-items", name: "Pooja Items", icon: "GiOm" },
-  { slug: "home-decor", name: "Home Decor", icon: "FaHome" },
-];
+export const categories: Category[] = [];
 
 
 export const vendors: Vendor[] = [
