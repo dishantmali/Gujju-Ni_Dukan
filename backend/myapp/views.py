@@ -567,6 +567,37 @@ class AdminProductApprovalView(APIView):
 
         return Response({"message": f"Product {action}d successfully"})
 
+class AdminProductUpdateView(generics.RetrieveUpdateAPIView):
+    """Allow admin to edit any product details (same as vendor edit)."""
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_queryset(self):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can edit products.")
+        return Product.objects.all()
+
+    def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admin can edit products.")
+
+        # Manually handle is_active since it's read_only in ProductSerializer
+        if 'is_active' in self.request.data:
+            is_active_val = self.request.data.get('is_active')
+            if str(is_active_val).lower() == 'true':
+                serializer.instance.is_active = True
+            elif str(is_active_val).lower() == 'false':
+                serializer.instance.is_active = False
+
+        if 'is_new' in self.request.data:
+            is_new_val = self.request.data.get('is_new')
+            if str(is_new_val).lower() == 'true':
+                serializer.instance.is_new = True
+            elif str(is_new_val).lower() == 'false':
+                serializer.instance.is_new = False
+        serializer.save()
+
 class AdminVendorApprovalView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

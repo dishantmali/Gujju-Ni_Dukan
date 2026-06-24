@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { ProductCard } from "@/components/ProductCard";
+import { SkeletonCard } from "@/components/SkeletonCard";
 import { VendorCard } from "@/components/VendorCard";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
@@ -565,9 +566,8 @@ const IndexPageBody = () => {
         <CategoryMarquee categories={categories} />
       </section>
 
-
       {/* ─── 4. Trending Now — horizontal scroll ─── */}
-      {trending.length > 0 && (
+      {(loading || trending.length > 0) && (
         <section className="container pt-4 pb-8">
           <SectionHeader
             icon={<TrendingUp size={22} />}
@@ -575,6 +575,7 @@ const IndexPageBody = () => {
           />
           <div className="relative group">
             <button
+              type="button"
               onClick={() => trendingScroll.scroll("left")}
               className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Scroll left"
@@ -586,14 +587,23 @@ const IndexPageBody = () => {
               className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
             >
               <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-                {trending.map((p, i) => (
-                  <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
-                    <ProductCard product={p} index={i} />
-                  </div>
-                ))}
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`trend-skeleton-${i}`} className="w-[200px] sm:w-[230px] shrink-0">
+                      <SkeletonCard />
+                    </div>
+                  ))
+                ) : (
+                  trending.map((p, i) => (
+                    <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
+                      <ProductCard product={p} index={i} />
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             <button
+              type="button"
               onClick={() => trendingScroll.scroll("right")}
               className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Scroll right"
@@ -605,7 +615,7 @@ const IndexPageBody = () => {
       )}
 
       {/* ─── 5. New Arrivals — horizontal scroll ─── */}
-      {newArrivals.length > 0 && (
+      {(loading || newArrivals.length > 0) && (
         <section className="container py-8">
           <SectionHeader
             icon={<Sparkles size={22} />}
@@ -613,6 +623,7 @@ const IndexPageBody = () => {
           />
           <div className="relative group">
             <button
+              type="button"
               onClick={() => newArrivalsScroll.scroll("left")}
               className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Scroll left"
@@ -624,14 +635,23 @@ const IndexPageBody = () => {
               className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
             >
               <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-                {newArrivals.map((p, i) => (
-                  <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
-                    <ProductCard product={p} index={i} />
-                  </div>
-                ))}
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`new-skeleton-${i}`} className="w-[200px] sm:w-[230px] shrink-0">
+                      <SkeletonCard />
+                    </div>
+                  ))
+                ) : (
+                  newArrivals.map((p, i) => (
+                    <div key={p.id} className="w-[200px] sm:w-[230px] shrink-0">
+                      <ProductCard product={p} index={i} />
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             <button
+              type="button"
               onClick={() => newArrivalsScroll.scroll("right")}
               className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Scroll right"
@@ -687,9 +707,15 @@ const IndexPageBody = () => {
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5"
           >
-            {filteredProducts.map((p, i) => (
-              <ProductCard key={p.id} product={p} index={i} />
-            ))}
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <SkeletonCard key={`explore-skeleton-${i}`} />
+              ))
+            ) : (
+              filteredProducts.map((p, i) => (
+                <ProductCard key={p.id} product={p} index={i} />
+              ))
+            )}
           </motion.div>
           <div className="mt-8 text-center">
             {!isExpanded && list.length > 12 ? (

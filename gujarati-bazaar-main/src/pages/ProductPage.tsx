@@ -26,6 +26,7 @@ import { mapApiProduct } from "@/lib/mapApiProduct";
 import { Product, ProductVariant } from "@/data/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const getSwatchColor = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -144,7 +145,82 @@ const ProductPage = () => {
   if (loading)
     return (
       <PageShell>
-        <div className="container py-20 text-center">Loading product...</div>
+        <div className="container px-4 sm:px-6 pt-4 pb-10">
+          {/* Breadcrumb Skeleton */}
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-12" />
+            <span className="text-muted-foreground">/</span>
+            <Skeleton className="h-4 w-24" />
+            <span className="text-muted-foreground">/</span>
+            <Skeleton className="h-4 w-32" />
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
+            {/* Left: Images Skeleton */}
+            <div className="flex flex-col gap-3 lg:gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[72px_1fr] gap-3">
+                {/* Thumbnails (hidden on mobile, shown on desktop) */}
+                <div className="hidden lg:flex flex-col gap-2.5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-16 rounded-xl" />
+                  ))}
+                </div>
+                {/* Main Image Box */}
+                <Skeleton className="w-full aspect-square lg:h-[500px] rounded-2xl animate-pulse" />
+              </div>
+
+              {/* Info Tabs Skeleton */}
+              <div className="mt-2 rounded-2xl border border-border bg-card p-5 space-y-4">
+                <div className="flex gap-4 border-b border-border pb-3">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-4/5" />
+              </div>
+            </div>
+
+            {/* Right: Info + Actions Skeleton */}
+            <div className="space-y-4">
+              {/* Vendor */}
+              <Skeleton className="h-4 w-32" />
+              {/* Title */}
+              <Skeleton className="h-8 w-3/4 sm:w-2/3" />
+              {/* Rating */}
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              {/* Price */}
+              <div className="space-y-2 mt-4">
+                <Skeleton className="h-8 w-36" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              {/* Select Options Box */}
+              <div className="rounded-2xl border border-border p-4 sm:p-5 space-y-4">
+                <Skeleton className="h-5 w-28" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 w-12 rounded-lg" />
+                  <Skeleton className="h-9 w-12 rounded-lg" />
+                  <Skeleton className="h-9 w-12 rounded-lg" />
+                </div>
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </div>
+              {/* Stock Status */}
+              <Skeleton className="h-14 w-full rounded-2xl" />
+              {/* Quantity + Actions */}
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-28 rounded-full" />
+                <Skeleton className="h-10 flex-1 rounded-full" />
+              </div>
+            </div>
+          </div>
+        </div>
       </PageShell>
     );
   if (!product)

@@ -212,6 +212,15 @@ const AdminDashboard = () => {
   const [activeReviewSubTab, setActiveReviewSubTab] = useState<'manual' | 'platform'>('manual');
   const [loading, setLoading] = useState(true);
 
+  // Admin Product Edit States
+  const [adminEditProduct, setAdminEditProduct] = useState<any | null>(null);
+  const [adminEditModalOpen, setAdminEditModalOpen] = useState(false);
+  const [adminEditSaving, setAdminEditSaving] = useState(false);
+  const [adminEditDeletedVariantImageIds, setAdminEditDeletedVariantImageIds] = useState<number[]>([]);
+  const [adminEditDeletedProductImageIds, setAdminEditDeletedProductImageIds] = useState<number[]>([]);
+  const [adminEditVariantNewImages, setAdminEditVariantNewImages] = useState<Record<number, File[]>>({});
+  const [adminEditNewGalleryImages, setAdminEditNewGalleryImages] = useState<File[]>([]);
+
   // Platform Config State
   const [platformConfig, setPlatformConfig] = useState({ platform_fee: '0.00', platform_fee_gst: '18.00', shipping_charge: '0.00', shipping_charge_gst: '18.00' });
   const [updatingConfig, setUpdatingConfig] = useState(false);
@@ -862,6 +871,117 @@ const AdminDashboard = () => {
   const pendingProductsList = allProducts.filter(p => p.status === 'pending');
   const directoryProductsList = allProducts.filter(p => p.status !== 'pending');
   const pendingCatReqs = categoryRequests.filter(r => r.status === 'pending');
+
+  // --- Admin Product Edit Handlers ---
+  const openAdminEditProduct = (product: any) => {
+    setAdminEditProduct({
+      ...product,
+      variants: product.variants || [],
+      is_new: product.is_new !== undefined ? product.is_new : true
+    });
+    setAdminEditDeletedVariantImageIds([]);
+    setAdminEditDeletedProductImageIds([]);
+    setAdminEditVariantNewImages({});
+    setAdminEditNewGalleryImages([]);
+    setAdminEditModalOpen(true);
+  };
+
+  const handleAdminEditVariantChange = (index: number, field: string, value: any) => {
+    if (!adminEditProduct) return;
+    const updatedVariants = [...(adminEditProduct.variants || [])];
+    updatedVariants[index] = { ...updatedVariants[index], [field]: value };
+    setAdminEditProduct({ ...adminEditProduct, variants: updatedVariants });
+  };
+
+  const addAdminEditVariantRow = () => {
+    if (!adminEditProduct) return;
+    setAdminEditProduct({
+      ...adminEditProduct,
+      variants: [...(adminEditProduct.variants || []), { option_values: {}, sku: '', price: '', stock_quantity: '' }]
+    });
+  };
+
+  const removeAdminEditVariantRow = (index: number) => {
+    if (!adminEditProduct) return;
+    const variantToRemove = (adminEditProduct.variants || [])[index];
+    if (variantToRemove?.id) {
+      const imageIds = (variantToRemove.images || []).map((img: any) => img.id);
+      setAdminEditDeletedVariantImageIds(prev => [...prev, ...imageIds]);
+    }
+    const updatedVariants = (adminEditProduct.variants || []).filter((_: any, i: number) => i !== index);
+    setAdminEditProduct({ ...adminEditProduct, variants: updatedVariants });
+    const newImages = { ...adminEditVariantNewImages };
+    delete newImages[index];
+    setAdminEditVariantNewImages(newImages);
+  };
+
+  const handleAdminRemoveExistingVariantImage = (variantId: number, imageId: number) => {
+    setAdminEditDeletedVariantImageIds(prev => [...prev, imageId]);
+    setAdminEditProduct((prev: any) => ({
+      ...prev,
+      variants: prev.variants.map((v: any) =>
+        v.id === variantId
+          ? { ...v, images: v.images.filter((img: any) => img.id !== imageId) }
+          : v
+      )
+    }));
+  };
+
+  const handleAdminProductUpdate = async (e: any) => {
+    e.preventDefault();
+    if (!adminEditProduct) return;
+    setAdminEditSaving(true);
+    try {
+      const variants = adminEditProduct.variants || [];
+      let finalPrice = adminEditProduct.price;
+      let finalStock = adminEditProduct.stock_quantity;
+      if (variants.length > 0) {
+        finalPrice = Math.min(...variants.map((v: any) => parseFloat(v.price) || 0));
+        finalStock = variants.reduce((sum: number, v: any) => sum + (parseInt(v.stock_quantity) || 0), 0);
+      }
+      const formData = new FormData();
+      formData.append('name', adminEditProduct.name);
+      formData.append('price', String(finalPrice));
+      formData.append('description', adminEditProduct.description);
+      formData.append('category', adminEditProduct.category);
+      formData.append('stock_quantity', String(finalStock));
+      formData.append('is_new', String(adminEditProduct.is_new));
+      if (variants.length > 0) {
+        formData.append('variants_input', JSON.stringify(variants));
+      }
+      if (adminEditDeletedVariantImageIds.length > 0) {
+        formData.append('delete_variant_image_ids', JSON.stringify(adminEditDeletedVariantImageIds));
+      }
+      if (adminEditDeletedProductImageIds.length > 0) {
+        formData.append('delete_product_image_ids', JSON.stringify(adminEditDeletedProductImageIds));
+      }
+      Object.entries(adminEditVariantNewImages).forEach(([vidx, files]) => {
+        files.forEach((file, fidx) => {
+          formData.append(`variant_image_${vidx}_${fidx}`, file);
+        });
+      });
+      adminEditNewGalleryImages.forEach((file) => {
+        formData.append('extra_images', file);
+      });
+      const imageInput = document.getElementById('admin-edit-product-image') as HTMLInputElement;
+      if (imageInput && imageInput.files?.[0]) {
+        formData.append('image', imageInput.files[0]);
+      }
+      await api.patch(`/admin/products/${adminEditProduct.id}/edit/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      // Refresh products list
+      const prodRes: any = await api.get('/admin/products/pending/');
+      setAllProducts(prodRes || []);
+      toast.success('Product updated successfully');
+      setAdminEditModalOpen(false);
+      setAdminEditProduct(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.error || 'Failed to update product');
+    } finally {
+      setAdminEditSaving(false);
+    }
+  };
   const pendingPlatformReviewsCount = platformReviews.filter(r => !r.is_featured).length;
 
   const navItems = [
@@ -1290,6 +1410,7 @@ const AdminDashboard = () => {
                                   <td className="px-6 py-4 font-bold text-[var(--text-dark)]">₹{parseFloat(p.price).toLocaleString()}</td>
                                   <td className="px-6 py-4 text-center">{pIsActive ? <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase tracking-wider rounded-md">Active</span> : <span className="px-3 py-1 bg-red-100 text-red-700 text-[10px] font-black uppercase tracking-wider rounded-md">Archived</span>}</td>
                                   <td className="px-6 py-4"><div className="flex justify-end gap-3">
+                                    <button onClick={() => openAdminEditProduct(p)} className="px-5 py-2 text-xs font-bold uppercase rounded-lg transition-colors border text-[var(--brown-mid)] border-[var(--border)] hover:bg-[var(--bg-secondary)]">Edit</button>
                                     <button onClick={() => handleAction('product', p.id, pIsActive ? 'reject' : 'approve')} className={`px-5 py-2 text-xs font-bold uppercase rounded-lg transition-colors border ${pIsActive ? 'text-red-600 border-red-200 hover:bg-red-50' : 'text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--bg-secondary)]'}`}>{pIsActive ? 'Archive' : 'Restore'}</button>
                                   </div></td>
                                 </tr>
@@ -1300,8 +1421,143 @@ const AdminDashboard = () => {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+
+                {/* Admin Product Edit Modal */}
+                {adminEditModalOpen && adminEditProduct && (
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAdminEditModalOpen(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                      <div className="px-6 py-4 border-b border-[#E8D5BC] bg-[#FAF7F2] flex justify-between items-center">
+                        <div>
+                          <h2 className="text-lg font-bold text-[#5A3825]">Edit Product Details</h2>
+                          <p className="text-xs text-[#A87C51] mt-0.5">Admin editing: {adminEditProduct.name}</p>
+                        </div>
+                        <button onClick={() => setAdminEditModalOpen(false)} className="text-[#A87C51] hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-full">
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleAdminProductUpdate} className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-5">
+                            <div>
+                              <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1.5 ml-1">Product Name</label>
+                              <input type="text" required value={adminEditProduct.name} onChange={(e) => setAdminEditProduct({ ...adminEditProduct, name: e.target.value })} className="w-full p-3 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1.5 ml-1">Category</label>
+                              <select required value={adminEditProduct.category} onChange={(e) => setAdminEditProduct({ ...adminEditProduct, category: e.target.value })} className="w-full p-3 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors cursor-pointer">
+                                {categories.map((cat: any) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-5">
+                            <div>
+                              <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1.5 ml-1">Description</label>
+                              <textarea required rows={5} value={adminEditProduct.description} onChange={(e) => setAdminEditProduct({ ...adminEditProduct, description: e.target.value })} className="w-full p-3 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors resize-none" />
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <input type="checkbox" id="admin-edit-is-new" checked={adminEditProduct.is_new} onChange={(e) => setAdminEditProduct({ ...adminEditProduct, is_new: e.target.checked })} className="w-4 h-4 rounded border-[var(--border)] accent-[#5A3825]" />
+                              <label htmlFor="admin-edit-is-new" className="text-sm font-bold text-[#8C7B6E] cursor-pointer">Mark as New Arrival</label>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1.5 ml-1">Update Main Image (Optional)</label>
+                              <div className="flex items-center gap-4">
+                                {adminEditProduct.image && (<img src={adminEditProduct.image} alt="" className="w-12 h-12 object-cover rounded border border-[var(--border)]" />)}
+                                <input id="admin-edit-product-image" type="file" accept="image/*" className="flex-1 text-sm text-[#8C7B6E] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-[var(--bg-main)] file:text-[var(--text-dark)] hover:file:bg-[#E8D5BC] transition-all border border-[var(--border)] rounded-lg p-1" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1.5 ml-1">Product Gallery</label>
+                              <div className="flex flex-wrap gap-2 items-center p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border)]">
+                                {adminEditProduct.product_images?.map((imgObj: any) => (
+                                  <div key={imgObj.id} className="relative group">
+                                    <img src={imgObj.image} alt="" className="w-10 h-10 object-cover rounded border border-[var(--border)]" />
+                                    <button type="button" onClick={() => { setAdminEditDeletedProductImageIds(prev => [...prev, imgObj.id]); setAdminEditProduct((prev: any) => ({ ...prev, product_images: prev.product_images.filter((img: any) => img.id !== imgObj.id) })); }} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"><X size={10} /></button>
+                                  </div>
+                                ))}
+                                {adminEditNewGalleryImages.map((file, idx) => (
+                                  <div key={`new-gallery-${idx}`} className="relative group">
+                                    <img src={URL.createObjectURL(file)} alt="" className="w-10 h-10 object-cover rounded border border-[#A87C51]/30" />
+                                    <button type="button" onClick={() => setAdminEditNewGalleryImages(prev => prev.filter((_, i) => i !== idx))} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"><X size={10} /></button>
+                                  </div>
+                                ))}
+                                <label className="w-10 h-10 flex items-center justify-center rounded border border-dashed border-[var(--border)] hover:border-[#A87C51] hover:bg-[#A87C51]/5 transition-all cursor-pointer">
+                                  <span className="text-[var(--text-muted)] text-lg">+</span>
+                                  <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => { const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/')); setAdminEditNewGalleryImages(prev => [...prev, ...files]); }} />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Variants Section */}
+                        <div className="pt-6 border-t border-[#E8D5BC]">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-bold text-[#5A3825] uppercase tracking-widest">Product Variants</h3>
+                            <button type="button" onClick={addAdminEditVariantRow} className="text-xs font-bold text-[#A87C51] hover:text-[#5A3825] transition-colors">+ Add Variant</button>
+                          </div>
+                          <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                            {(adminEditProduct.variants || []).length === 0 ? (
+                              <p className="text-xs text-[#8C7B6E] italic text-center py-4 bg-[var(--bg-main)]/30 rounded-lg">No variants defined. Basic price and stock will be used.</p>
+                            ) : (
+                              adminEditProduct.variants.map((variant: any, index: number) => {
+                                const columnKeys: string[] = Array.from(new Set(adminEditProduct.variants.flatMap((v: any) => Object.keys(v.option_values || {}))));
+                                return (
+                                  <div key={`admin-edit-variant-${index}`} className="grid grid-cols-12 gap-2 items-center bg-[var(--bg-main)]/20 p-2 rounded-lg border border-[var(--border)]/50">
+                                    <div className="col-span-4 grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, columnKeys.length)}, minmax(0, 1fr))` }}>
+                                      {columnKeys.length > 0 ? (
+                                        columnKeys.map((key: string) => (
+                                          <input key={`admin-${index}-${key}`} type="text" placeholder={key} value={variant.option_values?.[key] || ''} onChange={(e) => { const newOptions = { ...(variant.option_values || {}), [key]: e.target.value }; handleAdminEditVariantChange(index, 'option_values', newOptions); }} className="p-2 bg-white border border-[var(--border)] rounded text-xs outline-none focus:border-[var(--brown-mid)]" />
+                                        ))
+                                      ) : (<span className="text-xs text-[#8C7B6E] px-2">Default</span>)}
+                                    </div>
+                                    <input type="text" placeholder="SKU" value={variant.sku || ''} onChange={(e) => handleAdminEditVariantChange(index, 'sku', e.target.value)} className="col-span-3 p-2 bg-white border border-[var(--border)] rounded text-xs outline-none focus:border-[var(--brown-mid)]" />
+                                    <input type="number" placeholder="Price" value={variant.price || ''} onChange={(e) => handleAdminEditVariantChange(index, 'price', e.target.value)} className="col-span-2 p-2 bg-white border border-[var(--border)] rounded text-xs outline-none focus:border-[var(--brown-mid)]" />
+                                    <input type="number" placeholder="Stock" value={variant.stock_quantity || ''} onChange={(e) => handleAdminEditVariantChange(index, 'stock_quantity', e.target.value)} className="col-span-2 p-2 bg-white border border-[var(--border)] rounded text-xs outline-none focus:border-[var(--brown-mid)]" />
+                                    <button type="button" onClick={() => removeAdminEditVariantRow(index)} className="col-span-1 text-red-500 hover:text-red-700 transition-colors flex justify-center"><X size={14} /></button>
+
+                                    {/* Variant Images */}
+                                    <div className="col-span-12 mt-2 pt-2 border-t border-[var(--border)]/30">
+                                      <div className="flex flex-wrap gap-2 items-center">
+                                        <span className="text-[10px] font-bold text-[#8C7B6E] uppercase mr-2">Images:</span>
+                                        {variant.images?.map((imgObj: any) => (
+                                          <div key={imgObj.id} className="relative group">
+                                            <img src={imgObj.image} alt="" className="w-10 h-10 object-cover rounded border border-[var(--border)]" />
+                                            <button type="button" onClick={() => handleAdminRemoveExistingVariantImage(variant.id, imgObj.id)} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"><X size={10} /></button>
+                                          </div>
+                                        ))}
+                                        {adminEditVariantNewImages[index]?.map((file, fidx) => (
+                                          <div key={`new-${index}-${fidx}`} className="relative group">
+                                            <img src={URL.createObjectURL(file)} alt="" className="w-10 h-10 object-cover rounded border border-[#A87C51]/30" />
+                                            <button type="button" onClick={() => { setAdminEditVariantNewImages(prev => ({ ...prev, [index]: prev[index].filter((_, i) => i !== fidx) })); }} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"><X size={10} /></button>
+                                          </div>
+                                        ))}
+                                        <label className="w-10 h-10 flex items-center justify-center rounded border border-dashed border-[var(--border)] hover:border-[#A87C51] hover:bg-[#A87C51]/5 transition-all cursor-pointer">
+                                          <span className="text-[var(--text-muted)] text-lg">+</span>
+                                          <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => { const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/')); setAdminEditVariantNewImages(prev => ({ ...prev, [index]: [...(prev[index] || []), ...files] })); }} />
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                          {adminEditProduct.variants?.length > 0 && (
+                            <p className="text-[10px] text-[#8C7B6E] mt-2 italic">* Base price and total stock will be automatically updated based on variants.</p>
+                          )}
+                        </div>
+
+                        <div className="pt-6 border-t border-[#E8D5BC] flex gap-4 justify-end">
+                          <button type="button" onClick={() => setAdminEditModalOpen(false)} className="px-8 py-3 border border-[#E8D5BC] text-[#8C7B6E] rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#FAF7F2] transition-all duration-300 active:scale-[0.98]">Cancel</button>
+                          <button type="submit" disabled={adminEditSaving} className="px-8 py-3 bg-[#5A3825] text-white rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] disabled:opacity-50">{adminEditSaving ? 'Saving...' : 'Save Changes'}</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
               {/* ── USERS TAB ── */}
               {activeTab === 'users' && (

@@ -18,7 +18,7 @@ from .views import (
     # Payment
     CreateRazorpayOrderView, VerifyPaymentView,
     # Admin
-    AdminProductApprovalView, AdminVendorApprovalView,
+    AdminProductApprovalView, AdminProductUpdateView, AdminVendorApprovalView,
     AdminPendingProductsView, AdminPendingVendorsView,
     AdminUserListView, AdminCategoryListCreateView,
     AdminCategoryDetailView, AdminGSTCategoryListCreateView,
@@ -119,6 +119,10 @@ urlpatterns = [
         'admin/products/<int:product_id>/action/',
         AdminProductApprovalView.as_view(),
         name='admin_product_action'),
+    path(
+        'admin/products/<int:pk>/edit/',
+        AdminProductUpdateView.as_view(),
+        name='admin_product_edit'),
     path('admin/vendors/pending/',
          AdminPendingVendorsView.as_view(),
          name='admin_pending_vendors'),

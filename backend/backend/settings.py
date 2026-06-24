@@ -228,7 +228,3 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-
-# Startup validation logs for debugging SMTP configuration in production
-print("[SETTINGS STARTUP] EMAIL_HOST_USER is:", EMAIL_HOST_USER, flush=True)
-print("[SETTINGS STARTUP] EMAIL_HOST_PASSWORD length is:", len(EMAIL_HOST_PASSWORD) if EMAIL_HOST_PASSWORD else 0, flush=True)
