@@ -9,9 +9,19 @@ export default {
     container: {
       center: true,
       padding: "1.25rem",
-      screens: { "2xl": "1320px" },
+      screens: {
+        "sm": "100%",
+        "md": "100%",
+        "lg": "1024px",
+        "xl": "1280px",
+        "2xl": "1480px",
+        "3xl": "1680px",
+      },
     },
     extend: {
+      screens: {
+        "3xl": "1800px",
+      },
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
