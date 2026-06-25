@@ -155,9 +155,9 @@ export default function InvoicePage() {
   // Calculations
   const discount = parseFloat(order.discount_amount || '0');
   
-  // Distribute discount proportionally across items based on final price snapshot
+  // Sum of product prices inclusive of tax (before coupon discount)
   const rawSubtotal = order.items.reduce((sum: number, item: any) => {
-    const itemFinalPrice = parseFloat(item.price_snapshot || item.price || '0');
+    const itemFinalPrice = parseFloat(item.price || '0');
     return sum + (itemFinalPrice * item.quantity);
   }, 0) || 1; // avoid divide by zero
 
@@ -180,19 +180,24 @@ export default function InvoicePage() {
 
   const tableItems = order.items.map((item: any, idx: number) => {
     const gstRate = parseFloat(item.gst_rate || '18');
-    const itemFinalPrice = parseFloat(item.price_snapshot || item.price || '0');
+    const itemFinalPrice = parseFloat(item.price || '0');
     const itemQty = item.quantity;
     
-    // Proportional discount distribution
-    const itemShare = (itemFinalPrice * itemQty) / rawSubtotal;
-    const itemDiscount = discount * itemShare;
-    const itemFinalPriceAfterDiscount = itemFinalPrice - (itemDiscount / itemQty);
+    // originalItemBasePrice is the variant's original base price snapshot (before any offer discount and tax)
+    const originalItemBasePrice = item.price_snapshot 
+      ? parseFloat(item.price_snapshot) 
+      : (itemFinalPrice / (1 + gstRate / 100));
 
-    // Extract product GST correctly and dynamically
-    const itemBasePrice = itemFinalPriceAfterDiscount / (1 + gstRate / 100);
-    const itemTotalGst = (itemFinalPriceAfterDiscount - itemBasePrice) * itemQty;
+    // itemBasePrice is the base price after merchant offer discount but before tax
+    const itemBasePrice = itemFinalPrice / (1 + gstRate / 100);
+
+    // itemDiscountBase is the merchant offer discount on the base price (not the global coupon discount)
+    const itemDiscountBase = Math.max(0, originalItemBasePrice - itemBasePrice);
+
+    // netAmount, taxAmount, and totalAmount calculations based on itemFinalPrice (no coupon discount)
     const itemTotalBase = itemBasePrice * itemQty;
-    const itemTotalFinal = itemFinalPriceAfterDiscount * itemQty;
+    const itemTotalGst = (itemFinalPrice - itemBasePrice) * itemQty;
+    const itemTotalFinal = itemFinalPrice * itemQty;
 
     // Check same state for product vendor state vs buyer state
     const vendorState = item.vendor_state || 'Gujarat';
@@ -203,8 +208,8 @@ export default function InvoicePage() {
       description: item.product_name_snapshot || item.product_details?.name,
       variant: item.variant_options_snapshot,
       seller: item.vendor_shop_snapshot || item.vendor_shop || 'Independent Merchant',
-      unitPrice: itemBasePrice,
-      discount: itemDiscount / itemQty,
+      unitPrice: originalItemBasePrice,
+      discount: itemDiscountBase,
       qty: itemQty,
       netAmount: itemTotalBase,
       taxRate: gstRate,
@@ -454,6 +459,16 @@ export default function InvoicePage() {
               <span>Total Net Amount (Base) :</span>
               <span className="font-bold text-slate-800">₹{(netBaseSubtotal + displayPlatformFee + displayShippingFee).toFixed(2)}</span>
             </div>
+            <div className="flex justify-between text-slate-500 font-medium">
+              <span>Total Price (incl. tax) :</span>
+              <span className="font-bold text-slate-800">₹{(rawSubtotal + (displayPlatformFee + platformFeeGst) + (displayShippingFee + shippingFeeGst)).toFixed(2)}</span>
+            </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-success font-medium">
+                <span>Coupon Discount {order.coupon_code ? `(${order.coupon_code})` : ""} :</span>
+                <span className="font-bold text-success">-₹{discount.toFixed(2)}</span>
+              </div>
+            )}
 
             <div className="border-t border-slate-300 pt-2.5 flex justify-between text-slate-800 font-black text-base font-display">
               <span>Grand Total :</span>

@@ -16,7 +16,8 @@ import { CategoryIcon } from "@/components/CategoryIcon";
 type Sort = "relevance" | "price-asc" | "price-desc" | "newest" | "top-rated";
 
 const CategoryPage = () => {
-  const { slug = "" } = useParams();
+  const { slug: routeSlug = "" } = useParams();
+  const [currentSlug, setCurrentSlug] = useState(routeSlug || "all");
   const [cat, setCat] = useState<any>(null);
 
   const [all, setAll] = useState<any[]>([]);
@@ -26,17 +27,42 @@ const CategoryPage = () => {
   const [page, setPage] = useState(1);
   const itemsPerPage = 16;
 
+  // Sync state if route parameter changes externally
+  useEffect(() => {
+    if (routeSlug) {
+      setCurrentSlug(routeSlug);
+    }
+  }, [routeSlug]);
+
+  // Sync state on browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const parts = window.location.pathname.split("/");
+      const pageSlug = parts[parts.length - 1] || "all";
+      setCurrentSlug(pageSlug);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const handleCategoryChange = (newSlug: string) => {
+    if (newSlug === currentSlug) return;
+    const targetPath = newSlug === "all" ? "/category/all" : `/category/${newSlug}`;
+    window.history.pushState(null, "", targetPath);
+    setCurrentSlug(newSlug);
+  };
+
   const fetchCategoryProducts = async () => {
     try {
       setLoading(true);
-      const url = slug === "all" ? '/products/' : `/products/?category=${slug}`;
+      const url = currentSlug === "all" ? '/products/' : `/products/?category=${currentSlug}`;
       const res: any = await api.get(url);
 
       const mapProduct = (p: any) => mapApiProduct(p as Record<string, unknown>);
 
       const prods = (Array.isArray(res) ? res : res.results || []).map(mapProduct);
 
-      console.log("[CategoryPage] slug:", slug);
+      console.log("[CategoryPage] slug:", currentSlug);
       console.log("[CategoryPage] API response type:", Array.isArray(res) ? "array" : "object", "| results count:", Array.isArray(res) ? res.length : (res.results || []).length);
 
       setAll(prods);
@@ -54,17 +80,17 @@ const CategoryPage = () => {
     setPage(1);
     fetchCategoryProducts();
     
-    if (slug !== "all") {
+    if (currentSlug !== "all") {
       api.get(`/categories/`)
         .then((res: any) => {
-          const found = res.find((c: any) => (c.slug || c.id.toString()) === slug);
+          const found = res.find((c: any) => (c.slug || c.id.toString()) === currentSlug);
           setCat(found);
         })
         .catch(err => console.error("Failed to fetch category details:", err));
     } else {
-      setCat({ name: "All Products", icon: "FaSparkles" });
+      setCat({ name: "All Products", icon: "lucide:sparkles" });
     }
-  }, [slug]);
+  }, [currentSlug]);
 
 
   useEffect(() => {
@@ -120,22 +146,45 @@ const CategoryPage = () => {
   return (
     <PageShell>
       <div className="container pt-6 pb-2">
-        <nav className="text-xs text-muted-foreground inline-flex items-center gap-1.5 mb-3">
-          <Link to="/" className="hover:text-foreground">Home</Link>
-          <ChevronRight size={12} />
-          <span className="text-foreground">{cat?.name || (slug === "all" ? "All Products" : slug)}</span>
-        </nav>
-        <h1 className="font-display text-3xl sm:text-4xl font-semibold inline-flex items-center gap-3">
-          <span className="text-brown-mid"><CategoryIcon name={cat?.icon || 'FaSparkles'} size={32} /></span> {cat?.name || (slug === "all" ? "All Products" : "Category")}
-        </h1>
+        {/* Premium Warm Gradient Glassmorphic Header Card */}
+        {/* Premium Compact Warm Gradient Glassmorphic Header Card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-50/70 via-orange-50/50 to-amber-50/30 border border-amber-100/50 p-4 sm:py-4.5 sm:px-6 shadow-sm mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Decorative blur spheres */}
+          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-gradient-to-br from-amber-200/20 to-orange-200/20 blur-xl pointer-events-none" />
+          <div className="absolute -left-6 -bottom-6 w-18 h-18 rounded-full bg-gradient-to-tr from-amber-200/10 to-orange-200/10 blur-lg pointer-events-none" />
 
-        <p className="text-sm text-muted-foreground mt-1">{all.length} products</p>
-        <div className="mt-5"><CategoryPills activeSlug={slug} /></div>
+          {/* Left section: Breadcrumb & products count */}
+          <div className="relative flex flex-col gap-1">
+            <nav className="text-xs font-medium text-amber-800/80 inline-flex items-center gap-1.5">
+              <Link to="/" className="hover:text-amber-950 transition-colors">Home</Link>
+              <ChevronRight size={10} className="text-amber-600/50" />
+              <span className="text-amber-900 font-semibold">{cat?.name || (currentSlug === "all" ? "All Products" : currentSlug)}</span>
+            </nav>
+            <p className="text-xs text-amber-800/80 mt-0.5">
+              {all.length} {all.length === 1 ? 'product' : 'products'}
+            </p>
+          </div>
+
+          {/* Right section: Icon & Title (Right-aligned as requested) */}
+          <div className="relative flex items-center justify-end gap-3 self-end md:self-center">
+            <div className="h-10 w-10 rounded-xl bg-amber-100/80 border border-amber-200/60 grid place-items-center shadow-inner text-brown-mid shrink-0 hover:scale-105 transition-transform duration-300">
+              <CategoryIcon name={cat?.icon || 'lucide:sparkles'} size={20} />
+            </div>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-amber-950 tracking-tight">
+              {cat?.name || (currentSlug === "all" ? "All Products" : "Category")}
+            </h1>
+          </div>
+        </div>
+
+        {/* Pills container */}
+        <div className="mb-4">
+          <CategoryPills activeSlug={currentSlug} onSelectCategory={handleCategoryChange} />
+        </div>
       </div>
 
       <div className="container grid lg:grid-cols-[260px_1fr] gap-8 py-6">
         <div className="hidden lg:block">
-          <div className="sticky top-24 rounded-2xl bg-card border border-border/60 p-5 shadow-sm">
+          <div className="sticky top-24 rounded-3xl bg-card border border-border/60 p-6 shadow-md hover:shadow-lg transition-shadow duration-300 bg-gradient-to-b from-card to-amber-50/10">
             <FilterSidebar value={filters} onChange={setFilters} vendorIdsInUse={vendorIdsInUse} />
           </div>
         </div>
@@ -143,21 +192,21 @@ const CategoryPage = () => {
         <div>
           <div className="flex items-center justify-between gap-3 mb-4">
             <Sheet>
-              <SheetTrigger className="lg:hidden inline-flex items-center gap-1.5 px-3 h-9 rounded-full bg-secondary text-sm font-medium">
-                <SlidersHorizontal size={14} /> Filters
+              <SheetTrigger className="lg:hidden inline-flex items-center gap-1.5 px-4 h-9.5 rounded-full bg-secondary/80 hover:bg-secondary border border-border/40 hover:border-brown-light/40 text-sm font-semibold transition-all shadow-sm">
+                <SlidersHorizontal size={14} className="text-brown-mid" /> Filters
               </SheetTrigger>
-    <SheetContent side="left" className="w-80 overflow-y-auto">
-      <SheetHeader className="text-left">
-        <SheetTitle className="font-display text-lg font-semibold">Filters</SheetTitle>
-      </SheetHeader>
-      <div className="mt-4">
-        <FilterSidebar value={filters} onChange={setFilters} vendorIdsInUse={vendorIdsInUse} />
-      </div>
-    </SheetContent>
+              <SheetContent side="left" className="w-80 overflow-y-auto">
+                <SheetHeader className="text-left">
+                  <SheetTitle className="font-display text-lg font-semibold">Filters</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  <FilterSidebar value={filters} onChange={setFilters} vendorIdsInUse={vendorIdsInUse} />
+                </div>
+              </SheetContent>
             </Sheet>
             <p className="text-sm text-muted-foreground hidden sm:block">Showing {filtered.length} of {all.length}</p>
             <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
-              <SelectTrigger className="ml-auto h-9 w-[180px] rounded-full bg-card border border-border text-sm focus:ring-brown-light/40">
+              <SelectTrigger className="ml-auto h-9.5 w-[190px] rounded-full bg-card border border-border text-sm focus:ring-brown-light/40 hover:border-brown-light/60 hover:bg-secondary/40 transition-all shadow-sm">
                 <SelectValue placeholder="Sort: Relevance" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -171,14 +220,14 @@ const CategoryPage = () => {
           </div>
 
           {activeChips.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 mb-5">
               {activeChips.map((c) => (
                 <button
                   key={c.key}
                   onClick={c.clear}
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary text-xs font-medium hover:bg-muted"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100/80 text-amber-900 border border-amber-200/50 text-xs font-semibold shadow-sm transition-all hover:scale-102 hover:shadow"
                 >
-                  {c.label} <X size={12} />
+                  {c.label} <X size={12} className="text-amber-700/80" />
                 </button>
               ))}
             </div>

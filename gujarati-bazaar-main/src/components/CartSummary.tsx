@@ -17,7 +17,6 @@ export const CartSummary = ({
   const subtotal = useCart((s) => s.subtotal());
   const items = useCart((s) => s.items);
   const discount = appliedCoupon ? parseFloat(appliedCoupon.discount_amount) : 0;
-  const subAfterDiscount = Math.max(0, subtotal - discount);
 
   const [config, setConfig] = useState({ platform_fee: 0, platform_fee_gst: 18, shipping_charge: 0, shipping_charge_gst: 18 });
 
@@ -40,22 +39,22 @@ export const CartSummary = ({
   const gst = Math.round(platformFee * (config.platform_fee_gst / 100) * 100) / 100;
   const shippingCharge = config.shipping_charge || 0;
   const shippingGst = Math.round(shippingCharge * (config.shipping_charge_gst / 100) * 100) / 100;
-  const total = Math.round((subAfterDiscount + platformFee + gst + shippingCharge + shippingGst) * 100) / 100;
+  const total = Math.round(Math.max(0, subtotal + platformFee + gst + shippingCharge + shippingGst - discount) * 100) / 100;
 
   return (
     <aside className={`rounded-2xl bg-card border border-border/60 shadow-card p-5 sticky top-24${hideCta ? " max-w-xs" : ""}`}>
       <h3 className="font-display font-semibold text-lg mb-4">Order Summary</h3>
       <dl className="space-y-2.5 text-sm">
         <div className="flex justify-between"><dt className="text-muted-foreground">Subtotal ({items.length} items)</dt><dd className="font-medium">₹{subtotal.toLocaleString("en-IN")}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee</dt><dd className="font-medium">₹{(platformFee + gst).toLocaleString("en-IN")}</dd></div>
+        {shippingCharge > 0 && (
+          <div className="flex justify-between"><dt className="text-muted-foreground">Shipping Charge</dt><dd className="font-medium">₹{(shippingCharge + shippingGst).toLocaleString("en-IN")}</dd></div>
+        )}
         {discount > 0 && appliedCoupon && (
           <div className="flex justify-between text-success font-semibold">
             <dt>Coupon Discount ({appliedCoupon.code})</dt>
             <dd>-₹{discount.toLocaleString("en-IN")}</dd>
           </div>
-        )}
-        <div className="flex justify-between"><dt className="text-muted-foreground">Platform Fee</dt><dd className="font-medium">₹{(platformFee + gst).toLocaleString("en-IN")}</dd></div>
-        {shippingCharge > 0 && (
-          <div className="flex justify-between"><dt className="text-muted-foreground">Shipping Charge</dt><dd className="font-medium">₹{(shippingCharge + shippingGst).toLocaleString("en-IN")}</dd></div>
         )}
         <div className="border-t border-border pt-3 mt-3 flex justify-between text-base">
           <dt className="font-semibold">Total</dt>

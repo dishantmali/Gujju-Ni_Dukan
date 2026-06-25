@@ -58,7 +58,7 @@ const ProductPage = () => {
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [selectedImage, setSelectedImage] = useState("");
-  const [activeInfoTab, setActiveInfoTab] = useState<"details" | "specs" | "reviews" | "policy">("details");
+  const [activeInfoTab, setActiveInfoTab] = useState<"details" | "reviews" | "policy">("details");
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -427,12 +427,12 @@ const ProductPage = () => {
                   </button>
                 ))}
               </div>
-              <div className="relative rounded-2xl overflow-hidden border border-border bg-card flex justify-center items-center">
+              <div className="relative w-full aspect-square rounded-2xl overflow-hidden border border-border bg-card flex justify-center items-center">
                 {selectedImage && (
                   <img
                     src={selectedImage}
                     alt={product.name}
-                    className="w-full h-auto max-h-[600px] object-contain"
+                    className="w-full h-full object-contain"
                   />
                 )}
                 <button
@@ -461,12 +461,11 @@ const ProductPage = () => {
             </div>
 
             {/* Info Tabs */}
-            <div className="mt-2 rounded-2xl border border-border bg-card p-5">
+            <div className="mt-4 rounded-2xl border border-border bg-card p-5">
               <div className="flex items-center gap-4 border-b border-border pb-3 mb-3 overflow-x-auto">
                 {(
                   [
                     ["details", "Product Details"],
-                    ["specs", "Specifications"],
                     ["reviews", `Reviews (${product.reviewCount ?? 0})`],
                     ["policy", "Return Policy"],
                   ] as const
@@ -490,19 +489,6 @@ const ProductPage = () => {
                 <div className="text-sm text-muted-foreground space-y-2 leading-relaxed">
                   <p>{product.description}</p>
                 </div>
-              )}
-              {activeInfoTab === "specs" && (
-                <dl className="grid sm:grid-cols-2 gap-3">
-                  {Object.entries(product.specs ?? {}).map(([k, v]) => (
-                    <div
-                      key={k}
-                      className="flex justify-between border-b border-border py-2"
-                    >
-                      <dt className="text-sm text-muted-foreground">{k}</dt>
-                      <dd className="text-sm font-medium">{String(v)}</dd>
-                    </div>
-                  ))}
-                </dl>
               )}
               {activeInfoTab === "reviews" && (
                 <div className="space-y-3">
@@ -577,9 +563,6 @@ const ProductPage = () => {
                 discount={product.discount}
                 size="lg"
               />
-              <p className="text-xs text-success mt-1.5">
-                Inclusive of all taxes
-              </p>
             </div>
 
             {/* Select Options Box */}
@@ -704,63 +687,6 @@ const ProductPage = () => {
                         </div>
                       );
                     })}
-                    {/* All variants grid */}
-                    <div className="space-y-3 pt-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-foreground">
-                          All combinations
-                        </p>
-                        <span className="text-[10px] font-medium bg-secondary px-2 py-0.5 rounded-full text-muted-foreground uppercase tracking-wider">
-                          {variants.length} options
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
-                        {variants.map((v) => {
-                          const isActive =
-                            String(v.id) === selectedVariantId;
-                          const variantLabel = Object.entries(
-                            v.option_values || {}
-                          )
-                            .map(([_, val]) => val)
-                            .join(" / ");
-                          const inStock = v.stock_quantity > 0;
-                          return (
-                            <button
-                              key={v.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedVariantId(String(v.id));
-                                setSelectedOptions(v.option_values || {});
-                              }}
-                              className={cn(
-                                "rounded-xl border p-2.5 text-left transition-all relative group",
-                                isActive
-                                  ? "border-brown-light bg-brown-light/5 ring-1 ring-brown-light"
-                                  : "border-border hover:border-brown-light/50 bg-card",
-                                !inStock && "opacity-50 grayscale-[0.5]"
-                              )}
-                            >
-                              <p className="text-[10px] font-medium text-muted-foreground truncate uppercase tracking-tight mb-0.5">
-                                {variantLabel || `Variant ${v.id}`}
-                              </p>
-                              <p className="text-sm font-bold text-foreground">
-                                ₹{v.price.toLocaleString("en-IN")}
-                              </p>
-                              {!inStock && (
-                                <span className="absolute top-1 right-1 text-[8px] font-bold text-destructive uppercase">
-                                  Sold Out
-                                </span>
-                              )}
-                              {isActive && (
-                                <div className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-brown-light rounded-full flex items-center justify-center text-white shadow-sm">
-                                  <Check size={10} strokeWidth={4} />
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -924,8 +850,8 @@ const ProductPage = () => {
                 returns on damaged items
               </span>
             </div>
-          </div>
         </div>
+      </div>
 
         {/* Related */}
         <div className="mt-10 sm:mt-16">

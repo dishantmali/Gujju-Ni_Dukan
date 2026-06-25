@@ -474,7 +474,7 @@ class OrderItemSerializer(SanitizedSerializer):
             'id', 'order_id', 'buyer_name', 'address', 'phone', 'order_date',
             'product', 'product_variant', 'product_details', 'variant_details',
             'vendor', 'vendor_shop', 'vendor_state',
-            'quantity', 'price', 'variant_options_snapshot', 'status',
+            'quantity', 'price', 'price_snapshot', 'variant_options_snapshot', 'status',
             'confirmed_at', 'shipped_at', 'delivered_at',
             'gst_rate', 'gst_amount', 'cgst_amount', 'sgst_amount', 'igst_amount',
         ]

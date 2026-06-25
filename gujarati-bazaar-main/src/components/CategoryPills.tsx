@@ -5,7 +5,15 @@ import api from "@/lib/api";
 import { CategoryIcon } from "./CategoryIcon";
 
 
-export const CategoryPills = ({ activeSlug, autoScroll = false }: { activeSlug?: string; autoScroll?: boolean }) => {
+export const CategoryPills = ({
+  activeSlug,
+  autoScroll = false,
+  onSelectCategory,
+}: {
+  activeSlug?: string;
+  autoScroll?: boolean;
+  onSelectCategory?: (slug: string) => void;
+}) => {
   const location = useLocation();
   const [categories, setCategories] = useState<any[]>([]);
   const [active, setActive] = useState(activeSlug || "all");
@@ -26,12 +34,19 @@ export const CategoryPills = ({ activeSlug, autoScroll = false }: { activeSlug?:
 
   const renderPill = (c: any, i: number) => {
     const isActive = active === (c.slug || c.id?.toString());
-    const to = (c.slug || c.id?.toString()) === "all" ? "/" : `/category/${c.slug || c.id}`;
+    const to = (c.slug || c.id?.toString()) === "all" ? "/category/all" : `/category/${c.slug || c.id}`;
+    
+    const handleClick = (e: React.MouseEvent) => {
+      if (onSelectCategory) {
+        e.preventDefault();
+        onSelectCategory(c.slug || c.id?.toString() || "all");
+      }
+    };
+
     return (
-      <Link key={`${c.slug || c.id}-${i}`} to={to} className="relative">
-        <span className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-          isActive ? "text-primary-foreground" : "text-foreground hover:bg-secondary"
-        }`}>
+      <Link key={`${c.slug || c.id}-${i}`} to={to} onClick={handleClick} className="relative">
+        <span className={`relative inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${isActive ? "text-primary-foreground" : "text-foreground hover:bg-secondary"
+          }`}>
           {isActive && (
             autoScroll ? (
               <span className="absolute inset-0 rounded-full bg-primary" />

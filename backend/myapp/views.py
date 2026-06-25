@@ -1560,22 +1560,14 @@ class CheckoutView(APIView):
             if error_msg:
                 return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
             discount_amount = discount_details['discount_amount']
-
-        subtotal_after_discount = max(0.0, base_amount - discount_amount)
         
-        # Calculate product GST
+        # Calculate product GST (before coupon discount, on variant price directly)
         product_gst = 0.0
         for item in items:
             prod = item.product
             cat_gst_rate = float(prod.gst_percentage)
             item_base = float(item.product_variant.discounted_price) * item.quantity
-            if base_amount > 0:
-                ratio = item_base / base_amount
-                item_discounted_value = max(0.0, item_base - (discount_amount * ratio))
-            else:
-                item_discounted_value = 0.0
-            
-            item_gst = item_discounted_value * (cat_gst_rate / (100.0 + cat_gst_rate))
+            item_gst = item_base * (cat_gst_rate / (100.0 + cat_gst_rate))
             product_gst += item_gst
 
         config = PlatformConfiguration.get_config()
@@ -1585,7 +1577,7 @@ class CheckoutView(APIView):
         shipping_charge = float(config.shipping_charge)
         shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
         
-        total_amount = subtotal_after_discount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
+        total_amount = max(0.0, base_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst - discount_amount)
         amount_in_paise = int(total_amount * 100)
 
         # Create Razorpay order (DO NOT delete cart items yet!)
@@ -1687,8 +1679,6 @@ class VerifyCartPaymentView(APIView):
                     if not error_msg:
                         coupon_obj = discount_details['coupon']
                         discount_amount = discount_details['discount_amount']
-
-                subtotal_after_discount = max(0.0, total_amount - discount_amount)
                 
                 # Retrieve buyer state
                 buyer_state = get_state_from_address(address)
@@ -1707,11 +1697,7 @@ class VerifyCartPaymentView(APIView):
                     is_same_state = buyer_state.lower().strip() == vendor_state.lower().strip()
 
                     item_base = float(v.discounted_price) * item.quantity
-                    if total_amount > 0:
-                        ratio = item_base / total_amount
-                        item_discounted_value = max(0.0, item_base - (discount_amount * ratio))
-                    else:
-                        item_discounted_value = 0.0
+                    item_discounted_value = item_base  # No global coupon discount distribution on item rows
 
                     cat_gst_rate = float(prod.gst_percentage)
                     item_gst = item_discounted_value * (cat_gst_rate / (100.0 + cat_gst_rate))
@@ -1767,7 +1753,7 @@ class VerifyCartPaymentView(APIView):
                 sgst += platform_sgst + shipping_sgst
                 igst += platform_igst + shipping_igst
 
-                final_total = subtotal_after_discount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
+                final_total = max(0.0, total_amount + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst - discount_amount)
 
                 # Create Order
                 order = Order.objects.create(
@@ -2426,17 +2412,25 @@ def validate_and_calculate_coupon(coupon_code, user, cart_items):
     if eligible_subtotal < float(coupon.min_purchase_amount):
         return None, f"Minimum purchase amount of ₹{coupon.min_purchase_amount} not met for eligible products."
 
+    # Discount cannot exceed total order value (product price + platform fee + platform fee GST + shipping + shipping GST)
+    config = PlatformConfiguration.get_config()
+    platform_fee = float(config.platform_fee)
+    platform_fee_gst = platform_fee * (float(config.platform_fee_gst) / 100.0)
+    shipping_charge = float(config.shipping_charge)
+    shipping_charge_gst = shipping_charge * (float(config.shipping_charge_gst) / 100.0)
+    
+    total_order_value = eligible_subtotal + platform_fee + platform_fee_gst + shipping_charge + shipping_charge_gst
+
     # Calculate discount
     discount_amount = 0.0
     if coupon.discount_type == 'rupee':
         discount_amount = float(coupon.discount_value)
     elif coupon.discount_type == 'percentage':
-        discount_amount = (float(coupon.discount_value) / 100.0) * eligible_subtotal
+        discount_amount = (float(coupon.discount_value) / 100.0) * total_order_value
         if coupon.max_discount_cap is not None:
             discount_amount = min(discount_amount, float(coupon.max_discount_cap))
 
-    # Discount cannot exceed eligible subtotal
-    discount_amount = min(discount_amount, eligible_subtotal)
+    discount_amount = min(discount_amount, total_order_value)
     discount_amount = round(discount_amount, 2)
 
     return {

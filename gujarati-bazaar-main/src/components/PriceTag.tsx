@@ -24,7 +24,7 @@ export const PriceTag = ({
       {originalPrice && originalPrice > price && (
         <span className={cn("text-muted-foreground line-through", sizes.o)}>₹{originalPrice.toLocaleString("en-IN")}</span>
       )}
-      {discount && discount > 0 && (
+      {(discount ?? 0) > 0 && (
         <span className={cn("rounded-full bg-success/10 text-success font-semibold uppercase tracking-wide", sizes.d)}>
           {discount}% off
         </span>

@@ -73,76 +73,78 @@ export const Navbar = () => {
       className={`fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/60 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${hideChromeForExplore ? "opacity-0 pointer-events-none" : "opacity-100"}`}
     >
       {/* Main navbar row */}
-      <div className="container flex items-center gap-3 sm:gap-5 h-16 sm:h-[72px]">
+      <div className="container flex items-center justify-between h-16 sm:h-[72px]">
         {/* Logo */}
         <Link to="/" className="flex items-center shrink-0">
           <img src={logo} alt="Gujju ni Dukan" className="h-14 sm:h-16 w-auto object-contain logo-transparent bg-background" />
         </Link>
 
-        {/* Search Bar - desktop */}
-        <div className="hidden md:block flex-1 max-w-xl">
-          <SearchBar />
-        </div>
+        {/* Centered Search Bar & Category Dropdown */}
+        <div className="hidden md:flex flex-1 justify-center items-center gap-4 max-w-2xl mx-4">
+          <div className="flex-1 max-w-xl">
+            <SearchBar />
+          </div>
 
-        {/* Category Dropdown - desktop */}
-        <div ref={catRef} className="hidden lg:block relative">
-          <button
-            onClick={() => setCatOpen((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-4 h-10 rounded-full bg-secondary/60 border border-transparent hover:border-brown-light/40 text-sm font-medium transition-all"
-          >
-            Categories
-            <ChevronDown size={14} className={`transition-transform duration-200 ${catOpen ? "rotate-180" : ""}`} />
-          </button>
-          <AnimatePresence>
-            {catOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute top-full mt-2 right-0 w-72 sm:w-80 rounded-2xl bg-card border border-border shadow-lift overflow-hidden z-50"
-              >
-                {/* Header */}
-                <div className="px-4 pt-4 pb-2 border-b border-border/50">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <LayoutGrid size={12} /> Browse Categories
-                  </p>
-                </div>
+          {/* Category Dropdown - desktop */}
+          <div ref={catRef} className="hidden lg:block relative shrink-0">
+            <button
+              onClick={() => setCatOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-4 h-10 rounded-full bg-secondary/60 border border-transparent hover:border-brown-light/40 text-sm font-medium transition-all"
+            >
+              Categories
+              <ChevronDown size={14} className={`transition-transform duration-200 ${catOpen ? "rotate-180" : ""}`} />
+            </button>
+            <AnimatePresence>
+              {catOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute top-full mt-2 right-0 w-72 sm:w-80 rounded-2xl bg-card border border-border shadow-lift overflow-hidden z-50"
+                >
+                  {/* Header */}
+                  <div className="px-4 pt-4 pb-2 border-b border-border/50">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                      <LayoutGrid size={12} /> Browse Categories
+                    </p>
+                  </div>
 
-                <div className="p-2 grid grid-cols-1 gap-0.5">
-                  {categories.map((c) => (
+                  <div className="p-2 grid grid-cols-1 gap-0.5">
+                    {categories.map((c) => (
+                      <Link
+                        key={c.id || c.slug}
+                        to={`/category/${c.slug || c.id}`}
+                        onClick={() => setCatOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/60 text-sm transition-colors group"
+                      >
+                        <span className="text-xl group-hover:scale-110 transition-transform duration-200 text-brown-mid">
+                          <CategoryIcon name={c.icon} size={20} />
+                        </span>
+                        <span className="font-medium">{c.name}</span>
+                        <ArrowRight size={14} className="ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
+                      </Link>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-2 pb-2 pt-1 border-t border-border/50">
                     <Link
-                      key={c.id || c.slug}
-                      to={`/category/${c.slug || c.id}`}
+                      to="/search"
                       onClick={() => setCatOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/60 text-sm transition-colors group"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-brown-mid hover:bg-secondary/60 transition-colors"
                     >
-                      <span className="text-xl group-hover:scale-110 transition-transform duration-200 text-brown-mid">
-                        <CategoryIcon name={c.icon} size={20} />
-                      </span>
-                      <span className="font-medium">{c.name}</span>
-                      <ArrowRight size={14} className="ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
+                      View all categories <ArrowRight size={12} />
                     </Link>
-                  ))}
-                </div>
-
-                {/* Footer */}
-                <div className="px-2 pb-2 pt-1 border-t border-border/50">
-                  <Link
-                    to="/search"
-                    onClick={() => setCatOpen(false)}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-brown-mid hover:bg-secondary/60 transition-colors"
-                  >
-                    View all categories <ArrowRight size={12} />
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Right side icons - desktop */}
-        <nav className="hidden md:flex items-center gap-1 ml-auto">
+        <nav className="hidden md:flex items-center gap-1 shrink-0">
           {/* Cart & Wishlist (Only for buyers or unauthenticated users) */}
           {(!isAuthenticated || user?.role === 'buyer') && (
             <>
