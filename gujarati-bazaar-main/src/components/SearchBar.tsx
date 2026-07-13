@@ -20,7 +20,7 @@ export const SearchBar = ({ compact = false }: { compact?: boolean }) => {
   const fetchBackend = useCallback(async (term: string) => {
     setLoading(true);
     try {
-      const res: any = await api.get(`/products/?search=${encodeURIComponent(term)}&limit=6`);
+      const res: any = await api.get(`/products/?search=${encodeURIComponent(term)}&page_size=6`);
       const fetched = (res.results || res || []).map((p: any) => mapApiProduct(p));
       return fetched;
     } catch {

@@ -110,7 +110,32 @@ export function mapApiProduct(p: Record<string, unknown>): Product {
     isNew: p.is_new !== undefined ? Boolean(p.is_new) : true,
     isTrending: true,
     specs: ((p as { specs?: Record<string, string> }).specs as Record<string, string>) || {},
-    reviews: ((p as { reviews?: Product["reviews"] }).reviews as Product["reviews"]) || [],
+    reviews: Array.isArray(p.reviews)
+      ? p.reviews.map((r: any) => ({
+          id: String(r.id),
+          user: String(r.reviewer_name || r.user_name || "Anonymous"),
+          rating: Number(r.rating ?? 5),
+          comment: String(r.review_text ?? ""),
+          date: new Date(r.created_at).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          }),
+          images: Array.isArray(r.images)
+            ? r.images.map((img: any) => normalizeMediaUrl(img.image))
+            : [],
+        }))
+      : [],
     variants,
+    vendor_details: p.vendor_details ? {
+      id: String((p.vendor_details as any).id),
+      name: String((p.vendor_details as any).name ?? ""),
+      tagline: String((p.vendor_details as any).tagline ?? ""),
+      rating: Number((p.vendor_details as any).average_rating ?? 0),
+      joined: "",
+      city: String((p.vendor_details as any).city ?? ""),
+      initials: String((p.vendor_details as any).initials ?? ""),
+      logo: (p.vendor_details as any).logo ? normalizeMediaUrl((p.vendor_details as any).logo) : undefined,
+    } : undefined,
   };
 }

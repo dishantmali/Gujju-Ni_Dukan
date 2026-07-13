@@ -282,6 +282,8 @@ const AccountPage = () => {
   const [selectedItemToReview, setSelectedItemToReview] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
+  const [reviewImages, setReviewImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [platformReviewModalOpen, setPlatformReviewModalOpen] = useState(false);
   const [platformRating, setPlatformRating] = useState(5);
@@ -395,22 +397,50 @@ const AccountPage = () => {
     setSelectedItemToReview(item);
     setReviewRating(5);
     setReviewText('');
+    setReviewImages([]);
+    setImagePreviews([]);
     setReviewModalOpen(true);
+  };
+
+  const closeReviewModal = () => {
+    imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    setReviewImages([]);
+    setImagePreviews([]);
+    setReviewModalOpen(false);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setReviewImages((prev) => [...prev, ...newFiles]);
+      const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setReviewImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleProductReviewSubmit = async (e) => {
     e.preventDefault();
     setSubmittingReview(true);
     try {
-      await api.post(`/products/${selectedItemToReview.product_details.id}/reviews/`, {
-        order_item: selectedItemToReview.id,
-        rating: reviewRating,
-        review_text: reviewText
+      const formData = new FormData();
+      formData.append("order_item", String(selectedItemToReview.id));
+      formData.append("rating", String(reviewRating));
+      formData.append("review_text", reviewText);
+      reviewImages.forEach((img) => {
+        formData.append("extra_images", img);
       });
+
+      await api.post(`/products/${selectedItemToReview.product_details.id}/reviews/`, formData);
       toast.success("Review submitted successfully!");
       setReviewedItemIds(prev => new Set(prev).add(selectedItemToReview.id));
-      setReviewModalOpen(false);
-    } catch (error) {
+      closeReviewModal();
+    } catch (error: any) {
       const errorMsg = error?.response?.data?.[0] || error?.response?.data?.non_field_errors?.[0] || "Failed to submit review or already reviewed.";
       toast.error(errorMsg);
     } finally {
@@ -840,7 +870,7 @@ const AccountPage = () => {
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-5 border-b border-border bg-secondary flex justify-between items-center">
               <h2 className="text-lg font-bold text-foreground">Rate Product</h2>
-              <button onClick={() => setReviewModalOpen(false)} className="text-muted-foreground hover:text-destructive p-1">
+              <button type="button" onClick={closeReviewModal} className="text-muted-foreground hover:text-destructive p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -867,6 +897,35 @@ const AccountPage = () => {
                   rows={3}
                   className="w-full p-3 bg-secondary border border-border rounded-xl outline-none focus:border-accent resize-none"
                 />
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-muted-foreground mb-2 ml-1">Upload Images (Optional)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="w-full p-2 text-sm bg-secondary border border-border rounded-xl outline-none focus:border-accent cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-accent/15 file:text-accent hover:file:bg-accent/25"
+                />
+                
+                {/* Previews grid */}
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-3">
+                    {imagePreviews.map((url, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group">
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 h-5 w-5 bg-destructive text-white rounded-full flex items-center justify-center shadow hover:bg-destructive/90 transition-colors"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button

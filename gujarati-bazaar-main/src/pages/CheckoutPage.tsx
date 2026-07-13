@@ -61,6 +61,7 @@ const CheckoutPage = () => {
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
 
   useEffect(() => {
     const fetchAvailableCoupons = async () => {
@@ -165,6 +166,27 @@ const CheckoutPage = () => {
     if (!address.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email.trim())) newErrors.email = "Enter a valid email";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleAddressSubmitStep = async () => {
+    if (validateAddress()) {
+      if (saveAddressToProfile) {
+        try {
+          await api.post("/addresses/", {
+            street: address.addressLine,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            is_default: false,
+          });
+          toast.success("Address saved to profile!");
+        } catch (err) {
+          console.error("Failed to save address to profile:", err);
+          toast.error("Failed to save address to profile");
+        }
+      }
+      go(2);
+    }
   };
 
   const mergeCart = async () => {
@@ -359,8 +381,20 @@ const CheckoutPage = () => {
                     <FloatInput label="Pincode" inputMode="numeric" value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} error={errors.pincode} />
                     <FloatInput label="Email" type="email" value={address.email} onChange={(e) => setAddress({ ...address, email: e.target.value })} error={errors.email} />
                   </div>
+                  <div className="mt-4 flex items-center gap-2 px-1">
+                    <input
+                      id="save-address-profile"
+                      type="checkbox"
+                      checked={saveAddressToProfile}
+                      onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/20 accent-primary cursor-pointer"
+                    />
+                    <label htmlFor="save-address-profile" className="text-xs font-medium text-muted-foreground select-none cursor-pointer hover:text-foreground transition-colors">
+                      Save this address to my profile for future orders
+                    </label>
+                  </div>
                   <div className="mt-6 flex justify-end">
-                    <button onClick={() => { if (validateAddress()) go(2); }} className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-brown-mid">Continue to Payment</button>
+                    <button onClick={handleAddressSubmitStep} className="h-11 px-6 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-brown-mid">Continue to Payment</button>
                   </div>
                 </motion.div>
               )}

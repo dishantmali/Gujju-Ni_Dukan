@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronRight,
+  ChevronLeft,
+  X,
   ShoppingCart,
   Heart,
   Shield,
@@ -13,7 +15,7 @@ import {
   Plus,
   Package,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { PageShell } from "@/components/PageShell";
 import { StarRating } from "@/components/StarRating";
 import { PriceTag } from "@/components/PriceTag";
@@ -27,6 +29,7 @@ import { Product, ProductVariant } from "@/data/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
 
 const getSwatchColor = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -51,6 +54,7 @@ const getSwatchColor = (value: string) => {
 
 const ProductPage = () => {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -59,6 +63,43 @@ const ProductPage = () => {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [selectedImage, setSelectedImage] = useState("");
   const [activeInfoTab, setActiveInfoTab] = useState<"details" | "reviews" | "policy">("details");
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 600) {
+        setShowStickyBar(true);
+      } else {
+        setShowStickyBar(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const { data: coupons = [] } = useQuery<any[]>({
+    queryKey: ["activeCoupons"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/coupons/active/");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 60000,
+  });
+
+  const matchingCoupon = product ? coupons.find(
+    (c) =>
+      c.is_active &&
+      (c.vendor === product.vendorId ||
+        c.vendor?.id === product.vendorId ||
+        (Array.isArray(c.products) && c.products.map(String).includes(String(product.id))) ||
+        (!c.vendor && (!c.products || c.products.length === 0)))
+  ) : null;
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -269,6 +310,23 @@ const ProductPage = () => {
   };
 
   const vendor = vendors.find((v) => v.id === product.vendorId);
+  const activeVendor = product.vendor_details ? {
+    id: product.vendor_details.id,
+    name: product.vendor_details.name,
+    tagline: product.vendor_details.tagline,
+    rating: product.vendor_details.rating,
+    city: product.vendor_details.city,
+    initials: product.vendor_details.initials,
+    logo: product.vendor_details.logo,
+  } : vendor ? {
+    id: vendor.id,
+    name: vendor.name,
+    tagline: vendor.tagline,
+    rating: vendor.rating,
+    city: vendor.city,
+    initials: vendor.initials,
+    logo: undefined,
+  } : null;
   const isWish = wishlist.includes(product.id.toString());
   const related = relatedProducts;
   const displayPrice = selectedVariant ? selectedVariant.price : product.price;
@@ -318,7 +376,7 @@ const ProductPage = () => {
             {/* Mobile Image Carousel */}
             <div className="lg:hidden relative">
               <div className="overflow-hidden bg-card border-y sm:border sm:rounded-2xl border-border">
-                <motion.div 
+                <motion.div
                   className="flex"
                   drag="x"
                   dragConstraints={{ left: 0, right: 0 }}
@@ -342,7 +400,7 @@ const ProductPage = () => {
                     )}
                   </div>
                 </motion.div>
-                
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -369,7 +427,7 @@ const ProductPage = () => {
                 {/* Indicators */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
                   {allImages.slice(0, 6).map((img, idx) => (
-                    <div 
+                    <div
                       key={idx}
                       className={cn(
                         "h-1.5 rounded-full transition-all duration-300",
@@ -512,6 +570,27 @@ const ProductPage = () => {
                         <p className="mt-2 text-sm text-muted-foreground">
                           {r.comment}
                         </p>
+                        {r.images && r.images.length > 0 && (
+                          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 pill-scroll">
+                            {r.images.map((imgUrl, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setLightboxImages(r.images || []);
+                                  setLightboxImageIndex(idx);
+                                }}
+                                className="h-16 w-16 rounded-lg overflow-hidden border border-border shrink-0 hover:opacity-90 transition-opacity"
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Review attachment ${idx + 1}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -564,6 +643,28 @@ const ProductPage = () => {
                 size="lg"
               />
             </div>
+            {matchingCoupon && (
+              <div className="mt-4 p-3.5 rounded-xl border border-dashed border-emerald-500/35 bg-emerald-50/30 text-emerald-800 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🏷️</span>
+                  <div>
+                    <span className="font-mono font-black text-sm tracking-wider uppercase text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                      {matchingCoupon.code}
+                    </span>
+                    <p className="text-[11px] text-emerald-700 mt-1 font-medium leading-tight">
+                      Use code at checkout to get{" "}
+                      <span className="font-bold">
+                        {matchingCoupon.discount_type === "rupee"
+                          ? `₹${parseFloat(matchingCoupon.discount_value).toLocaleString("en-IN")}`
+                          : `${matchingCoupon.discount_value}%`}{" "}
+                        off
+                      </span>{" "}
+                      on this product.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Select Options Box */}
             {variants.length > 0 && (
@@ -640,16 +741,16 @@ const ProductPage = () => {
                                   style={
                                     isColorRow
                                       ? {
-                                          borderColor: active
-                                            ? "#8a5d42"
-                                            : !available
-                                              ? "#e5e7eb"
-                                              : "#d1d5db",
-                                          opacity: !available ? 0.4 : 1,
-                                          cursor: !available
-                                            ? "not-allowed"
-                                            : "pointer",
-                                        }
+                                        borderColor: active
+                                          ? "#8a5d42"
+                                          : !available
+                                            ? "#e5e7eb"
+                                            : "#d1d5db",
+                                        opacity: !available ? 0.4 : 1,
+                                        cursor: !available
+                                          ? "not-allowed"
+                                          : "pointer",
+                                      }
                                       : {}
                                   }
                                   title={value}
@@ -669,7 +770,7 @@ const ProductPage = () => {
                                           ? "text-foreground"
                                           : "text-muted-foreground",
                                         !available &&
-                                          "opacity-40 cursor-not-allowed"
+                                        "opacity-40 cursor-not-allowed"
                                       )}
                                     >
                                       {value}
@@ -740,29 +841,6 @@ const ProductPage = () => {
               </div>
             )}
 
-            {/* Stock Status */}
-            <div className="mt-5 rounded-2xl border border-border bg-secondary/30 p-4">
-              <div className="flex items-center gap-2 text-sm">
-                {canAddBuyers ? (
-                  <CheckCircle2 size={16} className={stockTone} />
-                ) : (
-                  <AlertCircle size={16} className="text-destructive" />
-                )}
-                <span className={cn("font-medium", stockTone)}>
-                  {selectedStock <= 0
-                    ? "Currently unavailable"
-                    : selectedStock <= 10
-                      ? `Only ${selectedStock} left in stock`
-                      : `${selectedStock} available in stock`}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {canAddBuyers
-                  ? "Usually delivered within 3-5 days."
-                  : "Please choose another variant or check back soon."}
-              </p>
-            </div>
-
             {/* Quantity + Add to Cart */}
             <div className="mt-6 flex flex-col gap-4">
               <div className="flex items-center gap-4">
@@ -791,28 +869,9 @@ const ProductPage = () => {
                     </button>
                   </div>
                 </div>
-
-                {/* Wishlist Icon placed closer to Quantity stepper */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isBuyerOnly) {
-                      toast.error("Vendors and Admins cannot use wishlist");
-                      return;
-                    }
-                    toggleWish(product, isAuthenticated);
-                  }}
-                  aria-label="Wishlist"
-                  className="h-10 w-10 shrink-0 grid place-items-center rounded-full border border-border bg-card hover:border-brown-light hover:bg-brown-light/5 transition-all shadow-sm"
-                >
-                  <Heart
-                    size={18}
-                    className={isWish ? "fill-destructive text-destructive" : "text-brown-mid"}
-                  />
-                </button>
               </div>
 
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
                 <motion.button
                   whileTap={{ scale: 0.98 }}
                   disabled={!canAddBuyers}
@@ -835,6 +894,25 @@ const ProductPage = () => {
                   <ShoppingCart size={18} className="sm:w-5 sm:h-5" />
                   Add to Cart
                 </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  disabled={!canAddBuyers}
+                  onClick={() => {
+                    if (!isBuyerOnly) {
+                      toast.error("Vendors and Admins cannot purchase products");
+                      return;
+                    }
+                    if (!canAddBuyers) {
+                      toast.error("This option is out of stock");
+                      return;
+                    }
+                    add(product, qty, selectedVariant ?? variants[0]);
+                    navigate("/checkout");
+                  }}
+                  className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-full bg-accent text-accent-foreground font-bold shadow-lg shadow-accent/10 hover:opacity-95 transition-all disabled:opacity-50 disabled:pointer-events-none text-sm sm:text-base"
+                >
+                  Buy Now
+                </motion.button>
               </div>
             </div>
 
@@ -850,8 +928,8 @@ const ProductPage = () => {
                 returns on damaged items
               </span>
             </div>
+          </div>
         </div>
-      </div>
 
         {/* Related */}
         <div className="mt-10 sm:mt-16">
@@ -870,6 +948,137 @@ const ProductPage = () => {
         </div>
       </div>
 
+      {/* Sticky Mobile Buy/Cart Bar (4.A) */}
+      <AnimatePresence>
+        {showStickyBar && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border shadow-lift p-3 flex items-center justify-between gap-3 lg:hidden"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={selectedImage || product.image}
+                alt={product.name}
+                className="h-10 w-10 object-contain rounded-lg border border-border bg-card shrink-0"
+              />
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-foreground truncate leading-tight">
+                  {product.name}
+                </h4>
+                {optionSummary && (
+                  <p className="text-[10px] text-muted-foreground truncate font-medium">
+                    {optionSummary}
+                  </p>
+                )}
+                <p className="text-xs font-semibold text-accent mt-0.5">
+                  ₹{Number(displayPrice).toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                disabled={!canAddBuyers}
+                onClick={() => {
+                  if (!isBuyerOnly) {
+                    toast.error("Vendors and Admins cannot add items to cart");
+                    return;
+                  }
+                  add(product, qty, selectedVariant ?? variants[0]);
+                  toast.success("Added to cart", {
+                    description: `${qty} × ${product.name}`,
+                  });
+                }}
+                className="h-9 px-3 rounded-full bg-secondary text-foreground text-xs font-bold hover:bg-muted border border-border disabled:opacity-50 inline-flex items-center gap-1"
+                aria-label="Add to cart"
+              >
+                <ShoppingCart size={13} />
+                <span>Add</span>
+              </button>
+              <button
+                type="button"
+                disabled={!canAddBuyers}
+                onClick={() => {
+                  if (!isBuyerOnly) {
+                    toast.error("Vendors and Admins cannot purchase products");
+                    return;
+                  }
+                  add(product, qty, selectedVariant ?? variants[0]);
+                  navigate("/checkout");
+                }}
+                className="h-9 px-4 rounded-full bg-accent text-accent-foreground text-xs font-bold hover:opacity-95 disabled:opacity-50 whitespace-nowrap"
+              >
+                Buy Now
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Lightbox Modal */}
+      {lightboxImageIndex !== null && lightboxImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm select-none"
+          onClick={() => setLightboxImageIndex(null)}
+        >
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setLightboxImageIndex(null)}
+            className="absolute top-4 right-4 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors border border-white/10"
+            aria-label="Close"
+          >
+            <X size={24} />
+          </button>
+
+          {/* Navigation and Image Container */}
+          <div className="relative w-full max-w-4xl px-12 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {/* Prev button */}
+            {lightboxImageIndex > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImageIndex(lightboxImageIndex - 1);
+                }}
+                className="absolute left-4 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors border border-white/10"
+                aria-label="Previous"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            {/* Active Image */}
+            <img
+              src={lightboxImages[lightboxImageIndex]}
+              alt="Review attachment enlarged"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl animate-scale-in"
+            />
+
+            {/* Next button */}
+            {lightboxImageIndex < lightboxImages.length - 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImageIndex(lightboxImageIndex + 1);
+                }}
+                className="absolute right-4 h-12 w-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors border border-white/10"
+                aria-label="Next"
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Image index counter */}
+          <div className="mt-4 text-xs font-semibold text-white/60 tracking-wider">
+            {lightboxImageIndex + 1} / {lightboxImages.length}
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 };

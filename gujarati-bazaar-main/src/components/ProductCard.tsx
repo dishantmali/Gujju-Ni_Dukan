@@ -10,6 +10,8 @@ import { PriceTag } from "./PriceTag";
 import { vendors } from "@/data/vendors";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
 
 export const ProductCard = ({ product, index = 0 }: { product: Product; index?: number }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -21,6 +23,28 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
   const isBuyerOnly = !user || user.role === 'buyer';
   const isWish = wishlist.includes(product.id.toString());
   const vendor = vendors.find((v) => v.id === product.vendorId);
+
+  const { data: coupons = [] } = useQuery<any[]>({
+    queryKey: ["activeCoupons"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/coupons/active/");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 60000,
+  });
+
+  const matchingCoupon = coupons.find(
+    (c) =>
+      c.is_active &&
+      (c.vendor === product.vendorId ||
+        c.vendor?.id === product.vendorId ||
+        (Array.isArray(c.products) && c.products.map(String).includes(String(product.id))) ||
+        (!c.vendor && (!c.products || c.products.length === 0)))
+  );
 
   const onMove = (e: MouseEvent) => {
     const r = ref.current?.getBoundingClientRect();
@@ -92,6 +116,11 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
             <StarRating value={product.rating} size={12} />
             <span className="text-xs text-muted-foreground">{product.rating} ({product.reviewCount})</span>
           </div>
+          {matchingCoupon && (
+            <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50 self-start">
+              🏷️ {matchingCoupon.code} ({matchingCoupon.discount_type === 'rupee' ? `₹${parseFloat(matchingCoupon.discount_value)}` : `${parseFloat(matchingCoupon.discount_value)}%`} Off)
+            </div>
+          )}
           <div className="mt-2 flex items-center justify-between gap-2">
             <PriceTag price={product.price} originalPrice={product.originalPrice} size="sm" />
             <button

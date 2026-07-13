@@ -28,7 +28,7 @@ from .email_utils import (
 from .models import (
     CustomUser, Product, ProductVariant, ProductVariantImage, Order, VendorProfile, OrderItem, Address, UserProfile ,
     Category, GSTCategory, Cart, CartItem, CategoryRequest, Offer , Wishlist,
-    ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
+    ProductReview, ProductReviewImage, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
     IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration
 )
 # pyrefly: ignore [missing-import]
@@ -1921,6 +1921,7 @@ class MergeWishlistView(APIView):
 
 class ProductReviewListCreateView(generics.ListCreateAPIView):
     serializer_class = ProductReviewSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -1960,6 +1961,11 @@ class ProductReviewListCreateView(generics.ListCreateAPIView):
             vendor=order_item.vendor,
             order_item=order_item
         )
+        
+        review = serializer.instance
+        extra_images = self.request.FILES.getlist('extra_images')
+        for image in extra_images:
+            ProductReviewImage.objects.create(review=review, image=image)
 
 class PlatformReviewListCreateView(generics.ListCreateAPIView):
     serializer_class = PlatformReviewSerializer

@@ -13,6 +13,7 @@ export type Vendor = {
   joined: string;
   city: string;
   initials: string;
+  logo?: string;
 };
 
 export type Review = {
@@ -21,6 +22,7 @@ export type Review = {
   rating: number;
   comment: string;
   date: string;
+  images?: string[];
 };
 
 /** One SKU (e.g. color × size) with its own price and stock — from `/api/products/`. */
@@ -58,6 +60,7 @@ export type Product = {
   specs: Record<string, string>;
   /** When present (API products), cart/checkout should use selected variant pricing. */
   variants?: ProductVariant[];
+  vendor_details?: Vendor;
 };
 
 export type Order = {

@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     CustomUser, UserProfile , VendorProfile, Product, ProductVariant, ProductVariantImage, ProductImage, Order, OrderItem,
     Category, GSTCategory, Cart, CartItem, CategoryRequest, Offer , Wishlist , Address,
-    ProductReview, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
+    ProductReview, ProductReviewImage, PlatformReview , Banner , HeroBanner, SubscriptionPlan, VendorSubscription,
     IconAsset, ManualReview, Coupon, CouponUsage, News, PlatformConfiguration,
     _lookup_gst_percentage_for_category
 )
@@ -231,12 +231,40 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image']
 
 
+# ---------------- REVIEWS ----------------
+class ProductReviewImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductReviewImage
+        fields = ['id', 'image']
+
+
+class ProductReviewSerializer(SanitizedSerializer):
+    reviewer_name = serializers.CharField(source='user.name', read_only=True)
+    images = ProductReviewImageSerializer(many=True, read_only=True)
+    extra_images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
+    )
+
+    class Meta:
+        model = ProductReview
+        fields = ['id', 'user', 'reviewer_name', 'product', 'vendor', 'order_item', 'rating', 'review_text', 'images', 'extra_images', 'created_at']
+        read_only_fields = ['user', 'product', 'vendor', 'created_at']
+
+    def create(self, validated_data):
+        validated_data.pop('extra_images', None)
+        return super().create(validated_data)
+
+
 class ProductSerializer(SanitizedSerializer):
     vendor_shop = serializers.SerializerMethodField()
+    vendor_details = VendorProfileSerializer(source='vendor', read_only=True)
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     category_name = serializers.CharField(source='category.name', read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
+    reviews = ProductReviewSerializer(many=True, read_only=True)
     product_images = ProductImageSerializer(many=True, read_only=True)
     variants_input = ProductVariantSerializer(many=True, write_only=True, required=False)
     extra_images = serializers.ListField(
@@ -251,6 +279,7 @@ class ProductSerializer(SanitizedSerializer):
             'id',
             'vendor',
             'vendor_shop',
+            'vendor_details',
             'name',
             'price',
             'stock_quantity',
@@ -265,6 +294,7 @@ class ProductSerializer(SanitizedSerializer):
             'is_active',
             'is_new',
             'variants',
+            'reviews',
             'product_images',
             'variants_input',
             'extra_images',
@@ -429,13 +459,7 @@ class ProductSerializer(SanitizedSerializer):
         return instance
     
 # ---------------- REVIEWS ----------------
-class ProductReviewSerializer(SanitizedSerializer):
-    reviewer_name = serializers.CharField(source='user.name', read_only=True)
 
-    class Meta:
-        model = ProductReview
-        fields = ['id', 'user', 'reviewer_name', 'product', 'vendor', 'order_item', 'rating', 'review_text', 'created_at']
-        read_only_fields = ['user', 'product', 'vendor', 'created_at']
 
 class PlatformReviewSerializer(SanitizedSerializer):
     reviewer_name = serializers.CharField(source='user.name', read_only=True)

@@ -690,6 +690,27 @@ class ProductReview(models.Model):
         return f"Review by {self.user.email} for {self.product.name}"
 
 
+class ProductReviewImage(models.Model):
+    review = models.ForeignKey(
+        ProductReview,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    image = ResizedImageField(
+        size=[800, 1000],
+        crop=['middle', 'center'],
+        quality=75,
+        upload_to='review_images/',
+        force_format='JPEG'
+    )
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.review.product.name} review image #{self.pk}"
+
+
 class PlatformReview(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     rating = models.PositiveIntegerField(choices=[(i, i) for i in range(1, 6)])
