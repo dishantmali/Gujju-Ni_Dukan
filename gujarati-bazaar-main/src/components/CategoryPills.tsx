@@ -9,10 +9,12 @@ export const CategoryPills = ({
   activeSlug,
   autoScroll = false,
   onSelectCategory,
+  layoutId = "active-pill",
 }: {
   activeSlug?: string;
   autoScroll?: boolean;
   onSelectCategory?: (slug: string) => void;
+  layoutId?: string;
 }) => {
   const location = useLocation();
   const [categories, setCategories] = useState<any[]>([]);
@@ -52,7 +54,7 @@ export const CategoryPills = ({
               <span className="absolute inset-0 rounded-full bg-primary" />
             ) : (
               <motion.span
-                layoutId="active-pill"
+                layoutId={layoutId}
                 className="absolute inset-0 rounded-full bg-primary"
                 transition={{ type: "spring", stiffness: 380, damping: 32 }}
               />

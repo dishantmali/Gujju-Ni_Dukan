@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, Link } from "react-router-dom";
 import { ChevronRight, X, SlidersHorizontal } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
@@ -19,6 +20,42 @@ const CategoryPage = () => {
   const { slug: routeSlug = "" } = useParams();
   const [currentSlug, setCurrentSlug] = useState(routeSlug || "all");
   const [cat, setCat] = useState<any>(null);
+
+  const pillsRef = useRef<HTMLDivElement | null>(null);
+  const [isSticky, setIsSticky] = useState(false);
+
+  useEffect(() => {
+    let raf = 0;
+    let active = false;
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = pillsRef.current;
+        if (!el) return;
+        const { top } = el.getBoundingClientRect();
+        const navbarHeight = window.innerWidth >= 768 ? 72 : 130;
+        if (top <= navbarHeight) {
+          if (!active) {
+            active = true;
+            setIsSticky(true);
+          }
+        } else {
+          if (active) {
+            active = false;
+            setIsSticky(false);
+          }
+        }
+      });
+    };
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync);
+    sync();
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
 
   const [all, setAll] = useState<any[]>([]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
@@ -177,10 +214,27 @@ const CategoryPage = () => {
         </div>
 
         {/* Pills container */}
-        <div className="mb-4">
-          <CategoryPills activeSlug={currentSlug} onSelectCategory={handleCategoryChange} />
+        <div
+          ref={pillsRef}
+          className={`mb-4 transition-opacity duration-300 ${isSticky ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        >
+          <CategoryPills activeSlug={currentSlug} onSelectCategory={handleCategoryChange} layoutId="inflow-active-pill" />
         </div>
       </div>
+
+      {createPortal(
+        <div
+          className={`fixed top-[130px] md:top-[72px] left-0 right-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSticky
+            ? "opacity-100 translate-y-0 pointer-events-auto"
+            : "opacity-0 -translate-y-1 pointer-events-none"
+            }`}
+        >
+          <div className="container">
+            <CategoryPills activeSlug={currentSlug} onSelectCategory={handleCategoryChange} layoutId="portal-active-pill" />
+          </div>
+        </div>,
+        document.body
+      )}
 
       <div className="container grid lg:grid-cols-[260px_1fr] gap-8 py-6">
         <div className="hidden lg:block">

@@ -20,9 +20,7 @@ export const Navbar = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const exploreChrome = useIndexExploreChrome();
-  const hideChromeForExplore =
-    location.pathname === "/" && !!exploreChrome?.exploreChromeActive;
+  const hideChromeForExplore = false;
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -130,7 +128,7 @@ export const Navbar = () => {
                   {/* Footer */}
                   <div className="px-2 pb-2 pt-1 border-t border-border/50">
                     <Link
-                      to="/search"
+                      to="/category/all"
                       onClick={() => setCatOpen(false)}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-brown-mid hover:bg-secondary/60 transition-colors"
                     >
