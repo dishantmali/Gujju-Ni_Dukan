@@ -112,10 +112,12 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
             </h3>
           </Link>
           <div className="mt-1 text-xs text-muted-foreground truncate">{vendor?.name}</div>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <StarRating value={product.rating} size={12} />
-            <span className="text-xs text-muted-foreground">{product.rating} ({product.reviewCount})</span>
-          </div>
+          {product.reviewCount > 0 && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <StarRating value={product.rating} size={12} />
+              <span className="text-xs text-muted-foreground">{product.rating} ({product.reviewCount})</span>
+            </div>
+          )}
           {matchingCoupon && (
             <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50 self-start">
               🏷️ {matchingCoupon.code} ({matchingCoupon.discount_type === 'rupee' ? `₹${parseFloat(matchingCoupon.discount_value)}` : `${parseFloat(matchingCoupon.discount_value)}%`} Off)

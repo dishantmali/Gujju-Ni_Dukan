@@ -524,9 +524,9 @@ const ProductPage = () => {
                 {(
                   [
                     ["details", "Product Details"],
-                    ["reviews", `Reviews (${product.reviewCount ?? 0})`],
+                    (product.reviewCount ?? 0) > 0 ? ["reviews", `Reviews (${product.reviewCount ?? 0})`] : null,
                     ["policy", "Return Policy"],
-                  ] as const
+                  ].filter(Boolean) as ["details" | "reviews" | "policy", string][]
                 ).map(([tab, label]) => (
                   <button
                     key={tab}
@@ -627,12 +627,14 @@ const ProductPage = () => {
             </h1>
 
             {/* Rating */}
-            <div className="mt-3 flex items-center gap-3">
-              <StarRating value={product.rating} size={16} />
-              <span className="text-sm text-muted-foreground">
-                {product.rating} · {product.reviewCount} reviews
-              </span>
-            </div>
+            {(product.reviewCount ?? 0) > 0 && (
+              <div className="mt-3 flex items-center gap-3">
+                <StarRating value={product.rating} size={16} />
+                <span className="text-sm text-muted-foreground">
+                  {product.rating} · {product.reviewCount} reviews
+                </span>
+              </div>
+            )}
 
             {/* Price */}
             <div className="mt-5">
