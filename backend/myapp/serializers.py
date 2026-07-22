@@ -623,7 +623,7 @@ class OfferSerializer(SanitizedSerializer):
         fields = [
             'id', 'title', 'image', 'start_date', 'end_date',
             'requested_by', 'vendor_shop', 'status', 'created_at',
-            'discount_percent', 'products'
+            'discount_percent', 'products', 'is_lifetime'
         ]
         read_only_fields = ['requested_by', 'status', 'created_at']
 
@@ -693,7 +693,7 @@ class CouponSerializer(SanitizedSerializer):
         fields = [
             'id', 'code', 'discount_type', 'discount_value', 'start_datetime', 'end_datetime',
             'limit_per_user', 'max_usages', 'min_purchase_amount', 'max_discount_cap',
-            'products', 'vendor', 'vendor_shop', 'usages_count', 'is_active', 'created_at'
+            'products', 'vendor', 'vendor_shop', 'usages_count', 'is_active', 'created_at', 'is_lifetime'
         ]
         read_only_fields = ['vendor', 'created_at']
 
@@ -713,8 +713,14 @@ class CouponSerializer(SanitizedSerializer):
         return value
 
     def validate(self, data):
-        if data.get('end_datetime') <= data.get('start_datetime'):
-            raise serializers.ValidationError("End date & time must be strictly after the start date & time.")
+        is_lifetime = data.get('is_lifetime', False)
+        if not is_lifetime:
+            start = data.get('start_datetime')
+            end = data.get('end_datetime')
+            if not start or not end:
+                raise serializers.ValidationError("Start and end date/time are required for non-lifetime coupons.")
+            if end <= start:
+                raise serializers.ValidationError("End date & time must be strictly after the start date & time.")
         if data.get('discount_type') == 'percentage' and (data.get('discount_value') <= 0 or data.get('discount_value') > 100):
             raise serializers.ValidationError("Percentage discount value must be between 1 and 100.")
         if data.get('discount_value') <= 0:
@@ -736,7 +742,7 @@ class CouponUsageSerializer(serializers.ModelSerializer):
 class NewsSerializer(SanitizedSerializer):
     class Meta:
         model = News
-        fields = ['id', 'title', 'start_date', 'end_date', 'is_active', 'created_at']
+        fields = ['id', 'title', 'start_date', 'end_date', 'is_active', 'created_at', 'is_lifetime']
         read_only_fields = ['created_at']
 
 

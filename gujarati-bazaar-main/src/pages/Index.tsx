@@ -60,18 +60,6 @@ const SectionHeader = ({
   </div>
 );
 
-/* ── Offers Marquee Data ── */
-const offers = [
-  "🎉 Grand Opening Sale — Flat 20% Off on All Snacks!",
-  "🚚 Free Delivery on Orders Above ₹499",
-  "🎁 Buy 2 Get 1 Free on Pickles & Chutneys",
-  "✨ New Arrivals: Premium Kaju Katli & Dry Fruits",
-  "🕉️ Pooja Essentials — Flat 15% Off This Week",
-  "👘 Handloom Patola Sarees Starting at ₹9,999",
-  "🌶️ Stone-Ground Spice Combos — Save ₹150",
-  "🥜 Dry Fruits Combo Packs — Up to 30% Off",
-];
-
 type ReviewType = {
   id: string | number;
   name: string;
@@ -310,7 +298,7 @@ const IndexPageBody = () => {
       if (homeRes.offers_marquee && homeRes.offers_marquee.length > 0) {
         setOffersMarquee(homeRes.offers_marquee);
       } else {
-        setOffersMarquee(offers); // Use the local mock offers as fallback
+        setOffersMarquee([]);
       }
 
       if (homeRes.banners) {
@@ -528,35 +516,37 @@ const IndexPageBody = () => {
   return (
     <>
       {/* ─── 1. Marquee Offers — infinite loop regardless of content length ─── */}
-      <div className="bg-brown-mid text-primary-foreground overflow-hidden">
-        <div className="relative h-9 flex items-center overflow-hidden">
-          <div className="marquee-fade-left" />
-          <div className="marquee-fade-right" />
-          {(() => {
-            // Ensure each set has at least ~20 items so it's always wider than any screen
-            const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
-            const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
-            // Calculate a duration so speed is constant regardless of text length (~0.45s per char matches category marquee speed)
-            const totalChars = filledOffers.reduce((sum, text) => sum + text.length, 0);
-            const duration = totalChars > 0 ? totalChars * 0.45 : 60;
-            return (
-              <div className="offers-marquee-track" style={{ animationDuration: `${duration}s` }}>
-                {/* Each set repeats items enough times to always overflow the viewport */}
-                {[0, 1].map((copy) => (
-                  <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
-                    {filledOffers.map((o, i) => (
-                      <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
-                        {o}
-                        <span className="text-primary">•</span>
-                      </span>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+      {offersMarquee.length > 0 && (
+        <div className="bg-brown-mid text-primary-foreground overflow-hidden">
+          <div className="relative h-9 flex items-center overflow-hidden">
+            <div className="marquee-fade-left" />
+            <div className="marquee-fade-right" />
+            {(() => {
+              // Ensure each set has at least ~20 items so it's always wider than any screen
+              const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
+              const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
+              // Calculate a duration so speed is constant regardless of text length (~0.45s per char matches category marquee speed)
+              const totalChars = filledOffers.reduce((sum, text) => sum + text.length, 0);
+              const duration = totalChars > 0 ? totalChars * 0.45 : 60;
+              return (
+                <div className="offers-marquee-track" style={{ animationDuration: `${duration}s` }}>
+                  {/* Each set repeats items enough times to always overflow the viewport */}
+                  {[0, 1].map((copy) => (
+                    <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
+                      {filledOffers.map((o, i) => (
+                        <span key={i} className="mx-4 sm:mx-8 text-xs sm:text-sm font-medium inline-flex items-center gap-2 text-white shrink-0 whitespace-nowrap">
+                          {o}
+                          <span className="text-primary">•</span>
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ─── 2. Hero Banner Slider ─── */}
       <HeroBannerCarousel images={heroBanners} />
@@ -584,9 +574,9 @@ const IndexPageBody = () => {
             </button>
             <div
               ref={trendingScroll.ref}
-              className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
+              className="pill-scroll overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:mx-0 sm:px-0"
             >
-              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
+              <div className="flex gap-4 sm:gap-5 min-w-max pt-2 pb-5 px-1">
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <div key={`trend-skeleton-${i}`} className="w-[200px] sm:w-[230px] shrink-0">
@@ -632,9 +622,9 @@ const IndexPageBody = () => {
             </button>
             <div
               ref={newArrivalsScroll.ref}
-              className="pill-scroll overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
+              className="pill-scroll overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:mx-0 sm:px-0"
             >
-              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
+              <div className="flex gap-4 sm:gap-5 min-w-max pt-2 pb-5 px-1">
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <div key={`new-skeleton-${i}`} className="w-[200px] sm:w-[230px] shrink-0">

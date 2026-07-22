@@ -238,7 +238,8 @@ const AdminDashboard = () => {
     start_datetime: '',
     end_datetime: '',
     products: [] as number[],
-    is_active: true
+    is_active: true,
+    is_lifetime: false
   });
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
 
@@ -254,7 +255,7 @@ const AdminDashboard = () => {
   const [newGstCatSelectedCategories, setNewGstCatSelectedCategories] = useState<number[]>([]);
   const [editingGstCategoryId, setEditingGstCategoryId] = useState<number | null>(null);
 
-  const [newNews, setNewNews] = useState({ title: '', start_date: '', end_date: '' });
+  const [newNews, setNewNews] = useState({ title: '', start_date: '', end_date: '', is_lifetime: false });
   const [bannerImageFile, setBannerImageFile] = useState(null);
   const [newBannerYoutubeUrl, setNewBannerYoutubeUrl] = useState('');
   const [newBannerLinkUrl, setNewBannerLinkUrl] = useState('');
@@ -473,13 +474,14 @@ const AdminDashboard = () => {
     try {
       const payload = {
         title: newNews.title,
-        start_date: newNews.start_date,
-        end_date: newNews.end_date,
-        is_active: true
+        start_date: newNews.is_lifetime ? null : (newNews.start_date || null),
+        end_date: newNews.is_lifetime ? null : (newNews.end_date || null),
+        is_active: true,
+        is_lifetime: newNews.is_lifetime
       };
       const res = await api.post('/admin/news/', payload);
       setNews([res, ...news]);
-      setNewNews({ title: '', start_date: '', end_date: '' });
+      setNewNews({ title: '', start_date: '', end_date: '', is_lifetime: false });
       toast.success("News created!");
     } catch { toast.error("Failed to create news"); }
   };
@@ -672,6 +674,8 @@ const AdminDashboard = () => {
       max_discount_cap: newCoupon.max_discount_cap ? parseFloat(newCoupon.max_discount_cap) : null,
       max_usages: newCoupon.max_usages ? parseInt(newCoupon.max_usages) : null,
       limit_per_user: parseInt(String(newCoupon.limit_per_user)),
+      start_datetime: newCoupon.is_lifetime ? null : (newCoupon.start_datetime || null),
+      end_datetime: newCoupon.is_lifetime ? null : (newCoupon.end_datetime || null),
     };
     try {
       if (editingCoupon) {
@@ -694,7 +698,8 @@ const AdminDashboard = () => {
         start_datetime: '',
         end_datetime: '',
         products: [],
-        is_active: true
+        is_active: true,
+        is_lifetime: false
       });
       setEditingCoupon(null);
     } catch (err: any) {
@@ -715,7 +720,8 @@ const AdminDashboard = () => {
       start_datetime: coupon.start_datetime ? coupon.start_datetime.substring(0, 16) : '',
       end_datetime: coupon.end_datetime ? coupon.end_datetime.substring(0, 16) : '',
       products: coupon.products || [],
-      is_active: coupon.is_active
+      is_active: coupon.is_active,
+      is_lifetime: coupon.is_lifetime || false
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -744,7 +750,8 @@ const AdminDashboard = () => {
       start_datetime: '',
       end_datetime: '',
       products: [],
-      is_active: true
+      is_active: true,
+      is_lifetime: false
     });
   };
 
@@ -1808,16 +1815,31 @@ const AdminDashboard = () => {
                             <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">News Title</label>
                             <input type="text" required value={newNews.title} onChange={e => setNewNews({ ...newNews, title: e.target.value })} className="w-full p-3.5 bg-[var(--bg-main)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--brown-mid)] transition-colors" />
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date</label>
-                              <DateTimePicker type="date" value={newNews.start_date} onChange={(val) => setNewNews({ ...newNews, start_date: val })} />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date</label>
-                              <DateTimePicker type="date" value={newNews.end_date} onChange={(val) => setNewNews({ ...newNews, end_date: val })} />
-                            </div>
+                          <div className="flex items-center gap-2 py-1">
+                            <input
+                              type="checkbox"
+                              id="admin_news_is_lifetime"
+                              checked={newNews.is_lifetime}
+                              onChange={e => setNewNews({ ...newNews, is_lifetime: e.target.checked })}
+                              className="w-4 h-4 rounded text-[#5A3825] focus:ring-[#5A3825] border-gray-300 cursor-pointer"
+                            />
+                            <label htmlFor="admin_news_is_lifetime" className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer select-none">
+                              Lifetime (No Expiry)
+                            </label>
                           </div>
+
+                          {!newNews.is_lifetime && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date</label>
+                                <DateTimePicker type="date" value={newNews.start_date} onChange={(val) => setNewNews({ ...newNews, start_date: val })} />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date</label>
+                                <DateTimePicker type="date" value={newNews.end_date} onChange={(val) => setNewNews({ ...newNews, end_date: val })} />
+                              </div>
+                            </div>
+                          )}
                           <button type="submit" className="w-full bg-[#5A3825] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-[#432A1C] shadow-lg hover:shadow-xl transition-all duration-300 active:scale-[0.98] mt-4">Broadcast News</button>
                         </form>
                       </div>
@@ -1833,7 +1855,7 @@ const AdminDashboard = () => {
                                 <div className="flex items-center gap-5">
                                   <div>
                                     <span className="font-bold text-[var(--text-dark)] text-base block">{n.title}</span>
-                                    <span className="text-xs font-medium text-[var(--brown-mid)] bg-[var(--brown-mid)]/10 px-2 py-0.5 rounded mt-1 inline-block">{n.start_date} → {n.end_date}</span>
+                                    <span className="text-xs font-medium text-[var(--brown-mid)] bg-[var(--brown-mid)]/10 px-2 py-0.5 rounded mt-1 inline-block">{n.is_lifetime ? 'Lifetime' : `${n.start_date || 'N/A'} → ${n.end_date || 'N/A'}`}</span>
                                   </div>
                                 </div>
                                 <div className="flex gap-2">
@@ -2463,24 +2485,39 @@ const AdminDashboard = () => {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date & Time</label>
-                              <DateTimePicker
-                                type="datetime-local"
-                                value={newCoupon.start_datetime}
-                                onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date & Time</label>
-                              <DateTimePicker
-                                type="datetime-local"
-                                value={newCoupon.end_datetime}
-                                onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
-                              />
-                            </div>
+                          <div className="flex items-center gap-2 py-1">
+                            <input
+                              type="checkbox"
+                              id="admin_coupon_is_lifetime"
+                              checked={newCoupon.is_lifetime}
+                              onChange={e => setNewCoupon({ ...newCoupon, is_lifetime: e.target.checked })}
+                              className="w-4 h-4 rounded text-[#5A3825] focus:ring-[#5A3825] border-gray-300 cursor-pointer"
+                            />
+                            <label htmlFor="admin_coupon_is_lifetime" className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer select-none">
+                              Lifetime (No Expiry)
+                            </label>
                           </div>
+
+                          {!newCoupon.is_lifetime && (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">Start Date & Time</label>
+                                <DateTimePicker
+                                  type="datetime-local"
+                                  value={newCoupon.start_datetime}
+                                  onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 ml-1">End Date & Time</label>
+                                <DateTimePicker
+                                  type="datetime-local"
+                                  value={newCoupon.end_datetime}
+                                  onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
+                                />
+                              </div>
+                            </div>
+                          )}
 
                           <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -2598,7 +2635,7 @@ const AdminDashboard = () => {
                                       </span>
                                     </div>
                                     <div className="text-xs text-[var(--text-muted)] font-medium space-y-1 mt-1.5">
-                                      <p>📅 <strong>Timeline:</strong> {new Date(coupon.start_datetime).toLocaleDateString()} → {new Date(coupon.end_datetime).toLocaleDateString()}</p>
+                                      <p>📅 <strong>Timeline:</strong> {coupon.is_lifetime ? <span className="font-bold text-green-600">Lifetime</span> : `${coupon.start_datetime ? new Date(coupon.start_datetime).toLocaleDateString() : 'N/A'} → ${coupon.end_datetime ? new Date(coupon.end_datetime).toLocaleDateString() : 'N/A'}`}</p>
                                       <p>🛍️ <strong>Usage:</strong> {coupon.usages_count} redeemed {coupon.max_usages ? `/ ${coupon.max_usages} max` : '(unlimited)'}</p>
                                       <p>💳 <strong>Rule:</strong> Min spend ₹{parseFloat(coupon.min_purchase_amount)} {coupon.max_discount_cap ? `| Max Cap ₹${parseFloat(coupon.max_discount_cap)}` : ''}</p>
                                       {coupon.products && coupon.products.length > 0 && (

@@ -217,20 +217,21 @@ class HomePageView(APIView):
         today = date.today()
         now = timezone.now()
         active_offers = Offer.objects.filter(
-            status='approved',
-            end_date__gte=today
+            status='approved'
+        ).filter(
+            models.Q(is_lifetime=True) | models.Q(end_date__gte=today)
         )
         
         active_news = News.objects.filter(
-            is_active=True,
-            start_date__lte=today,
-            end_date__gte=today
+            is_active=True
+        ).filter(
+            models.Q(is_lifetime=True) | (models.Q(start_date__lte=today) & models.Q(end_date__gte=today))
         )
         
         active_coupons = Coupon.objects.filter(
-            is_active=True,
-            start_datetime__lte=now,
-            end_datetime__gte=now
+            is_active=True
+        ).filter(
+            models.Q(is_lifetime=True) | (models.Q(start_datetime__lte=now) & models.Q(end_datetime__gte=now))
         )
         
         # Build marquee strings
@@ -2375,10 +2376,14 @@ def validate_and_calculate_coupon(coupon_code, user, cart_items):
 
     now = timezone.now()
 
-    if now < coupon.start_datetime:
-        return None, "This coupon is not active yet."
-    if now > coupon.end_datetime:
-        return None, "This coupon has expired."
+    if not getattr(coupon, 'is_lifetime', False):
+        if coupon.start_datetime and now < coupon.start_datetime:
+            return None, "This coupon is not active yet."
+        if coupon.end_datetime and now > coupon.end_datetime:
+            return None, "This coupon has expired."
+    else:
+        if coupon.start_datetime and now < coupon.start_datetime:
+            return None, "This coupon is not active yet."
 
     # User limit check
     user_usage_count = CouponUsage.objects.filter(coupon=coupon, user=user).count()
@@ -2554,10 +2559,8 @@ class ActiveCouponListView(APIView):
         now = timezone.now()
         
         # Base filter: Active, started, and unexpired coupons
-        queryset = Coupon.objects.filter(
-            is_active=True,
-            start_datetime__lte=now,
-            end_datetime__gte=now
+        queryset = Coupon.objects.filter(is_active=True).filter(
+            Q(is_lifetime=True) | (Q(start_datetime__lte=now) & Q(end_datetime__gte=now))
         )
 
         # If user is authenticated, filter vendor coupons based on their active cart items

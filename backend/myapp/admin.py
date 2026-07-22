@@ -19,7 +19,9 @@ from .models import (
     SubscriptionPlan,
     VendorSubscription,
     ManualReview,
-    PlatformConfiguration
+    PlatformConfiguration,
+    Coupon,
+    News
 )
 
 
@@ -157,10 +159,24 @@ class CategoryRequestAdmin(admin.ModelAdmin):
 @admin.register(Offer)
 class OfferAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'title', 'start_date', 'end_date',
+        'id', 'title', 'start_date', 'end_date', 'is_lifetime',
         'requested_by', 'status', 'created_at'
     )
-    list_filter = ('status',)
+    list_filter = ('status', 'is_lifetime')
+    search_fields = ('title',)
+
+# ---------------- COUPONS ---------------- #
+@admin.register(Coupon)
+class CouponAdmin(admin.ModelAdmin):
+    list_display = ('id', 'code', 'discount_type', 'discount_value', 'start_datetime', 'end_datetime', 'is_lifetime', 'is_active')
+    list_filter = ('discount_type', 'is_active', 'is_lifetime')
+    search_fields = ('code',)
+
+# ---------------- NEWS ---------------- #
+@admin.register(News)
+class NewsAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'start_date', 'end_date', 'is_lifetime', 'is_active')
+    list_filter = ('is_active', 'is_lifetime')
     search_fields = ('title',)
 
 # ---------------- REVIEWS ---------------- #

@@ -101,7 +101,8 @@ const VendorDashboard = () => {
     max_usages: "",
     min_purchase_amount: "0",
     max_discount_cap: "",
-    products: [] as number[]
+    products: [] as number[],
+    is_lifetime: false
   });
   const [isCreateCouponModalOpen, setIsCreateCouponModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
@@ -117,7 +118,7 @@ const VendorDashboard = () => {
   const [variantImageFiles, setVariantImageFiles] = useState<Record<number, File[]>>({});
   const [newCategory, setNewCategory] = useState({ name: "", icon: "FaShoppingBasket" });
 
-  const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[] });
+  const [newOffer, setNewOffer] = useState({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[], is_lifetime: false });
 
   // Vendor Profile State
   const [profileForm, setProfileForm] = useState({
@@ -316,7 +317,7 @@ const VendorDashboard = () => {
     mutationFn: (data: any) => api.post('/vendor/offer-requests/', data),
     onSuccess: () => {
       toast.success('Offer created successfully');
-      setNewOffer({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[] });
+      setNewOffer({ title: "", discount_percent: "", start_date: "", end_date: "", products: [] as number[], is_lifetime: false });
       queryClient.invalidateQueries({ queryKey: ['vendor-offers'] });
       queryClient.invalidateQueries({ queryKey: ['vendor-products'] });
       setActiveTab("products");
@@ -340,7 +341,8 @@ const VendorDashboard = () => {
         max_usages: "",
         min_purchase_amount: "0",
         max_discount_cap: "",
-        products: [] as number[]
+        products: [] as number[],
+        is_lifetime: false
       });
       queryClient.invalidateQueries({ queryKey: ['vendor-coupons'] });
       setIsCreateCouponModalOpen(false);
@@ -596,7 +598,8 @@ const VendorDashboard = () => {
       max_usages: coupon.max_usages ? String(coupon.max_usages) : '',
       start_datetime: coupon.start_datetime ? coupon.start_datetime.substring(0, 16) : '',
       end_datetime: coupon.end_datetime ? coupon.end_datetime.substring(0, 16) : '',
-      products: coupon.products || []
+      products: coupon.products || [],
+      is_lifetime: coupon.is_lifetime || false
     });
     setIsCreateCouponModalOpen(true);
   };
@@ -2081,7 +2084,15 @@ const VendorDashboard = () => {
                 <div className="px-6 py-5 border-b border-border bg-background-warm">
                   <h2 className="font-display text-xl font-bold text-foreground">Create Promotional Offer</h2>
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); requestOfferMutation.mutate(newOffer); }} className="p-6 space-y-5 max-w-2xl">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const payload = {
+                    ...newOffer,
+                    start_date: newOffer.is_lifetime ? null : (newOffer.start_date || null),
+                    end_date: newOffer.is_lifetime ? null : (newOffer.end_date || null),
+                  };
+                  requestOfferMutation.mutate(payload);
+                }} className="p-6 space-y-5 max-w-2xl">
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground mb-1">Offer Title</label>
                     <input
@@ -2105,24 +2116,39 @@ const VendorDashboard = () => {
                       className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
-                      <DateTimePicker
-                        type="date"
-                        value={newOffer.start_date}
-                        onChange={(val) => setNewOffer({ ...newOffer, start_date: val })}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
-                      <DateTimePicker
-                        type="date"
-                        value={newOffer.end_date}
-                        onChange={(val) => setNewOffer({ ...newOffer, end_date: val })}
-                      />
-                    </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id="offer_is_lifetime"
+                      checked={newOffer.is_lifetime}
+                      onChange={(e) => setNewOffer({ ...newOffer, is_lifetime: e.target.checked })}
+                      className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                    />
+                    <label htmlFor="offer_is_lifetime" className="text-sm font-bold text-muted-foreground select-none cursor-pointer">
+                      Make this Offer Lifetime (Indefinite validity)
+                    </label>
                   </div>
+
+                  {!newOffer.is_lifetime && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
+                        <DateTimePicker
+                          type="date"
+                          value={newOffer.start_date}
+                          onChange={(val) => setNewOffer({ ...newOffer, start_date: val })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
+                        <DateTimePicker
+                          type="date"
+                          value={newOffer.end_date}
+                          onChange={(val) => setNewOffer({ ...newOffer, end_date: val })}
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground mb-1">Apply to Products</label>
                     <div className="max-h-48 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50 custom-scrollbar">
@@ -2192,7 +2218,11 @@ const VendorDashboard = () => {
                                   {offer.products?.length || 0} product(s)
                                 </td>
                                 <td className="p-3 text-sm text-muted-foreground">
-                                  {new Date(offer.start_date).toLocaleDateString()} - {new Date(offer.end_date).toLocaleDateString()}
+                                  {offer.is_lifetime ? (
+                                    <span className="font-bold text-accent">Lifetime</span>
+                                  ) : (
+                                    `${offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'N/A'} - ${offer.end_date ? new Date(offer.end_date).toLocaleDateString() : 'N/A'}`
+                                  )}
                                 </td>
                                 <td className="p-3 text-right space-x-2">
                                   <button
@@ -2203,7 +2233,8 @@ const VendorDashboard = () => {
                                         discount_percent: offer.discount_percent,
                                         start_date: offer.start_date,
                                         end_date: offer.end_date,
-                                        products: offer.products || []
+                                        products: offer.products || [],
+                                        is_lifetime: offer.is_lifetime || false
                                       });
                                       setIsEditOfferModalOpen(true);
                                     }}
@@ -2398,8 +2429,8 @@ const VendorDashboard = () => {
                                   <p className="font-medium text-foreground/80">
                                     Redeemed: <span className="font-bold text-foreground">{usages}</span>{coupon.max_usages && ` / ${coupon.max_usages}`}
                                   </p>
-                                  <p className="text-[9px] text-muted-foreground mt-0.5">
-                                    Ends: {end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {coupon.is_lifetime ? 'Validity: Lifetime' : `Ends: ${end ? end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}`}
                                   </p>
                                 </div>
                                 <div className="flex gap-2">
@@ -2453,10 +2484,10 @@ const VendorDashboard = () => {
                           <tbody className="divide-y divide-border">
                             {coupons.map((coupon: any) => {
                               const now = new Date();
-                              const start = new Date(coupon.start_datetime);
-                              const end = new Date(coupon.end_datetime);
-                              const isExpired = now > end;
-                              const isUpcoming = now < start;
+                              const start = coupon.start_datetime ? new Date(coupon.start_datetime) : null;
+                              const end = coupon.end_datetime ? new Date(coupon.end_datetime) : null;
+                              const isExpired = !coupon.is_lifetime && end && now > end;
+                              const isUpcoming = !coupon.is_lifetime && start && now < start;
 
                               let timelineStatus = "Active";
                               let timelineColor = "text-success bg-success/10 border-success/20";
@@ -2481,9 +2512,15 @@ const VendorDashboard = () => {
                                   </td>
                                   <td className="p-3 text-sm text-muted-foreground">₹{parseFloat(coupon.min_purchase_amount).toLocaleString()}</td>
                                   <td className="p-3 text-xs text-muted-foreground leading-normal">
-                                    {start.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })} <br />
-                                    to <br />
-                                    {end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
+                                    {coupon.is_lifetime ? (
+                                      <span className="font-bold text-accent">Lifetime</span>
+                                    ) : (
+                                      <>
+                                        {start ? start.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'N/A'} <br />
+                                        to <br />
+                                        {end ? end.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
+                                      </>
+                                    )}
                                   </td>
                                   <td className="p-3 text-xs">
                                     <div className="flex flex-col gap-1 items-start">
@@ -3030,7 +3067,12 @@ const VendorDashboard = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  updateOfferMutation.mutate({ id: editingOffer.id, data: editingOffer });
+                  const payload = {
+                    ...editingOffer,
+                    start_date: editingOffer.is_lifetime ? null : (editingOffer.start_date || null),
+                    end_date: editingOffer.is_lifetime ? null : (editingOffer.end_date || null),
+                  };
+                  updateOfferMutation.mutate({ id: editingOffer.id, data: payload });
                   setIsEditOfferModalOpen(false);
                 }}
                 className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar"
@@ -3057,24 +3099,39 @@ const VendorDashboard = () => {
                     className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-all"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
-                    <DateTimePicker
-                      type="date"
-                      value={editingOffer.start_date}
-                      onChange={(val) => setEditingOffer({ ...editingOffer, start_date: val })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
-                    <DateTimePicker
-                      type="date"
-                      value={editingOffer.end_date}
-                      onChange={(val) => setEditingOffer({ ...editingOffer, end_date: val })}
-                    />
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="edit_offer_is_lifetime"
+                    checked={editingOffer.is_lifetime}
+                    onChange={(e) => setEditingOffer({ ...editingOffer, is_lifetime: e.target.checked })}
+                    className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                  />
+                  <label htmlFor="edit_offer_is_lifetime" className="text-sm font-bold text-muted-foreground select-none cursor-pointer">
+                    Make this Offer Lifetime (Indefinite validity)
+                  </label>
                 </div>
+
+                {!editingOffer.is_lifetime && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date</label>
+                      <DateTimePicker
+                        type="date"
+                        value={editingOffer.start_date}
+                        onChange={(val) => setEditingOffer({ ...editingOffer, start_date: val })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground mb-1">End Date</label>
+                      <DateTimePicker
+                        type="date"
+                        value={editingOffer.end_date}
+                        onChange={(val) => setEditingOffer({ ...editingOffer, end_date: val })}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground mb-1">Apply to Products</label>
                   <div className="max-h-48 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50 custom-scrollbar">
@@ -3146,7 +3203,7 @@ const VendorDashboard = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (new Date(newCoupon.start_datetime) >= new Date(newCoupon.end_datetime)) {
+                  if (!newCoupon.is_lifetime && new Date(newCoupon.start_datetime) >= new Date(newCoupon.end_datetime)) {
                     toast.error('End date/time must be strictly after start date/time.');
                     return;
                   }
@@ -3161,6 +3218,8 @@ const VendorDashboard = () => {
                     min_purchase_amount: Number(newCoupon.min_purchase_amount),
                     max_usages: newCoupon.max_usages ? Number(newCoupon.max_usages) : null,
                     max_discount_cap: newCoupon.max_discount_cap ? Number(newCoupon.max_discount_cap) : null,
+                    start_datetime: newCoupon.is_lifetime ? null : (newCoupon.start_datetime || null),
+                    end_datetime: newCoupon.is_lifetime ? null : (newCoupon.end_datetime || null),
                   };
                   if (editingCoupon) {
                     updateCouponMutation.mutate({ id: editingCoupon.id, data: payload });
@@ -3225,24 +3284,39 @@ const VendorDashboard = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date & Time</label>
-                    <DateTimePicker
-                      type="datetime-local"
-                      value={newCoupon.start_datetime}
-                      onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground mb-1">End Date & Time</label>
-                    <DateTimePicker
-                      type="datetime-local"
-                      value={newCoupon.end_datetime}
-                      onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
-                    />
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="coupon_is_lifetime"
+                    checked={newCoupon.is_lifetime}
+                    onChange={(e) => setNewCoupon({ ...newCoupon, is_lifetime: e.target.checked })}
+                    className="w-4 h-4 text-primary border-border rounded focus:ring-primary/20 bg-background"
+                  />
+                  <label htmlFor="coupon_is_lifetime" className="text-sm font-bold text-muted-foreground select-none cursor-pointer">
+                    Make this Coupon Lifetime (Indefinite validity)
+                  </label>
                 </div>
+
+                {!newCoupon.is_lifetime && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground mb-1">Start Date & Time</label>
+                      <DateTimePicker
+                        type="datetime-local"
+                        value={newCoupon.start_datetime}
+                        onChange={(val) => setNewCoupon({ ...newCoupon, start_datetime: val })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground mb-1">End Date & Time</label>
+                      <DateTimePicker
+                        type="datetime-local"
+                        value={newCoupon.end_datetime}
+                        onChange={(val) => setNewCoupon({ ...newCoupon, end_datetime: val })}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
