@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, EyeOff, Mail, Lock, User, Store,
@@ -90,6 +90,7 @@ const SignupPage = () => {
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { register } = useAuthWithNavigate();
+  const location = useLocation();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -815,7 +816,8 @@ const SignupPage = () => {
 
               <motion.div variants={itemVariants}>
                 <Link
-                  to="/login"
+                  to={{ pathname: "/login", search: location.search }}
+                  state={location.state}
                   className="w-full flex items-center justify-center py-5 rounded-[1.5rem] border-2 border-border font-bold text-foreground hover:bg-muted hover:border-border/80 transition-all duration-300"
                 >
                   Sign In to Your Account

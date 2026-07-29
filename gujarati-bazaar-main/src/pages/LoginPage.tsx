@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, ShoppingBag, Truck, Package, Sparkles, ArrowRight } from "lucide-react";
 import { useAuthWithNavigate } from "@/hooks/useAuthWithNavigate";
@@ -62,6 +62,7 @@ const LoginPage = () => {
   const [isForgotLoading, setIsForgotLoading] = useState(false);
 
   const { login } = useAuthWithNavigate();
+  const location = useLocation();
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -641,7 +642,8 @@ const LoginPage = () => {
             >
               Don't have an account?{" "}
               <Link
-                to="/signup"
+                to={{ pathname: "/signup", search: location.search }}
+                state={location.state}
                 className="font-medium text-accent hover:text-accent/80 transition-colors underline-grow"
               >
                 Sign up

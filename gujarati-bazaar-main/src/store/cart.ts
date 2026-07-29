@@ -224,6 +224,7 @@ export const useCart = create<CartState>()(
       },
       setWishlist: (ids) => set({ wishlist: ids.map((id) => id.toString()) }),
       syncWishlist: async () => {
+        if (!isAuthenticated()) return;
         try {
           const res: any = await api.get("/wishlist/");
           const serverIds = res.map((item: any) => item.product.id.toString());
@@ -249,6 +250,7 @@ export const useCart = create<CartState>()(
         }
       },
       syncCart: async () => {
+        if (!isAuthenticated()) return;
         try {
           const res: any = await api.get("/cart/");
           if (res && res.items) {

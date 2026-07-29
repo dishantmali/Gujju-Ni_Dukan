@@ -149,7 +149,7 @@ const CheckoutPage = () => {
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       toast.error("Please log in to checkout");
-      navigate("/login", { replace: true });
+      navigate("/login?redirect=/checkout", { replace: true, state: { from: "/checkout" } });
     }
   }, [isAuthenticated, isLoading, navigate]);
 
