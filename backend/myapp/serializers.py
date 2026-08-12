@@ -219,10 +219,11 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        ret['originalPrice'] = ret['price']
+        ret['originalPrice'] = str(instance.final_price)
         ret['price'] = str(instance.discounted_price)
         ret['discount'] = instance.product.current_discount
         return ret
+
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -343,7 +344,7 @@ class ProductSerializer(SanitizedSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        ret['originalPrice'] = ret['price']
+        ret['originalPrice'] = str(instance.final_price)
         ret['price'] = str(instance.discounted_price)
         ret['discount'] = instance.current_discount
         return ret
@@ -372,6 +373,9 @@ class ProductSerializer(SanitizedSerializer):
         for idx, variant_data in enumerate(variants_data):
             print(f"[SERIALIZER CREATE] creating variant #{idx}: {variant_data!r}")
             try:
+                if 'price' in variant_data and variant_data['price'] is not None:
+                    import decimal
+                    variant_data['price'] = decimal.Decimal(str(variant_data['price']))
                 variant = ProductVariant.objects.create(product=product, **variant_data)
                 print(f"[SERIALIZER CREATE] variant #{idx} created id={variant.id}")
                 created_variants.append(variant)
@@ -402,6 +406,9 @@ class ProductSerializer(SanitizedSerializer):
 
             for idx, variant_data in enumerate(variants_data):
                 variant_id = variant_data.get('id')
+                if 'price' in variant_data and variant_data['price'] is not None:
+                    import decimal
+                    variant_data['price'] = decimal.Decimal(str(variant_data['price']))
                 if variant_id and variant_id in existing_variants:
                     # Update existing variant
                     variant = existing_variants[variant_id]

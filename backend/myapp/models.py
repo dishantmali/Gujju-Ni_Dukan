@@ -225,8 +225,8 @@ class Product(models.Model):
     def _calculate_gst_fields(self):
         """Auto-calculate GST fields from category → GSTCategory mapping."""
         import decimal
-        self.base_price = self.price
-        self.gst_percentage = _lookup_gst_percentage_for_category(self.category)
+        self.base_price = decimal.Decimal(str(self.price or 0))
+        self.gst_percentage = decimal.Decimal(str(_lookup_gst_percentage_for_category(self.category) or 0))
         self.gst_amount = round(self.base_price * self.gst_percentage / decimal.Decimal(100), 2)
         self.final_price = self.base_price + self.gst_amount
 
@@ -254,8 +254,17 @@ class Product(models.Model):
     @property
     def current_discount(self):
         from django.utils import timezone
+        from django.db.models import Q
         today = timezone.now().date()
-        active_offers = self.offers.filter(status='approved', start_date__lte=today, end_date__gte=today)
+        active_offers = self.offers.filter(
+            status='approved'
+        ).filter(
+            Q(is_lifetime=True) |
+            (
+                (Q(start_date__isnull=True) | Q(start_date__lte=today)) &
+                (Q(end_date__isnull=True) | Q(end_date__gte=today))
+            )
+        )
         if active_offers.exists():
             return max([offer.discount_percent for offer in active_offers])
         return 0
@@ -266,8 +275,10 @@ class Product(models.Model):
         discount = self.current_discount
         if discount > 0:
             import decimal
-            discounted_base = round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
-            gst_on_discounted = round(discounted_base * self.gst_percentage / decimal.Decimal(100), 2)
+            price_dec = decimal.Decimal(str(self.price or 0))
+            gst_perc_dec = decimal.Decimal(str(self.gst_percentage or 0))
+            discounted_base = round(price_dec - (price_dec * decimal.Decimal(discount) / decimal.Decimal(100)), 2)
+            gst_on_discounted = round(discounted_base * gst_perc_dec / decimal.Decimal(100), 2)
             return discounted_base + gst_on_discounted
         return self.final_price
 
@@ -306,8 +317,8 @@ class ProductVariant(models.Model):
     def _calculate_gst_fields(self):
         """Auto-calculate GST fields from the parent product's category → GSTCategory mapping."""
         import decimal
-        self.base_price = self.price
-        self.gst_percentage = _lookup_gst_percentage_for_category(self.product.category)
+        self.base_price = decimal.Decimal(str(self.price or 0))
+        self.gst_percentage = decimal.Decimal(str(_lookup_gst_percentage_for_category(self.product.category) or 0))
         self.gst_amount = round(self.base_price * self.gst_percentage / decimal.Decimal(100), 2)
         self.final_price = self.base_price + self.gst_amount
 
@@ -324,8 +335,10 @@ class ProductVariant(models.Model):
         discount = self.product.current_discount
         if discount > 0:
             import decimal
-            discounted_base = round(self.price - (self.price * decimal.Decimal(discount) / 100), 2)
-            gst_on_discounted = round(discounted_base * self.gst_percentage / decimal.Decimal(100), 2)
+            price_dec = decimal.Decimal(str(self.price or 0))
+            gst_perc_dec = decimal.Decimal(str(self.gst_percentage or 0))
+            discounted_base = round(price_dec - (price_dec * decimal.Decimal(discount) / decimal.Decimal(100)), 2)
+            gst_on_discounted = round(discounted_base * gst_perc_dec / decimal.Decimal(100), 2)
             return discounted_base + gst_on_discounted
         return self.final_price
 
