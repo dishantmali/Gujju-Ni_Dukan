@@ -354,6 +354,11 @@ class ProductListView(generics.ListAPIView):
         if max_price:
             queryset = queryset.filter(variants__price__lte=max_price)
 
+        # Vendor Filter
+        vendor_param = self.request.query_params.get('vendor')
+        if vendor_param:
+            queryset = queryset.filter(vendor_id=vendor_param)
+
         return queryset.distinct()
 
 
@@ -2639,4 +2644,19 @@ class PublicVendorListView(APIView):
         vendors = VendorProfile.objects.filter(is_approved=True, is_active=True)
         serializer = VendorProfileSerializer(vendors, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class PublicVendorDetailView(APIView):
+    """Public endpoint to retrieve details of a specific approved vendor."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk):
+        try:
+            vendor = VendorProfile.objects.get(pk=pk, is_approved=True, is_active=True)
+        except VendorProfile.DoesNotExist:
+            return Response({"detail": "Vendor not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = VendorProfileSerializer(vendor, context={'request': request})
+        return Response(serializer.data)
+
 

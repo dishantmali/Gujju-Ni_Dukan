@@ -111,7 +111,7 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
               {product.name}
             </h3>
           </Link>
-          <div className="mt-1 text-xs text-muted-foreground truncate">{vendor?.name}</div>
+          <div className="mt-1 text-xs text-muted-foreground truncate">{product.vendor_shop || product.vendor_details?.name || vendor?.name}</div>
           {product.reviewCount > 0 && (
             <div className="mt-1.5 flex items-center gap-1.5">
               <StarRating value={product.rating} size={12} />

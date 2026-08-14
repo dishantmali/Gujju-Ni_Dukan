@@ -12,6 +12,13 @@ export type Vendor = {
   rating: number;
   joined: string;
   city: string;
+  state?: string;
+  pincode?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  phone?: string;
+  email?: string;
+  contact_details?: string;
   initials: string;
   logo?: string;
 };

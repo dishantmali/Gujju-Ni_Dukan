@@ -168,10 +168,15 @@ class VendorProfileSerializer(SanitizedSerializer):
     initials = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     name = serializers.CharField(source='shop_name')
+    email = serializers.CharField(source='user.email', read_only=True)
 
     class Meta:
         model = VendorProfile
-        fields = ['id', 'name', 'tagline', 'city', 'logo', 'initials', 'average_rating', 'is_approved']
+        fields = [
+            'id', 'name', 'tagline', 'city', 'state', 'pincode',
+            'address_line_1', 'address_line_2', 'phone', 'email',
+            'contact_details', 'logo', 'initials', 'average_rating', 'is_approved'
+        ]
 
     def get_initials(self, obj):
         if not obj.shop_name: return "VN"

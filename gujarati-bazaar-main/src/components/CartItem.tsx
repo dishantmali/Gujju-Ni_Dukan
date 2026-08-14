@@ -34,7 +34,7 @@ export const CartItem = ({ line }: { line: CartLine }) => {
         <Link to={`/product/${line.product.id}`} className="text-sm sm:text-base font-semibold leading-snug line-clamp-2 hover:text-brown-mid">
           {line.product.name}
         </Link>
-        <div className="text-xs text-muted-foreground mt-0.5">by {vendor?.name}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">by {line.product.vendor_shop || line.product.vendor_details?.name || vendor?.name}</div>
         {variantLabel && <div className="text-[11px] text-brown-mid mt-1">{variantLabel}</div>}
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <QuantityStepper value={line.qty} onChange={(n) => setQty(lid, n)} />

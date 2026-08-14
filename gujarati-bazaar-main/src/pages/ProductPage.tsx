@@ -612,12 +612,12 @@ const ProductPage = () => {
           {/* Right: Info + Actions */}
           <div>
             {/* Vendor */}
-            {(product.vendor_shop || vendor?.name) && (
+            {(product.vendor_shop || activeVendor?.name || vendor?.name) && (
               <Link
-                to={`/vendor/${vendor?.id}`}
+                to={`/vendor/${activeVendor?.id || product.vendorId || vendor?.id}`}
                 className="text-sm text-brown-mid font-medium hover:text-primary inline-block"
               >
-                {product.vendor_shop || vendor?.name}
+                {product.vendor_shop || activeVendor?.name || vendor?.name}
               </Link>
             )}
 

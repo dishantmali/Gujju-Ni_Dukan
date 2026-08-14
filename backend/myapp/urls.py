@@ -34,7 +34,7 @@ from .views import (
     VendorCouponListCreateView, VendorCouponDetailView,
     ValidateCouponView, ActiveCouponListView,
     AdminNewsListCreateView, AdminNewsDetailView,
-    PlatformConfigView, PublicVendorListView,
+    PlatformConfigView, PublicVendorListView, PublicVendorDetailView,
 
     # Category
     CategoryListView,WishlistToggleView,WishlistListView,MergeWishlistView,
@@ -198,6 +198,7 @@ urlpatterns = [
 
     # ---------------- PUBLIC VENDORS ---------------- #
     path('vendors/', PublicVendorListView.as_view(), name='public_vendor_list'),
+    path('vendors/<int:pk>/', PublicVendorDetailView.as_view(), name='public_vendor_detail'),
 
     # ---------------- CART ---------------- #
     path('cart/', CartView.as_view(), name='cart'),
