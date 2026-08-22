@@ -84,6 +84,56 @@ const useHScroll = () => {
   return { ref, scroll };
 };
 
+/* ── Adaptive Carousel Hook (ResizeObserver Container Overflow Detection) ── */
+const useAdaptiveCarousel = (itemsCount: number) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [shouldUseCarousel, setShouldUseCarousel] = useState(false);
+
+  const checkOverflow = useCallback(() => {
+    const container = containerRef.current;
+    const track = trackRef.current;
+    if (container && track) {
+      const isOverflowing = track.scrollWidth > container.clientWidth + 4;
+      setShouldUseCarousel(isOverflowing);
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const track = trackRef.current;
+    if (!container || !track) return;
+
+    checkOverflow();
+
+    const observer = new ResizeObserver(() => {
+      checkOverflow();
+    });
+
+    observer.observe(container);
+    observer.observe(track);
+
+    window.addEventListener("resize", checkOverflow);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", checkOverflow);
+    };
+  }, [checkOverflow, itemsCount]);
+
+  const scroll = useCallback((dir: "left" | "right") => {
+    const container = containerRef.current;
+    if (!container) return;
+    const amount = container.clientWidth * 0.6;
+    container.scrollBy({
+      left: dir === "left" ? -amount : amount,
+      behavior: "smooth",
+    });
+  }, []);
+
+  return { containerRef, trackRef, shouldUseCarousel, scroll, checkOverflow };
+};
+
 /* ── Category Auto-Scroll Marquee ── */
 const CategoryMarquee = ({ categories }: { categories: any[] }) => {
   /* Duplicate items 3× so the loop is seamless */
@@ -415,47 +465,46 @@ const IndexPageBody = () => {
       window.removeEventListener("resize", sync);
       setExploreChromeActive(false);
     };
-  }, [setExploreChromeActive]); // setter is referentially stable — runs once
+  }, [setExploreChromeActive]);
 
+  const vendorCarousel = useAdaptiveCarousel(vendors.length);
+  const reviewCarousel = useAdaptiveCarousel(displayReviews.length);
+
+  /* Vendor auto-scroll one-by-one when carousel is active */
   useEffect(() => {
-    setIsExpanded(false);
-  }, [selectedCategory]);
-
-
-
-  /* Vendor auto-scroll one-by-one */
-  useEffect(() => {
-    const el = vendorScroll.ref.current;
+    if (!vendorCarousel.shouldUseCarousel) return;
+    const el = vendorCarousel.containerRef.current;
     if (!el) return;
     const id = setInterval(() => {
       const child = el.querySelector(":scope > div > div:first-child") as HTMLElement | null;
       const gap = parseFloat(getComputedStyle(el.querySelector(":scope > div") as HTMLElement).gap || "0");
       const step = (child?.offsetWidth ?? 170) + (Number.isFinite(gap) ? gap : 16);
       if (el.scrollLeft + el.clientWidth >= el.scrollWidth - step - 4) {
-        el.scrollTo({ left: 0, behavior: "auto" });
+        el.scrollTo({ left: 0, behavior: "smooth" });
       } else {
         el.scrollBy({ left: step, behavior: "smooth" });
       }
     }, 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [vendorCarousel.shouldUseCarousel, vendors.length]);
 
-  /* Review auto-scroll one-by-one */
+  /* Review auto-scroll one-by-one when carousel is active */
   useEffect(() => {
-    const el = reviewScroll.ref.current;
+    if (!reviewCarousel.shouldUseCarousel) return;
+    const el = reviewCarousel.containerRef.current;
     if (!el) return;
     const id = setInterval(() => {
       const child = el.querySelector(":scope > div > div:first-child") as HTMLElement | null;
       const gap = parseFloat(getComputedStyle(el.querySelector(":scope > div") as HTMLElement).gap || "0");
       const step = (child?.offsetWidth ?? 320) + (Number.isFinite(gap) ? gap : 16);
       if (el.scrollLeft + el.clientWidth >= el.scrollWidth - step - 4) {
-        el.scrollTo({ left: 0, behavior: "auto" });
+        el.scrollTo({ left: 0, behavior: "smooth" });
       } else {
         el.scrollBy({ left: step, behavior: "smooth" });
       }
     }, 3500);
     return () => clearInterval(id);
-  }, []);
+  }, [reviewCarousel.shouldUseCarousel, displayReviews.length]);
 
   const list = useMemo(() => {
     if (selectedCategory === "all") return allProducts;
@@ -522,15 +571,12 @@ const IndexPageBody = () => {
             <div className="marquee-fade-left" />
             <div className="marquee-fade-right" />
             {(() => {
-              // Ensure each set has at least ~20 items so it's always wider than any screen
               const repeatCount = offersMarquee.length > 0 ? Math.max(Math.ceil(20 / offersMarquee.length), 2) : 0;
               const filledOffers = Array.from({ length: repeatCount }, () => offersMarquee).flat();
-              // Calculate a duration so speed is constant regardless of text length (~0.45s per char matches category marquee speed)
               const totalChars = filledOffers.reduce((sum, text) => sum + text.length, 0);
               const duration = totalChars > 0 ? totalChars * 0.45 : 60;
               return (
                 <div className="offers-marquee-track" style={{ animationDuration: `${duration}s` }}>
-                  {/* Each set repeats items enough times to always overflow the viewport */}
                   {[0, 1].map((copy) => (
                     <div key={copy} className="offers-marquee-set" aria-hidden={copy === 1}>
                       {filledOffers.map((o, i) => (
@@ -668,7 +714,7 @@ const IndexPageBody = () => {
             title="Explore Products"
           />
         </div>
-        {/* ── Sticky in-flow pills (always in DOM for layout; fades out when fixed overlay appears) ── */}
+        {/* ── Sticky in-flow pills ── */}
         <div
           className={`sticky top-[130px] md:top-[72px] z-30 mb-6 border-b border-border/50 bg-background/95 backdrop-blur-lg py-4 sm:py-[18px] shadow-md transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${chrome ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
@@ -676,7 +722,7 @@ const IndexPageBody = () => {
           {categoryPillsInner}
         </div>
 
-        {/* ── Fixed overlay pills (portalled to body to escape motion.main's containing block) ── */}
+        {/* ── Fixed overlay pills ── */}
         {createPortal(
           <div
             className={`fixed top-[130px] md:top-[72px] left-0 right-0 z-40 border-b border-border/50 bg-background backdrop-blur-lg py-2 sm:py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${chrome
@@ -735,32 +781,41 @@ const IndexPageBody = () => {
             title="Our Trusted Vendors"
           />
           <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
-            <button
-              onClick={() => vendorScroll.scroll("left")}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft size={18} />
-            </button>
+            {vendorCarousel.shouldUseCarousel && (
+              <button
+                type="button"
+                onClick={() => vendorCarousel.scroll("left")}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
             <div
-              ref={vendorScroll.ref}
-              className="pill-scroll overflow-x-auto"
+              ref={vendorCarousel.containerRef}
+              className={vendorCarousel.shouldUseCarousel ? "pill-scroll overflow-x-auto" : "w-full"}
             >
-              <div className="flex gap-3 sm:gap-4 min-w-max pb-2">
-                {[...vendors, ...vendors, ...vendors].map((v, i) => (
+              <div
+                ref={vendorCarousel.trackRef}
+                className={`flex gap-3 sm:gap-4 pb-2 ${vendorCarousel.shouldUseCarousel ? "min-w-max" : "flex-wrap justify-center"}`}
+              >
+                {vendors.map((v, i) => (
                   <div key={`${v.id}-${i}`} className="w-[150px] sm:w-[170px] shrink-0">
                     <VendorCard vendor={v} />
                   </div>
                 ))}
               </div>
             </div>
-            <button
-              onClick={() => vendorScroll.scroll("right")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Scroll right"
-            >
-              <ChevronRight size={18} />
-            </button>
+            {vendorCarousel.shouldUseCarousel && (
+              <button
+                type="button"
+                onClick={() => vendorCarousel.scroll("right")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Scroll right"
+              >
+                <ChevronRight size={18} />
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -773,30 +828,39 @@ const IndexPageBody = () => {
             title="What Our Customers Say"
           />
           <div className="bg-gradient-warm rounded-3xl p-4 sm:p-6 relative group">
-            <button
-              onClick={() => reviewScroll.scroll("left")}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft size={18} />
-            </button>
+            {reviewCarousel.shouldUseCarousel && (
+              <button
+                type="button"
+                onClick={() => reviewCarousel.scroll("left")}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
             <div
-              ref={reviewScroll.ref}
-              className="pill-scroll overflow-x-auto"
+              ref={reviewCarousel.containerRef}
+              className={reviewCarousel.shouldUseCarousel ? "pill-scroll overflow-x-auto" : "w-full"}
             >
-              <div className="flex gap-4 sm:gap-5 min-w-max pb-2">
-                {tripledReviews.map((r, i) => (
+              <div
+                ref={reviewCarousel.trackRef}
+                className={`flex gap-4 sm:gap-5 pb-2 ${reviewCarousel.shouldUseCarousel ? "min-w-max" : "flex-wrap justify-center"}`}
+              >
+                {displayReviews.map((r, i) => (
                   <ReviewCard key={`${r.id}-${i}`} review={r} index={i} />
                 ))}
               </div>
             </div>
-            <button
-              onClick={() => reviewScroll.scroll("right")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Scroll right"
-            >
-              <ChevronRight size={18} />
-            </button>
+            {reviewCarousel.shouldUseCarousel && (
+              <button
+                type="button"
+                onClick={() => reviewCarousel.scroll("right")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-card border border-border shadow-card grid place-items-center text-brown-mid hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Scroll right"
+              >
+                <ChevronRight size={18} />
+              </button>
+            )}
           </div>
         </section>
       )}
