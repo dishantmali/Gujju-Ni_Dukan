@@ -8,7 +8,11 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "1.25rem",
+      padding: {
+        DEFAULT: "1.25rem",
+        lg: "2rem",
+        "2xl": "3rem",
+      },
       screens: {
         "sm": "100%",
         "md": "100%",
@@ -20,7 +24,7 @@ export default {
     },
     extend: {
       screens: {
-        "3xl": "1800px",
+        "3xl": "1680px",
       },
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],

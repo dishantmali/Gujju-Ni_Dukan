@@ -4,8 +4,8 @@ import { Product } from "@/data/types";
 
 export const ProductGrid = ({ products, loading, cols = "default" }: { products: Product[]; loading?: boolean; cols?: "default" | "tight" }) => {
   const colClass = cols === "tight"
-    ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-    : "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4";
+    ? "grid-cols-[repeat(auto-fill,minmax(180px,1fr))]"
+    : "grid-cols-[repeat(auto-fill,minmax(220px,1fr))]";
   if (loading) {
     return (
       <div className={`grid ${colClass} gap-4 sm:gap-5`}>

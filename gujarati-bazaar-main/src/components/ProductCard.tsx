@@ -71,12 +71,12 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
         style={{ transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
       >
         <Link to={`/product/${product.id}`} className="block p-1">
-          <div className="relative overflow-hidden bg-background rounded-[calc(1rem-4px)] border border-border/40">
+          <div className="relative overflow-hidden bg-background rounded-[calc(1rem-4px)] border border-border/40 aspect-square flex items-center justify-center p-2">
             <img
               src={product.image}
               alt={product.name}
               loading="lazy"
-              className="w-full object-contain transition-transform duration-700 group-hover/card:scale-105"
+              className="max-h-full max-w-full object-contain transition-transform duration-700 group-hover/card:scale-105"
             />
             <div className="absolute top-2 left-2 flex flex-col gap-1.5">
               {product.isNew && (
