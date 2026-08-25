@@ -32,9 +32,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const data = response.data;
+    const config = response.config as any;
+
+    if (config?.returnFullResponse) {
+      return data;
+    }
+
     // Only unwrap DRF paginated responses: object with array 'results' and numeric 'count'
     if (data && Array.isArray(data.results) && typeof data.count === 'number') {
-      return data.results;
+      const results = data.results;
+      Object.defineProperties(results, {
+        count: { value: data.count, writable: true, configurable: true, enumerable: false },
+        next: { value: data.next, writable: true, configurable: true, enumerable: false },
+        previous: { value: data.previous, writable: true, configurable: true, enumerable: false },
+        results: { value: data.results, writable: true, configurable: true, enumerable: false },
+      });
+      return results;
     }
     return data;
   },
