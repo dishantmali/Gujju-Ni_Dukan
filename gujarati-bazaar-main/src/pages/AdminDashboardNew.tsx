@@ -270,6 +270,47 @@ const AdminDashboard = () => {
   const [ordersRange, setOrdersRange] = useState('This Month');
   const [trafficRange, setTrafficRange] = useState('This Month');
 
+  const [adminPasswordForm, setAdminPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
+
+  const handleAdminChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPasswordForm.current_password) {
+      toast.error("Current password is required.");
+      return;
+    }
+    if (!adminPasswordForm.new_password) {
+      toast.error("New password is required.");
+      return;
+    }
+    if (!adminPasswordForm.confirm_password) {
+      toast.error("Confirm password is required.");
+      return;
+    }
+    if (adminPasswordForm.new_password !== adminPasswordForm.confirm_password) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setAdminPasswordLoading(true);
+      const res: any = await api.post('/change-password/', {
+        current_password: adminPasswordForm.current_password,
+        new_password: adminPasswordForm.new_password,
+      });
+      toast.success(res?.message || "Password changed successfully.");
+      setAdminPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to change password.");
+    } finally {
+      setAdminPasswordLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -1006,6 +1047,7 @@ const AdminDashboard = () => {
     { key: 'orders', label: 'Global Orders', Icon: Icons.Orders, badge: null },
     { key: 'coupons', label: 'Coupons', Icon: Icons.Coupons, badge: null },
     { key: 'platformSettings', label: 'Platform Settings', Icon: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>, badge: null },
+    { key: 'changePassword', label: 'Change Password', Icon: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>, badge: null },
   ];
 
   const RangeSelect = ({ value, onChange, options }) => (
@@ -1050,24 +1092,20 @@ const AdminDashboard = () => {
       </aside>
 
       {/* ── Main Content Area ── */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Top Header */}
-        <header className="h-[80px] bg-white border-b border-[#E8D5BC] flex items-center justify-between px-8 shrink-0 z-10 sticky top-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Top Navigation */}
+        <header className="bg-white border-b border-[#E8D5BC] h-[80px] px-8 flex items-center justify-between shrink-0 shadow-xs z-30">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-[#5A3825] hover:bg-[#F3EDE5] rounded-lg transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 rounded-xl text-[#5A3825] hover:bg-[#F3EDE5]">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <div className="hidden sm:flex items-center gap-3 bg-[#FAF7F2] border border-[#E8D5BC] rounded-xl px-4 py-2.5 w-80 focus-within:border-[#A87C51] transition-colors">
-              <svg className="w-4 h-4 text-[#A87C51]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input className="bg-transparent text-sm outline-none text-[#5A3825] placeholder:text-[#A87C51] w-full" placeholder="Search anything..." />
+            <div>
+              <h1 className="text-xl font-black text-[#5A3825] tracking-tight capitalize">{activeTab === 'changePassword' ? 'Change Password' : activeTab.replace(/([A-Z])/g, ' $1')}</h1>
+              <p className="text-xs text-[#8C7B6E] font-medium hidden sm:block">Welcome back, {user?.name || 'Admin'}!</p>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <button className="relative p-2 text-[#A87C51] hover:bg-[#F3EDE5] rounded-xl transition-colors">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
-            </button>
 
+          <div className="flex items-center gap-4">
             <div className="relative" ref={profileRef}>
               <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 p-1 pr-3 hover:bg-[#F3EDE5] rounded-full transition-all border border-transparent hover:border-[#E8D5BC]">
                 <div className="w-10 h-10 rounded-full bg-[#5A3825] flex items-center justify-center text-white font-black shadow-sm">
@@ -1085,6 +1123,10 @@ const AdminDashboard = () => {
                   <p className="text-xs font-bold text-[#A87C51] uppercase tracking-widest mb-1">Signed in as</p>
                   <p className="text-sm font-black text-[#5A3825] truncate">{user?.email || 'superadmin@gujjunidukan.com'}</p>
                 </div>
+                <button onClick={() => { setActiveTab('changePassword'); setIsProfileOpen(false); }} className="w-full px-4 py-2.5 text-sm font-bold text-[#8C7B6E] hover:bg-[#F3EDE5] hover:text-[#5A3825] flex items-center gap-3 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  Change Password
+                </button>
                 <button onClick={() => { navigate('/'); setIsProfileOpen(false); }} className="w-full px-4 py-2.5 text-sm font-bold text-[#8C7B6E] hover:bg-[#F3EDE5] hover:text-[#5A3825] flex items-center gap-3 transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
                   Return to Store
@@ -2837,6 +2879,67 @@ const AdminDashboard = () => {
                     </form>
                   </div>
                 </div>
+              )}
+
+              {activeTab === 'changePassword' && (
+                <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
+                  <div className="bg-white rounded-2xl border border-[#E8D5BC] p-8 shadow-sm">
+                    <div className="flex items-center gap-3 pb-6 border-b border-[#F3EDE5] mb-6">
+                      <div className="w-12 h-12 rounded-2xl bg-[#5A3825]/10 text-[#5A3825] flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-[#5A3825]">Change Admin Password</h2>
+                        <p className="text-xs text-[#8C7B6E]">Update your login credentials securely</p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleAdminChangePassword} className="space-y-5">
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2">Current Password</label>
+                        <input
+                          type="password"
+                          value={adminPasswordForm.current_password}
+                          onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, current_password: e.target.value })}
+                          placeholder="Enter current password"
+                          className="w-full px-4 py-3 bg-[#F3EDE5]/50 border border-[#E8D5BC] rounded-xl outline-none focus:border-[#5A3825] focus:bg-white transition-all text-sm font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2">New Password</label>
+                        <input
+                          type="password"
+                          value={adminPasswordForm.new_password}
+                          onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, new_password: e.target.value })}
+                          placeholder="Enter new password"
+                          className="w-full px-4 py-3 bg-[#F3EDE5]/50 border border-[#E8D5BC] rounded-xl outline-none focus:border-[#5A3825] focus:bg-white transition-all text-sm font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#A87C51] uppercase tracking-wider mb-2">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={adminPasswordForm.confirm_password}
+                          onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, confirm_password: e.target.value })}
+                          placeholder="Confirm new password"
+                          className="w-full px-4 py-3 bg-[#F3EDE5]/50 border border-[#E8D5BC] rounded-xl outline-none focus:border-[#5A3825] focus:bg-white transition-all text-sm font-medium"
+                        />
+                      </div>
+
+                      <div className="pt-4 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={adminPasswordLoading}
+                          className="px-8 py-3.5 bg-[#5A3825] text-white rounded-xl font-bold text-sm shadow-md hover:bg-[#3D2518] transition-all disabled:opacity-50 cursor-pointer"
+                        >
+                          {adminPasswordLoading ? "Updating..." : "Change Password"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
               )}
 
             </motion.div>

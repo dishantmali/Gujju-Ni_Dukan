@@ -68,13 +68,21 @@ const vendorVariants = {
   },
 };
 
-const SignupPage = () => {
+interface SignupPageProps {
+  isVendorOnly?: boolean;
+}
+
+const SignupPage = ({ isVendorOnly: isVendorOnlyProp }: SignupPageProps = {}) => {
+  const location = useLocation();
+  const isVendorOnly = isVendorOnlyProp || location.pathname.startsWith('/vendor/signup');
+  const initialRole = isVendorOnly ? "vendor" : "buyer";
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: "buyer" as "buyer" | "vendor",
+    role: initialRole as "buyer" | "vendor",
     shop_name: "",
     address_line_1: "",
     address_line_2: "",
@@ -90,7 +98,6 @@ const SignupPage = () => {
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { register } = useAuthWithNavigate();
-  const location = useLocation();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -379,8 +386,14 @@ const SignupPage = () => {
               transition={{ delay: 0.2 }}
               className="hidden lg:block mb-10"
             >
-              <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">Create Account</h1>
-              <p className="text-muted-foreground text-lg">Join our vibrant marketplace community</p>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
+                {isVendorOnly ? "Vendor Registration" : "Create Account"}
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                {isVendorOnly
+                  ? "Become a vendor and expand your reach with Gujju ni Dukan"
+                  : "Join our vibrant marketplace community"}
+              </p>
             </motion.div>
 
             <motion.form
@@ -390,39 +403,6 @@ const SignupPage = () => {
               onSubmit={handleSubmit}
               className="space-y-6"
             >
-              {/* Role Selection */}
-              <motion.div variants={itemVariants} className="p-1.5 bg-muted/60 rounded-2xl border border-border flex gap-2 relative">
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, role: "buyer" }))}
-                  className={`relative z-10 flex-1 py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 transition-all duration-300 ${formData.role === "buyer"
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                    }`}
-                >
-                  <Users size={20} className={formData.role === "buyer" ? "text-accent" : ""} />
-                  <span>Buyer</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, role: "vendor" }))}
-                  className={`relative z-10 flex-1 py-4 px-6 rounded-xl font-bold flex items-center justify-center gap-3 transition-all duration-300 ${formData.role === "vendor"
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                    }`}
-                >
-                  <Store size={20} className={formData.role === "vendor" ? "text-accent" : ""} />
-                  <span>Vendor</span>
-                </button>
-                <motion.div
-                  className="absolute top-1.5 bottom-1.5 bg-card rounded-xl shadow-md border border-border"
-                  style={{ width: "calc(50% - 6px)" }}
-                  animate={{
-                    x: formData.role === "buyer" ? 0 : "calc(100% + 4px)",
-                  }}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              </motion.div>
 
               <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -791,7 +771,7 @@ const SignupPage = () => {
                     />
                   ) : (
                     <>
-                      Create Account
+                      {isVendorOnly ? "Register as Vendor" : "Create Account"}
                       <motion.div
                         initial={{ x: 0 }}
                         whileHover={{ x: 3 }}

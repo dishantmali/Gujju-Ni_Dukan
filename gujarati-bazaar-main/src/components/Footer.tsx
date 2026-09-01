@@ -22,8 +22,9 @@ export const Footer = () => (
         </ul>
       </div>
       <div>
-        <h4 className="font-display font-semibold mb-3">Help</h4>
+        <h4 className="font-display font-semibold mb-3">Help & Business</h4>
         <ul className="space-y-2 text-sm text-muted-foreground">
+          <li><Link to="/vendor/signup" className="underline-grow font-semibold text-primary">Become a Vendor</Link></li>
           <li><a href="#" className="underline-grow">Track Order</a></li>
           <li><a href="#" className="underline-grow">Returns</a></li>
           <li><a href="#" className="underline-grow">Shipping</a></li>

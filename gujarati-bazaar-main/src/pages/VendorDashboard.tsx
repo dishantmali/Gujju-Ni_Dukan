@@ -19,7 +19,8 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Ticket,
-  User
+  User,
+  Lock
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { IconPicker } from "@/components/IconPicker";
@@ -868,6 +869,47 @@ const VendorDashboard = () => {
     updateVendorProfileMutation.mutate(formData);
   };
 
+  const [vendorPasswordForm, setVendorPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  const [vendorPasswordLoading, setVendorPasswordLoading] = useState(false);
+
+  const handleVendorChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorPasswordForm.current_password) {
+      toast.error("Current password is required.");
+      return;
+    }
+    if (!vendorPasswordForm.new_password) {
+      toast.error("New password is required.");
+      return;
+    }
+    if (!vendorPasswordForm.confirm_password) {
+      toast.error("Confirm password is required.");
+      return;
+    }
+    if (vendorPasswordForm.new_password !== vendorPasswordForm.confirm_password) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setVendorPasswordLoading(true);
+      const res: any = await api.post('/change-password/', {
+        current_password: vendorPasswordForm.current_password,
+        new_password: vendorPasswordForm.new_password,
+      });
+      toast.success(res?.message || "Password changed successfully.");
+      setVendorPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to change password.");
+    } finally {
+      setVendorPasswordLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -889,6 +931,7 @@ const VendorDashboard = () => {
     { key: "request_offer", label: "Create Offer", icon: Clock, badge: null },
     { key: "coupons", label: "My Coupons", icon: Ticket, badge: null },
     { key: "profile", label: "Edit Profile", icon: User, badge: null },
+    { key: "change_password", label: "Change Password", icon: Lock, badge: null },
   ];
 
   if (productsLoading || categoriesLoading || ordersLoading || plansLoading) {
@@ -2345,7 +2388,19 @@ const VendorDashboard = () => {
                       <button
                         onClick={() => {
                           setEditingCoupon(null);
-                          setNewCoupon({ code: '', discount_type: 'rupee', discount_value: '', min_purchase_amount: '0', max_discount_cap: '', limit_per_user: '1', max_usages: '', start_datetime: '', end_datetime: '', products: [] });
+                          setNewCoupon({
+                            code: '',
+                            discount_type: 'rupee',
+                            discount_value: '',
+                            min_purchase_amount: '0',
+                            max_discount_cap: '',
+                            limit_per_user: '1',
+                            max_usages: '',
+                            start_datetime: '',
+                            end_datetime: '',
+                            products: [] as number[],
+                            is_lifetime: false,
+                          });
                           setIsCreateCouponModalOpen(true);
                         }}
                         className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-sm"
@@ -2724,6 +2779,73 @@ const VendorDashboard = () => {
                     </div>
                   </form>
                 )}
+              </motion.div>
+            )}
+
+            {/* Change Password Tab */}
+            {activeTab === "change_password" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                <div className="px-6 py-5 border-b border-border bg-background-warm flex justify-between items-center">
+                  <div>
+                    <h2 className="font-display text-xl font-bold text-foreground">Change Password</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Update your login credentials securely.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleVendorChangePassword} className="p-8 space-y-6 max-w-xl">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Current Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={vendorPasswordForm.current_password}
+                        onChange={(e) => setVendorPasswordForm({ ...vendorPasswordForm, current_password: e.target.value })}
+                        placeholder="Enter current password"
+                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors text-sm font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">New Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={vendorPasswordForm.new_password}
+                        onChange={(e) => setVendorPasswordForm({ ...vendorPasswordForm, new_password: e.target.value })}
+                        placeholder="Enter new password"
+                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors text-sm font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">Confirm New Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={vendorPasswordForm.confirm_password}
+                        onChange={(e) => setVendorPasswordForm({ ...vendorPasswordForm, confirm_password: e.target.value })}
+                        placeholder="Confirm new password"
+                        className="w-full p-3 bg-muted border border-border rounded-lg outline-none focus:border-accent transition-colors text-sm font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={vendorPasswordLoading}
+                      className="px-8 py-3 bg-primary text-primary-foreground rounded-full font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <Lock size={16} />
+                      {vendorPasswordLoading ? 'Updating...' : 'Change Password'}
+                    </button>
+                  </div>
+                </form>
               </motion.div>
             )}
           </main>

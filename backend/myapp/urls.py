@@ -67,6 +67,7 @@ urlpatterns = [
         TokenRefreshView.as_view(),
         name='token_refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/change-password/', ChangePasswordView.as_view(), name='auth_change_password'),
 
     # ---------------- PRODUCTS ---------------- #
     path('products/', ProductListView.as_view(), name='product_list'),

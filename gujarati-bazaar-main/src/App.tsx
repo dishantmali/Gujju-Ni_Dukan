@@ -69,6 +69,7 @@ const AnimatedRoutes = () => {
           <Route path="/order/:orderId/invoice" element={<RequireAuth><InvoicePage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/vendor/signup" element={<SignupPage isVendorOnly={true} />} />
           <Route path="/admin" element={<RequireRole role="admin"><AdminDashboardNew /></RequireRole>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

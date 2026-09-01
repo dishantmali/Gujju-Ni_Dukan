@@ -2152,14 +2152,21 @@ class ChangePasswordView(APIView):
         current_password = request.data.get('current_password')
         new_password = request.data.get('new_password')
 
+        if not current_password:
+            return Response({"error": "Current password is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_password:
+            return Response({"error": "New password is required."}, status=status.HTTP_400_BAD_REQUEST)
+
         if not user.check_password(current_password):
-            return Response({"error": "Wrong current password"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(new_password)
         user.save()
-        # Keep the user logged in after password change
-        update_session_auth_hash(request, user) 
-        return Response({"message": "Password updated successfully"})
+        try:
+            update_session_auth_hash(request, user)
+        except Exception:
+            pass
+        return Response({"message": "Password changed successfully."})
 
 # 3. Request OTP View
 class RequestContactOTPView(APIView):
