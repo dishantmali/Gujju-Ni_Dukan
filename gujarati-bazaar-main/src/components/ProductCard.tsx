@@ -61,13 +61,13 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.4, delay: Math.min(index * 0.04, 0.3), ease: [0.22, 1, 0.36, 1] }}
-      className="group/card relative"
+      className="group/card relative h-full"
     >
       <div
         ref={ref}
         onMouseMove={onMove}
         onMouseLeave={onLeave}
-        className="card-tilt relative rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl hover:shadow-accent/40 overflow-hidden hover:border-primary/30 transition-all duration-300"
+        className="card-tilt relative rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl hover:shadow-accent/40 overflow-hidden hover:border-primary/30 transition-all duration-300 flex flex-col h-full justify-between"
         style={{ transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
       >
         <Link to={`/product/${product.id}`} className="block p-1">
@@ -105,25 +105,31 @@ export const ProductCard = ({ product, index = 0 }: { product: Product; index?: 
             </button>
           </div>
         </Link>
-        <div className="p-3.5 card-tilt-inner">
-          <Link to={`/product/${product.id}`}>
-            <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.5rem] group-hover/card:text-brown-mid transition-colors">
-              {product.name}
-            </h3>
-          </Link>
-          <div className="mt-1 text-xs text-muted-foreground truncate">{product.vendor_shop || product.vendor_details?.name || vendor?.name}</div>
-          {product.reviewCount > 0 && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <StarRating value={product.rating} size={12} />
-              <span className="text-xs text-muted-foreground">{product.rating} ({product.reviewCount})</span>
+        <div className="p-3.5 card-tilt-inner flex flex-col flex-1 justify-between">
+          <div>
+            <Link to={`/product/${product.id}`}>
+              <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.5rem] group-hover/card:text-brown-mid transition-colors">
+                {product.name}
+              </h3>
+            </Link>
+            <div className="mt-1 text-xs text-muted-foreground truncate">{product.vendor_shop || product.vendor_details?.name || vendor?.name}</div>
+            <div className="mt-1.5 flex items-center gap-1.5 min-h-[1.25rem]">
+              {product.reviewCount > 0 ? (
+                <>
+                  <StarRating value={product.rating} size={12} />
+                  <span className="text-xs text-muted-foreground">{product.rating} ({product.reviewCount})</span>
+                </>
+              ) : (
+                <StarRating value={0} size={12} />
+              )}
             </div>
-          )}
-          {matchingCoupon && (
-            <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50 self-start">
-              🏷️ {matchingCoupon.code} ({matchingCoupon.discount_type === 'rupee' ? `₹${parseFloat(matchingCoupon.discount_value)}` : `${parseFloat(matchingCoupon.discount_value)}%`} Off)
-            </div>
-          )}
-          <div className="mt-2 flex items-center justify-between gap-2">
+            {matchingCoupon && (
+              <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50 self-start">
+                🏷️ {matchingCoupon.code} ({matchingCoupon.discount_type === 'rupee' ? `₹${parseFloat(matchingCoupon.discount_value)}` : `${parseFloat(matchingCoupon.discount_value)}%`} Off)
+              </div>
+            )}
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 pt-1">
             <PriceTag price={product.price} originalPrice={product.originalPrice} size="sm" />
             <button
               type="button"

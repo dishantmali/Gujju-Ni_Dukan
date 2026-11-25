@@ -25,9 +25,10 @@ export const Footer = () => (
         <h4 className="font-display font-semibold mb-3">Help & Business</h4>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li><Link to="/vendor/signup" className="underline-grow font-semibold text-primary">Become a Vendor</Link></li>
+          <li><Link to="/returns" className="underline-grow">Return Policy</Link></li>
+          <li><Link to="/privacy" className="underline-grow">Privacy Policy</Link></li>
+          <li><Link to="/terms" className="underline-grow">Terms & Conditions</Link></li>
           <li><a href="#" className="underline-grow">Track Order</a></li>
-          <li><a href="#" className="underline-grow">Returns</a></li>
-          <li><a href="#" className="underline-grow">Shipping</a></li>
           <li><a href="#" className="underline-grow">Contact</a></li>
         </ul>
       </div>

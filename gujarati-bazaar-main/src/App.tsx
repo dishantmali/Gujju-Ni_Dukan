@@ -21,6 +21,9 @@ const WishlistPage = lazy(() => import("./pages/WishlistPage.tsx"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage.tsx"));
 const VendorDashboard = lazy(() => import("./pages/VendorDashboard.tsx"));
 const AdminDashboardNew = lazy(() => import("./pages/AdminDashboardNew.tsx"));
+const ReturnPolicy = lazy(() => import("./pages/ReturnPolicy.tsx"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy.tsx"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -71,6 +74,12 @@ const AnimatedRoutes = () => {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/vendor/signup" element={<SignupPage isVendorOnly={true} />} />
           <Route path="/admin" element={<RequireRole role="admin"><AdminDashboardNew /></RequireRole>} />
+          <Route path="/return-policy" element={<ReturnPolicy />} />
+          <Route path="/returns" element={<ReturnPolicy />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
